@@ -4,6 +4,16 @@ HubOS 是一个面向多用户、多渠道接入的 AI 控制平台。当前仓�
 
 ## 快速部署到另一台 Mac
 
+### 部署前准备
+
+部署机器建议先确认这几项：
+
+- macOS 已登录当前用户桌面会话
+- 能访问 GitHub 私有仓库
+- 已安装或可安装 Homebrew
+- 网络可以下载 Python / npm 依赖
+- 计划开放端口 `8088`
+
 ### 私有仓库首次部署
 
 先登录 GitHub：
@@ -44,6 +54,13 @@ bash scripts/update_mac.sh
 ```bash
 cd HubOS
 bash scripts/stop_mac.sh
+```
+
+### 查看服务状态
+
+```bash
+cd HubOS
+bash scripts/status_mac.sh
 ```
 
 ## 当前仓库结构
