@@ -2,6 +2,35 @@
 
 HubOS 是一个面向多用户、多渠道接入的 AI 控制平台。当前仓库已经是**合并后的单仓结构**：前端 WebUI、FastAPI 应用、CLI、运行时逻辑、测试和文档都在同一个项目里维护。
 
+## 快速部署到另一台 Mac
+
+如果你已经有这个私有仓库的访问权限，另一台 Mac 上直接执行：
+
+```bash
+git clone https://github.com/allenzh0115/HubOS.git
+cd HubOS
+bash scripts/deploy_mac.sh
+```
+
+部署完成后访问：
+
+- `http://localhost:8088`
+- 或局域网：`http://你的Mac局域网IP:8088`
+
+后续升级：
+
+```bash
+cd HubOS
+bash scripts/update_mac.sh
+```
+
+停止服务：
+
+```bash
+cd HubOS
+bash scripts/stop_mac.sh
+```
+
 ## 当前仓库结构
 
 ```text
