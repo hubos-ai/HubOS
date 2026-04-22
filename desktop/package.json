@@ -1,0 +1,62 @@
+{
+  "name": "hubos-desktop",
+  "version": "0.1.0",
+  "description": "HubOS desktop shell — launches the local backend and wraps the web UI.",
+  "main": "main.js",
+  "author": "HubOS",
+  "private": true,
+  "scripts": {
+    "start": "unset ELECTRON_RUN_AS_NODE ELECTRON_NO_ASAR; electron .",
+    "start:plain": "electron .",
+    "dist:mac": "unset ELECTRON_RUN_AS_NODE; electron-builder --mac --arm64",
+    "dist:mac-x64": "unset ELECTRON_RUN_AS_NODE; electron-builder --mac --x64",
+    "dist:mac-universal": "unset ELECTRON_RUN_AS_NODE; electron-builder --mac --universal"
+  },
+  "build": {
+    "appId": "com.hubos.desktop",
+    "productName": "HubOS",
+    "copyright": "© HubOS",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "assets/icon.png",
+      "package.json",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.icns",
+      "target": [
+        { "target": "dmg", "arch": ["arm64"] },
+        { "target": "zip", "arch": ["arm64"] }
+      ],
+      "identity": null,
+      "gatekeeperAssess": false,
+      "hardenedRuntime": false,
+      "extendInfo": {
+        "CFBundleName": "HubOS",
+        "CFBundleDisplayName": "HubOS",
+        "CFBundleDevelopmentRegion": "en",
+        "NSHumanReadableCopyright": "© HubOS"
+      }
+    },
+    "dmg": {
+      "title": "HubOS ${version}",
+      "icon": "assets/icon.icns"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  }
+}

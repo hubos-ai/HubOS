@@ -1,0 +1,1181 @@
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  background: #f9f8f4;
+}
+
+.hubos-layout {
+  background: #f9f8f4;
+}
+
+/* ─── Dark mode global token overrides ─────────────────────────────────────── */
+html.dark-mode {
+  color-scheme: dark;
+}
+
+html.dark-mode body {
+  background: #141414;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Ant Design layout background in dark mode */
+html.dark-mode .ant-layout,
+html.dark-mode .hubos-layout {
+  background: #141414 !important;
+}
+
+html.dark-mode .ant-layout-content,
+html.dark-mode .hubos-layout-content {
+  background: #141414 !important;
+}
+
+/* Page content area background */
+html.dark-mode .page-content {
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Card components — @agentscope-ai/design uses hubos prefix */
+html.dark-mode .hubos-card,
+html.dark-mode .ant-card {
+  background: #1f1f1f !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-card-head,
+html.dark-mode .ant-card-head {
+  background: #1f1f1f !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-card-head-title,
+html.dark-mode .ant-card-head-title {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* @agentscope-ai/design Card custom title (sparkPrefix-title inside card-wrapper) */
+html.dark-mode .hubos-card-wrapper .hubos-title,
+html.dark-mode .hubos-spark-title {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-card-wrapper .hubos-info,
+html.dark-mode .hubos-spark-info {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+html.dark-mode .hubos-card-body,
+html.dark-mode .ant-card-body {
+  background: #1f1f1f !important;
+}
+
+/* Table components */
+html.dark-mode .hubos-table,
+html.dark-mode .ant-table {
+  background: #1f1f1f !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-table-wrapper,
+html.dark-mode .ant-table-wrapper {
+  background: #1f1f1f !important;
+}
+
+html.dark-mode .hubos-table-thead > tr > th,
+html.dark-mode .ant-table-thead > tr > th,
+html.dark-mode .hubos-table-thead > tr > td,
+html.dark-mode .ant-table-thead > tr > td {
+  background: #262626 !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.dark-mode .hubos-table-tbody > tr > td,
+html.dark-mode .ant-table-tbody > tr > td {
+  background: #1f1f1f !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+html.dark-mode .hubos-table-tbody > tr:hover > td,
+html.dark-mode .ant-table-tbody > tr:hover > td {
+  background: #2a2a2a !important;
+}
+
+html.dark-mode .hubos-table-tbody > tr.hubos-table-row-selected > td,
+html.dark-mode .ant-table-tbody > tr.ant-table-row-selected > td {
+  background: rgba(97, 92, 237, 0.12) !important;
+}
+
+/* Table fixed columns shadow in dark mode */
+html.dark-mode .hubos-table-cell-fix-right,
+html.dark-mode .ant-table-cell-fix-right {
+  background: #1f1f1f !important;
+}
+
+html.dark-mode .hubos-table-cell-fix-right-first::after,
+html.dark-mode .ant-table-cell-fix-right-first::after {
+  box-shadow: inset -10px 0 8px -8px rgba(0, 0, 0, 0.45) !important;
+}
+
+/* Table pagination */
+html.dark-mode .hubos-pagination .hubos-pagination-item,
+html.dark-mode .ant-pagination .ant-pagination-item {
+  background: #1f1f1f !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+html.dark-mode .hubos-pagination .hubos-pagination-item a,
+html.dark-mode .ant-pagination .ant-pagination-item a {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+html.dark-mode .hubos-pagination .hubos-pagination-item-active,
+html.dark-mode .ant-pagination .ant-pagination-item-active {
+  background: #ff7f16 !important;
+  border-color: #ff7f16 !important;
+}
+
+html.dark-mode .hubos-pagination .hubos-pagination-item-active a,
+html.dark-mode .ant-pagination .ant-pagination-item-active a {
+  color: #fff !important;
+}
+
+html.dark-mode .hubos-pagination .hubos-pagination-prev button,
+html.dark-mode .hubos-pagination .hubos-pagination-next button,
+html.dark-mode .ant-pagination .ant-pagination-prev button,
+html.dark-mode .ant-pagination .ant-pagination-next button {
+  background: #1f1f1f !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+/* Table sorter icons */
+html.dark-mode .hubos-table-column-sorter,
+html.dark-mode .ant-table-column-sorter {
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+
+html.dark-mode .hubos-table-column-sorter-up.active,
+html.dark-mode .hubos-table-column-sorter-down.active,
+html.dark-mode .ant-table-column-sorter-up.active,
+html.dark-mode .ant-table-column-sorter-down.active {
+  color: #ff7f16 !important;
+}
+
+/* Checkbox in table */
+html.dark-mode .hubos-checkbox-inner,
+html.dark-mode .ant-checkbox-inner {
+  background: #2a2a2a !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+html.dark-mode .hubos-checkbox-checked .hubos-checkbox-inner,
+html.dark-mode .ant-checkbox-checked .ant-checkbox-inner {
+  background: #ff7f16 !important;
+  border-color: #ff7f16 !important;
+}
+
+/* Page titles (h1) */
+html.dark-mode h1,
+html.dark-mode h2,
+html.dark-mode h3 {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Input / Textarea */
+html.dark-mode .hubos-input,
+html.dark-mode .ant-input {
+  background: #2a2a2a !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Disabled input */
+html.dark-mode .hubos-input[disabled],
+html.dark-mode .ant-input[disabled],
+html.dark-mode .hubos-input-disabled,
+html.dark-mode .ant-input-disabled {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.4) !important;
+  cursor: not-allowed;
+}
+
+/* Disabled InputNumber */
+html.dark-mode .hubos-input-number-disabled,
+html.dark-mode .ant-input-number-disabled,
+html.dark-mode .hubos-input-number-disabled .hubos-input-number-input,
+html.dark-mode .ant-input-number-disabled .ant-input-number-input {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+html.dark-mode .hubos-input::placeholder,
+html.dark-mode .ant-input::placeholder {
+  color: rgba(255, 255, 255, 0.25) !important;
+}
+
+html.dark-mode .hubos-input-affix-wrapper,
+html.dark-mode .ant-input-affix-wrapper {
+  background: #2a2a2a !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Select */
+html.dark-mode .hubos-select-selector,
+html.dark-mode .ant-select-selector {
+  background: #2a2a2a !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-select-selection-placeholder,
+html.dark-mode .ant-select-selection-placeholder {
+  color: rgba(255, 255, 255, 0.25) !important;
+}
+
+html.dark-mode .hubos-select-arrow,
+html.dark-mode .ant-select-arrow {
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Select dropdown */
+html.dark-mode .hubos-select-dropdown,
+html.dark-mode .ant-select-dropdown {
+  background: #1f1f1f !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+html.dark-mode .hubos-select-item,
+html.dark-mode .ant-select-item {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-select-item-option-active,
+html.dark-mode .ant-select-item-option-active {
+  background: rgba(97, 92, 237, 0.12) !important;
+}
+
+html.dark-mode .hubos-select-item-option-selected,
+html.dark-mode .ant-select-item-option-selected {
+  background: rgba(97, 92, 237, 0.2) !important;
+  color: #ff7f16 !important;
+}
+
+/* Form labels */
+html.dark-mode .hubos-form-item-label > label,
+html.dark-mode .ant-form-item-label > label {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+html.dark-mode .hubos-form-item-required::before,
+html.dark-mode .ant-form-item-required::before {
+  color: #ff4d4f !important;
+}
+
+/* InputNumber */
+html.dark-mode .hubos-input-number,
+html.dark-mode .ant-input-number {
+  background: #2a2a2a !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-input-number-input,
+html.dark-mode .ant-input-number-input {
+  background: #2a2a2a !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-input-number-handler-wrap,
+html.dark-mode .ant-input-number-handler-wrap {
+  background: #2a2a2a !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+html.dark-mode .hubos-input-number-handler,
+html.dark-mode .ant-input-number-handler {
+  color: rgba(255, 255, 255, 0.45) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* TimePicker */
+html.dark-mode .hubos-picker,
+html.dark-mode .ant-picker {
+  background: #2a2a2a !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-picker-input > input,
+html.dark-mode .ant-picker-input > input {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-picker-suffix,
+html.dark-mode .ant-picker-suffix {
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+
+html.dark-mode .hubos-picker-dropdown,
+html.dark-mode .ant-picker-dropdown {
+  background: #1f1f1f !important;
+}
+
+html.dark-mode .hubos-picker-panel,
+html.dark-mode .ant-picker-panel {
+  background: #1f1f1f !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+html.dark-mode .hubos-picker-time-panel-cell-inner,
+html.dark-mode .ant-picker-time-panel-cell-inner {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode
+  .hubos-picker-time-panel-cell-selected
+  .hubos-picker-time-panel-cell-inner,
+html.dark-mode
+  .ant-picker-time-panel-cell-selected
+  .ant-picker-time-panel-cell-inner {
+  background: rgba(97, 92, 237, 0.2) !important;
+  color: #ff7f16 !important;
+}
+
+/* DatePicker / RangePicker calendar panel */
+html.dark-mode .hubos-picker-dropdown,
+html.dark-mode .ant-picker-dropdown {
+  background: transparent !important;
+}
+
+html.dark-mode .hubos-picker-panel-container,
+html.dark-mode .ant-picker-panel-container {
+  background: #1f1f1f !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Header (month/year nav) */
+html.dark-mode .hubos-picker-header,
+html.dark-mode .ant-picker-header {
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-picker-header-view button,
+html.dark-mode .ant-picker-header-view button,
+html.dark-mode .hubos-picker-prev-icon,
+html.dark-mode .hubos-picker-next-icon,
+html.dark-mode .hubos-picker-super-prev-icon,
+html.dark-mode .hubos-picker-super-next-icon,
+html.dark-mode .ant-picker-prev-icon,
+html.dark-mode .ant-picker-next-icon,
+html.dark-mode .ant-picker-super-prev-icon,
+html.dark-mode .ant-picker-super-next-icon {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+html.dark-mode .hubos-picker-header button:hover,
+html.dark-mode .ant-picker-header button:hover {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Week day labels (Su Mo Tu ...) */
+html.dark-mode .hubos-picker-content th,
+html.dark-mode .ant-picker-content th {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+/* Normal date cells */
+html.dark-mode .hubos-picker-cell .hubos-picker-cell-inner,
+html.dark-mode .ant-picker-cell .ant-picker-cell-inner {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+html.dark-mode .hubos-picker-cell:hover .hubos-picker-cell-inner,
+html.dark-mode .ant-picker-cell:hover .ant-picker-cell-inner {
+  background: rgba(97, 92, 237, 0.2) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Outside-month cells */
+html.dark-mode .hubos-picker-cell-disabled .hubos-picker-cell-inner,
+html.dark-mode .ant-picker-cell-disabled .ant-picker-cell-inner,
+html.dark-mode .hubos-picker-cell-disabled,
+html.dark-mode .ant-picker-cell-disabled {
+  color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Today marker */
+html.dark-mode .hubos-picker-cell-today .hubos-picker-cell-inner::before,
+html.dark-mode .ant-picker-cell-today .ant-picker-cell-inner::before {
+  border-color: #ff7f16 !important;
+}
+
+/* Selected start/end cell */
+html.dark-mode .hubos-picker-cell-selected .hubos-picker-cell-inner,
+html.dark-mode .ant-picker-cell-selected .ant-picker-cell-inner,
+html.dark-mode .hubos-picker-cell-range-start .hubos-picker-cell-inner,
+html.dark-mode .ant-picker-cell-range-start .ant-picker-cell-inner,
+html.dark-mode .hubos-picker-cell-range-end .hubos-picker-cell-inner,
+html.dark-mode .ant-picker-cell-range-end .ant-picker-cell-inner {
+  background: #ff7f16 !important;
+  color: #fff !important;
+}
+
+/* Range in-between cells */
+html.dark-mode .hubos-picker-cell-in-range::before,
+html.dark-mode .ant-picker-cell-in-range::before {
+  background: rgba(97, 92, 237, 0.15) !important;
+}
+
+html.dark-mode .hubos-picker-cell-in-range .hubos-picker-cell-inner,
+html.dark-mode .ant-picker-cell-in-range .ant-picker-cell-inner {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Range hover preview */
+html.dark-mode .hubos-picker-cell-in-view.hubos-picker-cell-range-hover::before,
+html.dark-mode .ant-picker-cell-in-view.ant-picker-cell-range-hover::before,
+html.dark-mode
+  .hubos-picker-cell-in-view.hubos-picker-cell-range-hover-start::after,
+html.dark-mode
+  .ant-picker-cell-in-view.ant-picker-cell-range-hover-start::after,
+html.dark-mode
+  .hubos-picker-cell-in-view.hubos-picker-cell-range-hover-end::after,
+html.dark-mode .ant-picker-cell-in-view.ant-picker-cell-range-hover-end::after {
+  border-color: #ff7f16 !important;
+}
+
+/* Panel footer (OK button area) */
+html.dark-mode .hubos-picker-footer,
+html.dark-mode .ant-picker-footer {
+  border-top-color: rgba(255, 255, 255, 0.08) !important;
+  background: #1f1f1f !important;
+}
+
+html.dark-mode .hubos-picker-today-btn,
+html.dark-mode .ant-picker-today-btn {
+  color: #ff7f16 !important;
+}
+
+/* Divider between two panels in RangePicker */
+html.dark-mode .hubos-picker-panel + .hubos-picker-panel,
+html.dark-mode .ant-picker-panel + .ant-picker-panel {
+  border-left-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Modal */
+html.dark-mode .hubos-modal-content,
+html.dark-mode .ant-modal-content {
+  background: #1f1f1f !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+html.dark-mode .hubos-modal-header,
+html.dark-mode .ant-modal-header {
+  background: #1f1f1f !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.dark-mode .hubos-modal-title,
+html.dark-mode .ant-modal-title {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-modal-close,
+html.dark-mode .ant-modal-close {
+  color: rgba(255, 255, 255, 0.45) !important;
+}
+
+html.dark-mode .hubos-modal-close:hover,
+html.dark-mode .ant-modal-close:hover {
+  color: rgba(255, 255, 255, 0.85) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.dark-mode .hubos-modal-body,
+html.dark-mode .ant-modal-body {
+  background: #1f1f1f !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-modal-footer,
+html.dark-mode .ant-modal-footer {
+  background: #1f1f1f !important;
+  border-top-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Modal.confirm — confirm dialog dark mode */
+html.dark-mode .ant-modal-confirm-content,
+html.dark-mode .hubos-modal-confirm-content {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .ant-modal-confirm-title,
+html.dark-mode .hubos-modal-confirm-title {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .ant-modal-confirm-body,
+html.dark-mode .hubos-modal-confirm-body {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .ant-modal-confirm-paragraph,
+html.dark-mode .hubos-modal-confirm-paragraph {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Form labels inside modal */
+html.dark-mode .hubos-modal-body .hubos-form-item-label > label,
+html.dark-mode .hubos-modal-body .ant-form-item-label > label,
+html.dark-mode .ant-modal-body .ant-form-item-label > label {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+/* Extra description text inside modal */
+html.dark-mode .hubos-modal-body .hubos-form-item-extra,
+html.dark-mode .ant-modal-body .ant-form-item-extra {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+/* Drawer */
+html.dark-mode .hubos-drawer-content,
+html.dark-mode .ant-drawer-content {
+  background: #1f1f1f !important;
+}
+
+html.dark-mode .hubos-drawer-header,
+html.dark-mode .ant-drawer-header {
+  background: #1f1f1f !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.dark-mode .hubos-drawer-title,
+html.dark-mode .ant-drawer-title {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-drawer-close,
+html.dark-mode .ant-drawer-close {
+  color: rgba(255, 255, 255, 0.45) !important;
+}
+
+html.dark-mode .hubos-drawer-close:hover,
+html.dark-mode .ant-drawer-close:hover {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-drawer-body,
+html.dark-mode .ant-drawer-body {
+  background: #1f1f1f !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-drawer-footer,
+html.dark-mode .ant-drawer-footer {
+  background: #1f1f1f !important;
+  border-top-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Form labels inside drawer */
+html.dark-mode .hubos-drawer-body .hubos-form-item-label > label,
+html.dark-mode .hubos-drawer-body .ant-form-item-label > label,
+html.dark-mode .ant-drawer-body .ant-form-item-label > label {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+/* Tooltip info icon inside drawer (Form.Item tooltip only, not Alert icons) */
+html.dark-mode .hubos-drawer-body .hubos-form-item-label .anticon-info-circle,
+html.dark-mode .hubos-drawer-body .ant-form-item-label .anticon-info-circle,
+html.dark-mode .ant-drawer-body .ant-form-item-label .anticon-info-circle {
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Slider */
+html.dark-mode .hubos-slider-rail,
+html.dark-mode .ant-slider-rail {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+html.dark-mode .hubos-slider-track,
+html.dark-mode .ant-slider-track {
+  background-color: #ff7f16 !important;
+}
+
+html.dark-mode .hubos-slider-mark-text,
+html.dark-mode .ant-slider-mark-text {
+  color: #ff7f16 !important;
+}
+
+html.dark-mode .hubos-form-item-label > label .hubos-form-item-tooltip,
+html.dark-mode .ant-form-item-label > label .ant-form-item-tooltip {
+  color: rgba(255, 255, 255, 0.45) !important;
+}
+
+html.dark-mode .hubos-slider-handle::after,
+html.dark-mode .ant-slider-handle::after {
+  box-shadow: 0 0 0 2px #ff7f16 !important;
+  background-color: #1f1f1f !important;
+}
+
+html.dark-mode .hubos-slider-dot,
+html.dark-mode .ant-slider-dot {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  background-color: #2a2a2a !important;
+}
+
+/* Tooltip popup (slider value) */
+html.dark-mode .hubos-tooltip-inner,
+html.dark-mode .ant-tooltip-inner {
+  background-color: #2a2a2a !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode .hubos-tooltip-arrow::before,
+html.dark-mode .ant-tooltip-arrow::before {
+  background: #2a2a2a !important;
+}
+
+/* Tooltip global override — force opaque background in light mode */
+.hubos-tooltip-inner,
+.ant-tooltip-inner {
+  background-color: rgba(0, 0, 0, 0.75) !important;
+  color: #fff !important;
+}
+
+.hubos-tooltip-arrow::before,
+.ant-tooltip-arrow::before {
+  background: rgba(0, 0, 0, 0.75) !important;
+}
+
+/* Disabled chat input overlay in dark mode */
+html.dark-mode
+  [class*="chatDisabledOverlay"]
+  :global([class*="chat-anywhere-input"]),
+html.dark-mode [class*="chatDisabledOverlay"] :global([class*="chat-input"]),
+html.dark-mode [class*="chatDisabledOverlay"] :global(textarea),
+html.dark-mode [class*="chatDisabledOverlay"] :global(input[type="text"]) {
+  background-color: #2a2a2a !important;
+}
+
+/* Sender area dark mode */
+html.dark-mode [class*="hubos-sender-content"],
+html.dark-mode [class*="sender-content"] {
+  background: #2a2a2a !important;
+}
+
+/* Chat page bottom input area container */
+html.dark-mode .hubos-chat-anywhere-input,
+html.dark-mode [class*="chat-anywhere-input"],
+html.dark-mode [class*="hubos-chat-anywhere-default-footer"],
+html.dark-mode [class*="chat-anywhere-footer"] {
+  background: #141414 !important;
+}
+
+/* Chat input placeholder text in dark mode */
+html.dark-mode .hubos-sender textarea::placeholder,
+html.dark-mode .hubos-sender input::placeholder {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+/* Chat input text color */
+html.dark-mode .hubos-sender textarea,
+html.dark-mode .hubos-sender input {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Chat input action buttons (mic, attachment, send) */
+html.dark-mode .hubos-sender-actions button,
+html.dark-mode [class*="sender-actions"] button {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+html.dark-mode .hubos-sender-actions button:hover,
+html.dark-mode [class*="sender-actions"] button:hover {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Chat message bubble text in dark mode */
+html.dark-mode [class*="message-item"] [class*="content"],
+html.dark-mode [class*="chat-anywhere"] [class*="message"] p,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] li,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] h1,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] h2,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] h3,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] h4,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] h5,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] h6,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] span,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] blockquote,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] td,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] th {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark-mode [class*="chat-anywhere"] [class*="message"] strong,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] b {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+html.dark-mode [class*="chat-anywhere"] [class*="message"] code {
+  color: rgba(255, 255, 255, 0.85) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.dark-mode [class*="chat-anywhere"] [class*="message"] a {
+  color: #ff7f16 !important;
+}
+
+/* Markdown/code artifact cards inside chat messages */
+html.dark-mode .hubos-markdown .hubos-codeHighlighter,
+html.dark-mode .hubos-markdown .hubos-mermaid,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"],
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="mermaid"] {
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 14px !important;
+  background: #181818 !important;
+  overflow: hidden !important;
+}
+
+html.dark-mode .hubos-markdown .hubos-code-header,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="code-header"] {
+  background: #202020 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+html.dark-mode .hubos-markdown .hubos-code-header-lang,
+html.dark-mode .hubos-markdown .hubos-code-header-actions,
+html.dark-mode .hubos-markdown .hubos-code-header-download,
+html.dark-mode .hubos-markdown .hubos-code-header-icon,
+html.dark-mode .hubos-markdown .hubos-code-header-copied,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="code-header-lang"],
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="code-header-actions"],
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="code-header-download"],
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="code-header-icon"],
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="code-header-copied"] {
+  color: rgba(255, 255, 255, 0.78) !important;
+}
+
+html.dark-mode .hubos-markdown .hubos-codeHighlighter-code,
+html.dark-mode .hubos-markdown .hubos-mermaid-graph,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter-code"],
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="mermaid-graph"] {
+  background: #141414 !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+html.dark-mode .hubos-markdown .hubos-codeHighlighter-code *,
+html.dark-mode .hubos-markdown .hubos-mermaid-graph *,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter-code"] *,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="mermaid-graph"] * {
+  background: transparent !important;
+}
+
+html.dark-mode .hubos-markdown .hubos-codeHighlighter pre,
+html.dark-mode .hubos-markdown .hubos-codeHighlighter code,
+html.dark-mode .hubos-markdown .hubos-codeHighlighter textarea,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] pre,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] code,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] textarea {
+  background: #141414 !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+html.dark-mode .hubos-markdown .hubos-codeHighlighter pre,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] pre {
+  margin: 0 !important;
+  border-radius: 0 0 14px 14px !important;
+}
+
+html.dark-mode .hubos-markdown .hubos-codeHighlighter pre *,
+html.dark-mode .hubos-markdown .hubos-codeHighlighter code *,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] pre *,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] code * {
+  background: transparent !important;
+}
+
+html.dark-mode .hubos-markdown .hubos-codeHighlighter span,
+html.dark-mode .hubos-markdown .hubos-codeHighlighter div,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] span,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] div {
+  color: inherit !important;
+}
+
+/* @ant-design/x code panel internals */
+html.dark-mode .hubos-markdown [class*="antDesignX-module__panel__"],
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="antDesignX-module__panel__"] {
+  background: #181818 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02) !important;
+}
+
+html.dark-mode .hubos-markdown [class*="antDesignX-module__panelHeader__"],
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="antDesignX-module__panelHeader__"] {
+  background: #202020 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+html.dark-mode .hubos-markdown [class*="antDesignX-module__panelBody__"],
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="antDesignX-module__panelBody__"] {
+  background: #141414 !important;
+}
+
+html.dark-mode .hubos-markdown [class*="antDesignX-module__codeBlock__"],
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="antDesignX-module__codeBlock__"] {
+  background: #141414 !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+  margin: 0 !important;
+}
+
+html.dark-mode .hubos-markdown [class*="antDesignX-module__codeBlock__"] code,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="antDesignX-module__codeBlock__"] code {
+  display: block !important;
+  background: #141414 !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+html.dark-mode .hubos-markdown .hubos-code-header,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] .hubos-code-header {
+  background: transparent !important;
+  border-bottom: none !important;
+  padding: 0 12px !important;
+}
+
+html.dark-mode .hubos-markdown .hubos-code-header-lang:empty,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] .hubos-code-header-lang:empty {
+  display: none !important;
+}
+
+html.dark-mode .hubos-markdown .hubos-code-header:has(.hubos-code-header-lang:empty),
+html.dark-mode [class*="chat-anywhere"] [class*="message"] .hubos-code-header:has(.hubos-code-header-lang:empty) {
+  justify-content: flex-end !important;
+}
+
+/* Rich form-like content rendered inside chat messages */
+html.dark-mode [class*="chat-anywhere"] [class*="message"] fieldset,
+html.dark-mode [class*="chat-anywhere"] [class*="content"] fieldset,
+html.dark-mode .hubos-chat-anywhere fieldset {
+  background: #1a1a1a !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 16px !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+  box-shadow: none !important;
+}
+
+html.dark-mode [class*="chat-anywhere"] [class*="message"] legend,
+html.dark-mode [class*="chat-anywhere"] [class*="content"] legend,
+html.dark-mode .hubos-chat-anywhere legend {
+  color: rgba(255, 255, 255, 0.7) !important;
+  background: transparent !important;
+}
+
+html.dark-mode [class*="chat-anywhere"] [class*="message"] label,
+html.dark-mode [class*="chat-anywhere"] [class*="content"] label,
+html.dark-mode .hubos-chat-anywhere label {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+html.dark-mode [class*="chat-anywhere"] [class*="message"] input,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] textarea,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] select,
+html.dark-mode [class*="chat-anywhere"] [class*="content"] input,
+html.dark-mode [class*="chat-anywhere"] [class*="content"] textarea,
+html.dark-mode [class*="chat-anywhere"] [class*="content"] select,
+html.dark-mode .hubos-chat-anywhere input,
+html.dark-mode .hubos-chat-anywhere textarea,
+html.dark-mode .hubos-chat-anywhere select {
+  background: #111111 !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: none !important;
+}
+
+html.dark-mode [class*="chat-anywhere"] [class*="message"] input::placeholder,
+html.dark-mode [class*="chat-anywhere"] [class*="message"] textarea::placeholder,
+html.dark-mode [class*="chat-anywhere"] [class*="content"] input::placeholder,
+html.dark-mode [class*="chat-anywhere"] [class*="content"] textarea::placeholder,
+html.dark-mode .hubos-chat-anywhere input::placeholder,
+html.dark-mode .hubos-chat-anywhere textarea::placeholder {
+  color: rgba(255, 255, 255, 0.42) !important;
+}
+
+html.dark-mode [class*="chat-anywhere"] [class*="message"] textarea,
+html.dark-mode [class*="chat-anywhere"] [class*="content"] textarea,
+html.dark-mode .hubos-chat-anywhere textarea {
+  caret-color: rgba(255, 255, 255, 0.88) !important;
+}
+
+html.dark-mode [class*="chat-anywhere"] [class*="message"] select option,
+html.dark-mode [class*="chat-anywhere"] [class*="content"] select option,
+html.dark-mode .hubos-chat-anywhere select option {
+  background: #111111 !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+html.dark-mode [class*="chat-anywhere"] [class*="message"] hr,
+html.dark-mode [class*="chat-anywhere"] [class*="content"] hr,
+html.dark-mode .hubos-chat-anywhere hr {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+.ant-layout {
+  min-height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  background: #f9f8f4;
+}
+
+.ant-layout-content {
+  overflow: hidden;
+  background: #f9f8f4;
+}
+
+.hubos-bubble-list-wrapper {
+  background: #fff !important;
+}
+
+.hubos-chat-anywhere-input {
+  background: #fff !important;
+}
+
+.hubos-chat-anywhere-message-list-welcome {
+  background: #fff !important;
+}
+
+/* Chat bubble list max-width override */
+.hubos-chat-anywhere-message-list .hubos-bubble-list {
+  max-width: 960px !important;
+}
+
+/* Chat page background in dark mode */
+html.dark-mode .hubos-chat-anywhere,
+html.dark-mode .hubos-chat-anywhere-message-list,
+html.dark-mode .hubos-bubble-list-wrapper {
+  background: #141414 !important;
+}
+
+/* Chat welcome message in dark mode */
+html.dark-mode .hubos-chat-anywhere-welcome-default {
+  background: #141414 !important;
+}
+
+/* Chat input area in dark mode */
+html.dark-mode .hubos-sender,
+html.dark-mode .hubos-sender-content {
+  background: #2a2a2a !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Menu background in light mode */
+.hubos-menu,
+.ant-menu {
+  background: #f9f8f4 !important;
+}
+
+/* Menu selected item in light mode */
+.hubos-menu-item-selected,
+.ant-menu-item-selected {
+  background: rgba(43, 18, 0, 0.08) !important;
+  color: inherit !important;
+}
+
+/* Hide submenu arrow in light mode */
+.hubos-menu-submenu-arrow,
+.ant-menu-submenu-arrow {
+  display: none !important;
+}
+
+/* Group title (一级菜单) in light mode */
+.hubos-menu-submenu-title,
+.ant-menu-submenu-title {
+  font-family: "PingFang SC", sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 32px !important;
+  letter-spacing: normal !important;
+  color: rgba(26, 23, 22, 0.25) !important;
+}
+
+/* Remove submenu indent - align with parent in light mode */
+.hubos-menu-submenu .hubos-menu-item,
+.ant-menu-submenu .ant-menu-item {
+  padding-left: 12px !important;
+}
+
+/* Selected submenu item - keep text color unchanged in light mode */
+.hubos-menu-submenu .hubos-menu-item-selected,
+.ant-menu-submenu .ant-menu-item-selected {
+  color: inherit !important;
+}
+
+.page-container {
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 8px;
+  padding-right: 8px;
+}
+
+.page-header {
+  flex: 0 0 auto;
+}
+
+.page-content {
+  flex: 1 1 auto;
+  overflow: auto;
+  background-color: #fff;
+  border-radius: 8px;
+  /* 8px */
+  box-sizing: border-box;
+  border: 1px solid #eae9e7;
+  /* #EAE9E7 */
+}
+
+.table-container {
+  height: 100%;
+  overflow: hidden;
+}
+
+.table-wrapper {
+  height: 100%;
+  overflow: auto;
+}
+
+/* .ant-card {
+  height: 100%;
+} */
+
+.ant-card-body {
+  height: 100%;
+  padding: 0;
+}
+
+/* Welcome avatar: full tall SVG. Class is HubOS-avatar (no "ant"). */
+[class*="chat-anywhere-welcome-default"] [class*="-avatar"],
+[class*="message-list-welcome"] [class*="welcome-default"] [class*="-avatar"] {
+  width: 36px !important;
+  height: 48px !important;
+  min-width: 36px !important;
+  min-height: 48px !important;
+  overflow: visible !important;
+}
+
+[class*="chat-anywhere-welcome-default"] [class*="-avatar"] > img,
+[class*="message-list-welcome"] [class*="-avatar"] > img {
+  object-fit: contain !important;
+  object-position: center;
+}
+
+/* Move rightHeader to the leftmost position of the right header area (HubOS chat) */
+[class*="chat-anywhere-default-header-right"],
+[class*="default-header-right"],
+[class*="hubos-chat-anywhere-default-header-right"],
+.hubos-chat-anywhere-default-header-right {
+  display: flex !important;
+  margin: 0 auto 0 0 !important;
+  justify-content: flex-start !important;
+}
+
+[class*="chat-anywhere-default-header-right"] > *,
+[class*="default-header-right"] > * {
+  margin-right: auto !important;
+  margin-left: 0 !important;
+}
+
+/* ─── Global disabled button styles ────────────────────────────────────────── */
+/* Primary button disabled state - must show border and gray background */
+.ant-btn-primary:disabled,
+.ant-btn-primary[disabled],
+.ant-btn-primary.ant-btn-disabled,
+.hubos-btn-primary:disabled,
+.hubos-btn-primary[disabled],
+.hubos-btn-primary.hubos-btn-disabled {
+  background-color: #f5f5f5 !important;
+  background: #f5f5f5 !important;
+  color: rgba(0, 0, 0, 0.25) !important;
+  border: 1px solid #d9d9d9 !important;
+  box-shadow: none !important;
+}
+
+/* Dark mode - disabled primary button */
+html.dark-mode .ant-btn-primary:disabled,
+html.dark-mode .ant-btn-primary[disabled],
+html.dark-mode .ant-btn-primary.ant-btn-disabled,
+html.dark-mode .hubos-btn-primary:disabled,
+html.dark-mode .hubos-btn-primary[disabled],
+html.dark-mode .hubos-btn-primary.hubos-btn-disabled {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: none !important;
+}
+
+/* Dark mode - default button */
+html.dark-mode .ant-btn-default,
+html.dark-mode .hubos-btn-default {
+  color: rgba(255, 235, 218, 0.88) !important;
+  background-color: #000000 !important;
+  border: 1px solid #3a312a !important;
+}
+
+/* Dark mode - danger button */
+html.dark-mode .ant-btn-dangerous,
+html.dark-mode .hubos-btn-dangerous,
+html.dark-mode .ant-btn-danger,
+html.dark-mode .hubos-btn-danger {
+  background: rgba(129, 46, 46, 0.25) !important;
+  color: #ff4d4f !important;
+}
+
+/* Dark mode - danger button disabled state */
+html.dark-mode .ant-btn-dangerous:disabled,
+html.dark-mode .ant-btn-dangerous[disabled],
+html.dark-mode .ant-btn-dangerous.ant-btn-disabled,
+html.dark-mode .hubos-btn-dangerous:disabled,
+html.dark-mode .hubos-btn-dangerous[disabled],
+html.dark-mode .hubos-btn-dangerous.hubos-btn-disabled,
+html.dark-mode .ant-btn-danger:disabled,
+html.dark-mode .ant-btn-danger[disabled],
+html.dark-mode .ant-btn-danger.ant-btn-disabled,
+html.dark-mode .hubos-btn-danger:disabled,
+html.dark-mode .hubos-btn-danger[disabled],
+html.dark-mode .hubos-btn-danger.hubos-btn-disabled {
+  background: rgba(129, 46, 46, 0.32) !important;
+  color: rgba(165, 50, 48, 0.8) !important;
+}
+
+html.dark-mode .hubos-empty-image,
+html.dark-mode .ant-empty-image {
+  opacity: 0.2;
+}
+
+html.dark-mode .hubos-empty-description,
+html.dark-mode .ant-empty-description {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+html.dark-mode .hubos-input-prefix {
+  color: rgba(255, 255, 255, 0.85) !important;
+}

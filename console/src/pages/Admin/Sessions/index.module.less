@@ -1,0 +1,198 @@
+.container {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+
+  :global(.ant-input),
+  :global(.ant-select),
+  :global(.ant-picker) {
+    min-width: 160px;
+  }
+}
+
+.tableCard {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+
+  :global(.ant-card-body) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 12px;
+  }
+}
+
+// Session ID column renders a plain <code class="sessionId">. We own the
+// background / color explicitly so both themes stay readable regardless of
+// which parent (table cell / drawer title / banner) it is mounted under.
+.sessionId {
+  display: inline-block;
+  margin: 0 0.2em;
+  padding: 0.1em 0.4em;
+  font-size: 85%;
+  font-family:
+    "SF Mono", "Menlo", "Monaco", "Consolas", "Liberation Mono",
+    "Courier New", monospace;
+  background: rgba(150, 150, 150, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+  color: rgba(0, 0, 0, 0.88);
+  white-space: nowrap;
+}
+
+.drawerHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metadataGrid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 16px;
+  row-gap: 6px;
+  font-size: 13px;
+
+  dt {
+    color: rgba(0, 0, 0, 0.45);
+    font-weight: 500;
+  }
+
+  dd {
+    margin: 0;
+    word-break: break-all;
+    color: rgba(0, 0, 0, 0.88);
+  }
+}
+
+.messageList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100vh - 280px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.messageItem {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.02);
+  color: rgba(0, 0, 0, 0.88);
+
+  .role {
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba(0, 0, 0, 0.55);
+  }
+
+  .timestamp {
+    font-size: 11px;
+    color: rgba(0, 0, 0, 0.45);
+    float: right;
+  }
+
+  .body {
+    margin-top: 6px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  &.user {
+    background: rgba(22, 119, 255, 0.08);
+    border-color: rgba(22, 119, 255, 0.2);
+  }
+
+  &.assistant {
+    background: rgba(82, 196, 26, 0.08);
+    border-color: rgba(82, 196, 26, 0.2);
+  }
+}
+
+.forbiddenBanner,
+.errorBanner {
+  padding: 32px 24px;
+  text-align: center;
+  border-radius: 8px;
+  max-width: 520px;
+  margin: 64px auto;
+}
+
+.forbiddenBanner {
+  background: rgba(250, 173, 20, 0.1);
+  border: 1px solid rgba(250, 173, 20, 0.25);
+}
+
+.errorBanner {
+  background: rgba(255, 77, 79, 0.1);
+  border: 1px solid rgba(255, 77, 79, 0.25);
+}
+
+/* ─── Dark mode ──────────────────────────────────────────────────────────── */
+:global(.dark-mode) {
+  .metadataGrid {
+    dt {
+      color: rgba(255, 255, 255, 0.55);
+    }
+    dd {
+      color: rgba(255, 255, 255, 0.88);
+    }
+  }
+
+  .messageItem {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.88);
+
+    .role {
+      color: rgba(255, 255, 255, 0.65);
+    }
+
+    .timestamp {
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    &.user {
+      background: rgba(64, 150, 255, 0.16);
+      border-color: rgba(64, 150, 255, 0.3);
+    }
+
+    &.assistant {
+      background: rgba(115, 209, 61, 0.14);
+      border-color: rgba(115, 209, 61, 0.28);
+    }
+  }
+
+  .forbiddenBanner {
+    background: rgba(250, 173, 20, 0.14);
+    border-color: rgba(250, 173, 20, 0.32);
+  }
+
+  .errorBanner {
+    background: rgba(255, 77, 79, 0.16);
+    border-color: rgba(255, 77, 79, 0.35);
+  }
+
+  .sessionId {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.88);
+  }
+}

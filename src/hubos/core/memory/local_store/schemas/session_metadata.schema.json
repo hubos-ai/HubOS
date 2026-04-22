@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HubOS Memory Session Metadata",
+  "version": "1.0",
+  "type": "object",
+  "required": ["version", "session_id", "channel", "agent_id", "started_at"],
+  "properties": {
+    "version": {"type": "string", "const": "1.0"},
+    "session_id": {"type": "string", "pattern": "^sess[-_]"},
+    "channel": {"type": "string"},
+    "agent_id": {"type": "string"},
+    "model": {"type": "string"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "ended_at": {"type": "string", "format": "date-time"},
+    "end_reason": {"type": "string"},
+    "message_count": {"type": "integer"},
+    "tool_call_count": {"type": "integer"},
+    "input_tokens": {"type": "integer"},
+    "output_tokens": {"type": "integer"},
+    "cache_read_tokens": {"type": "integer"},
+    "title": {"type": "string"},
+    "tags": {"type": "array", "items": {"type": "string"}},
+    "participants": {"type": "array", "items": {"type": "string"}},
+    "parent_session_id": {"type": ["string", "null"]},
+    "compaction_count": {"type": "integer"},
+    "user_id": {"type": "string"},
+    "tenant_id": {"type": "string"}
+  }
+}

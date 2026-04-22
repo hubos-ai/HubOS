@@ -1,0 +1,22 @@
+version: '3.8'
+
+volumes:
+  hubos-data:
+    name: hubos-data
+  hubos-secrets:
+    name: hubos-secrets
+
+services:
+  hubos:
+    image: agentscope/hubos:latest
+    container_name: hubos
+    restart: always
+    ports:
+      - "127.0.0.1:8088:8088"
+    # environment:
+    #   - HUBOS_AUTH_ENABLED=true
+    #   - HUBOS_AUTH_USERNAME=admin
+    #   - HUBOS_AUTH_PASSWORD=yourpassword
+    volumes:
+      - hubos-data:/app/working
+      - hubos-secrets:/app/working.secret

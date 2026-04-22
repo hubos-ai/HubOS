@@ -1,0 +1,292 @@
+.workExperiencePage {
+  height: 100%;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+.pageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #eae9e7;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pageTitle {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.headerRight {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Stats bar */
+.statsBar {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 16px 24px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.statCard {
+  flex: 1 1 120px;
+  min-width: 100px;
+}
+
+.statValue {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1a1a1a;
+  line-height: 1.2;
+}
+
+.statLabel {
+  font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+}
+
+/* Filters */
+.filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 16px 24px;
+  flex-wrap: wrap;
+}
+
+.filterGroup {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.filterLabel {
+  font-size: 13px;
+  color: #666;
+}
+
+/* Table */
+.tableCard {
+  margin: 0 24px 24px;
+}
+
+.drawerSection {
+  margin-bottom: 20px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.drawerSectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.drawerField {
+  margin-bottom: 12px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.drawerFieldLabel {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 2px;
+}
+
+.drawerFieldValue {
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+.tagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.actionTag {
+  margin-right: 4px;
+  margin-bottom: 4px;
+}
+
+.keywordTag {
+  margin-right: 4px;
+  margin-bottom: 4px;
+}
+
+.qualityBreakdown {
+  background: #f9f8f4;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 13px;
+}
+
+.qualityRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  color: #555;
+
+  &:last-child {
+    padding-bottom: 0;
+  }
+}
+
+.qualityTotal {
+  font-weight: 600;
+  color: #1a1a1a;
+  border-top: 1px solid #e0dcc8;
+  margin-top: 6px;
+  padding-top: 6px;
+}
+
+.duplicateCard {
+  padding: 10px 12px;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+
+  &:hover {
+    border-color: #9254de;
+  }
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.duplicateTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1a1a1a;
+}
+
+.duplicateMeta {
+  font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+}
+
+/* Status badge colors */
+.statusCandidate {
+  background: #fff7e6;
+  color: #ad6800;
+  border-color: #ffd591;
+}
+
+.statusApproved {
+  background: #f6ffed;
+  color: #389e0d;
+  border-color: #b7eb8f;
+}
+
+.statusRejected {
+  background: #fff1f0;
+  color: #cf1322;
+  border-color: #ffccc7;
+}
+
+.statusArchived {
+  background: #f5f5f5;
+  color: #666;
+  border-color: #d9d9d9;
+}
+
+/* Dark mode */
+:global(.dark-mode) {
+  .pageHeader {
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .pageTitle {
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .statValue {
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .statLabel {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .statsBar {
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .filterLabel {
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  .drawerSectionTitle {
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  .drawerFieldLabel {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .drawerFieldValue {
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  .qualityBreakdown {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .qualityRow {
+    color: rgba(255, 255, 255, 0.55);
+  }
+
+  .qualityTotal {
+    color: rgba(255, 255, 255, 0.85);
+    border-top-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .duplicateCard {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .duplicateCard:hover {
+    border-color: #9254de;
+  }
+
+  .duplicateTitle {
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .duplicateMeta {
+    color: rgba(255, 255, 255, 0.35);
+  }
+}

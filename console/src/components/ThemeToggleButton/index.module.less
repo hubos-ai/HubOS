@@ -1,0 +1,78 @@
+/* ---- Theme toggle button ---- */
+.toggleBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+  color: rgba(0, 0, 0, 0.65);
+  padding: 0;
+  flex-shrink: 0;
+
+  &:hover {
+    background: rgba(97, 92, 237, 0.08);
+    color: #ff7f16;
+  }
+}
+
+/* ---- Theme Dropdown ---- */
+.themeDropdown {
+  :global {
+    .hubos-dropdown-menu-item,
+    .ant-dropdown-menu-item {
+      color: rgba(26, 23, 22, 0.65);
+
+      &:hover {
+        background: rgba(43, 18, 0, 0.06) !important;
+      }
+    }
+
+    .hubos-dropdown-menu-item-selected,
+    .ant-dropdown-menu-item-selected {
+      background: rgba(43, 18, 0, 0.03) !important;
+      color: rgba(26, 23, 22, 0.88) !important;
+    }
+  }
+}
+
+/* Dark mode overrides */
+:global(.dark-mode) {
+  .toggleBtn {
+    color: rgba(255, 255, 255, 0.65);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+  }
+
+  .themeDropdown {
+    :global {
+      .hubos-dropdown-menu,
+      .ant-dropdown-menu {
+        background: #2a2a2a !important;
+      }
+
+      .hubos-dropdown-menu-item,
+      .ant-dropdown-menu-item {
+        color: rgba(255, 255, 255, 0.65);
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.08) !important;
+        }
+      }
+
+      .hubos-dropdown-menu-item-selected,
+      .ant-dropdown-menu-item-selected {
+        background: rgba(255, 255, 255, 0.06) !important;
+        color: rgba(255, 255, 255, 0.88) !important;
+      }
+    }
+  }
+}
