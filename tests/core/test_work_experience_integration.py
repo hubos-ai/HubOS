@@ -196,16 +196,18 @@ class TestWorkExperienceInterceptorUnit:
             )
 
             interceptor = get_work_experience_interceptor()
+            interceptor._store = store
+            interceptor._retriever = WorkExperienceRetriever(store=store, max_results=5)
             result = interceptor.pre_execute(task)
 
             assert result == []
             assert task.work_experience_cards == []
 
-    def test_chat_turn_persists_candidate_card_when_flag_on(
+    def test_chat_turn_skips_non_actionable_reply_when_flag_on(
         self,
         tmp_path: Path,
     ) -> None:
-        """Real chat path: completed reply creates a candidate experience card."""
+        """Real chat path: ordinary Q&A replies should not create low-quality cards."""
         with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_LAYER": "true"}):
             from hubos.core.infra.feature_flags import reload_feature_flags
             reload_feature_flags()
@@ -225,13 +227,52 @@ class TestWorkExperienceInterceptorUnit:
                 execution_time_ms=1200,
             )
 
+            assert result is None
+
+            cards = interceptor._store.list_all(include_disabled=True)
+            assert cards == []
+
+    def test_chat_turn_persists_structured_lesson_card_when_flag_on(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Real chat path: actionable lessons create a structured experience card."""
+        with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_LAYER": "true"}):
+            from hubos.core.infra.feature_flags import reload_feature_flags
+            reload_feature_flags()
+
+            import hubos.core.work_experience.integration as integ_mod
+            integ_mod._interceptor = None
+
+            interceptor = get_work_experience_interceptor()
+            interceptor._store = LocalWorkExperienceStore(root=tmp_path / "we")
+
+            result = interceptor.post_chat_turn(
+                session_id="chat-session-lesson",
+                user_input="巴西采购经验总结",
+                assistant_response=(
+                    "✅ Compras API 查询合同必须设置 tamanhoPagina 在 10-500 之间\n"
+                    "⚠️ FNDE 是 Plone SPA，webReader 抓不到时要用真实浏览器。\n"
+                    "不要直接用 curl 抓 FNDE 页面。\n"
+                    "使用 browser_use 验证 cookie 墙。"
+                ),
+                channel="console",
+                agent_id="default",
+                execution_time_ms=1200,
+            )
+
             assert result is not None
 
             cards = interceptor._store.list_all(include_disabled=True)
             assert len(cards) == 1
             assert cards[0].status == WorkExperienceStatus.CANDIDATE
-            assert cards[0].source_session_id == "chat-session-1"
-            assert "github" in " ".join(cards[0].trigger_keywords).lower()
+            assert cards[0].scope == WorkExperienceScope.USER
+            assert cards[0].source_session_id == "chat-session-lesson"
+            assert cards[0].what_worked == [
+                "Compras API 查询合同必须设置 tamanhoPagina 在 10-500 之间"
+            ]
+            assert "FNDE 是 Plone SPA" in " ".join(cards[0].what_failed)
+            assert cards[0].recommended_tool_order == ["browser_use", "webReader"]
 
     def test_chat_turn_skips_when_flag_off(self, tmp_path: Path) -> None:
         """Flag OFF: chat turn should not persist cards."""
@@ -563,7 +604,7 @@ class TestChatTurnUpdateInsteadOfCreate:
             result1 = interceptor.post_chat_turn(
                 session_id="chat-session-update",
                 user_input=query1,
-                assistant_response="第一步：在服务器安装 HubOS...",
+                assistant_response="✅ 局域网部署必须先在服务器安装 HubOS。",
                 channel="console",
                 agent_id="default",
                 execution_time_ms=1500,
@@ -578,7 +619,7 @@ class TestChatTurnUpdateInsteadOfCreate:
             result2 = interceptor.post_chat_turn(
                 session_id="chat-session-update",
                 user_input=query2,
-                assistant_response="第二步：配置网络访问...",
+                assistant_response="✅ 局域网部署必须配置网络访问和端口。",
                 channel="console",
                 agent_id="default",
                 execution_time_ms=2000,
@@ -619,7 +660,7 @@ class TestChatTurnUpdateInsteadOfCreate:
             interceptor.post_chat_turn(
                 session_id="chat-session-maturity",
                 user_input=query1,
-                assistant_response="第一步：安装...",
+                assistant_response="✅ 局域网部署必须先安装 HubOS。",
                 channel="console",
                 agent_id="default",
                 execution_time_ms=1500,
@@ -631,7 +672,7 @@ class TestChatTurnUpdateInsteadOfCreate:
             interceptor.post_chat_turn(
                 session_id="chat-session-maturity",
                 user_input=query2,
-                assistant_response="第二步：配置...",
+                assistant_response="✅ 局域网部署必须配置网络访问。",
                 channel="console",
                 agent_id="default",
                 execution_time_ms=2000,
@@ -675,7 +716,7 @@ class TestChatTurnUpdateInsteadOfCreate:
                 interceptor.post_chat_turn(
                     session_id="chat-session-level",
                     user_input=query,
-                    assistant_response=f"第{i+1}步完成...",
+                    assistant_response=f"✅ 局域网部署第{i+1}步必须完成网络配置。",
                     channel="console",
                     agent_id="default",
                     execution_time_ms=1500,
@@ -712,7 +753,7 @@ class TestChatTurnUpdateInsteadOfCreate:
             interceptor.post_chat_turn(
                 session_id="chat-session-sep",
                 user_input="如何让别的局域网电脑使用你",
-                assistant_response="关于局域网的回复...",
+                assistant_response="✅ 局域网部署必须开放服务端口。",
                 channel="console",
                 agent_id="default",
                 execution_time_ms=1500,
@@ -721,7 +762,7 @@ class TestChatTurnUpdateInsteadOfCreate:
             interceptor.post_chat_turn(
                 session_id="chat-session-sep",
                 user_input="明天北京的天气怎么样",
-                assistant_response="北京天气晴朗...",
+                assistant_response="✅ 查询天气必须使用实时天气工具，避免凭记忆回答。",
                 channel="console",
                 agent_id="default",
                 execution_time_ms=1500,
@@ -755,7 +796,7 @@ class TestChatTurnUpdateInsteadOfCreate:
             interceptor.post_chat_turn(
                 session_id="chat-session-worked",
                 user_input="思考一下如何让别的局域网电脑使用你",
-                assistant_response="第一步：安装...",
+                assistant_response="✅ 局域网部署必须先安装 HubOS。",
                 channel="console",
                 agent_id="default",
                 execution_time_ms=1500,
@@ -767,7 +808,7 @@ class TestChatTurnUpdateInsteadOfCreate:
             interceptor.post_chat_turn(
                 session_id="chat-session-worked",
                 user_input="思考一下如何让别的电脑安装你",
-                assistant_response="第二步：配置...",
+                assistant_response="✅ 局域网部署必须配置网络访问。",
                 channel="console",
                 agent_id="default",
                 execution_time_ms=2000,
@@ -800,11 +841,10 @@ class TestChatTurnUpdateInsteadOfCreate:
             interceptor._service = service
             interceptor._retriever = WorkExperienceRetriever(store=store, max_results=5)
 
-            # This triggers _enrich_chat_reflection_report which sets generic phrases
             result = interceptor.post_chat_turn(
                 session_id="chat-compress-new",
                 user_input="思考一下如何让别的局域网电脑使用你",
-                assistant_response="第一步：安装HubOS...",
+                assistant_response="✅ 局域网部署必须先安装 HubOS。",
                 channel="console",
                 agent_id="default",
                 execution_time_ms=1500,
@@ -874,4 +914,3 @@ class TestChatTurnUpdateInsteadOfCreate:
             # what_worked should still be filtered (compression applied)
             assert card.title != ""
             assert len(card.what_worked) <= 5
-

@@ -8,6 +8,7 @@ import logging
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 from agentscope.message import Msg, TextBlock
 from agentscope.pipeline import stream_printing_messages
@@ -57,6 +58,46 @@ def _is_approval(text: str) -> bool:
     """
     normalized = " ".join(text.split()).lower()
     return normalized in _APPROVE_EXACT
+
+
+def _build_chat_work_experience_task(
+    *,
+    query: str,
+    session_id: str,
+    channel: str,
+) -> Any:
+    """Build a lightweight Task so chat turns can reuse WE retrieval."""
+    from ...core.execution.task_store import Task
+
+    return Task(
+        task_id=f"chat-turn-{uuid4()}",
+        trace_id=f"chat-trace-{uuid4()}",
+        input_text=query or "",
+        session_id=session_id or "",
+        channel=channel or DEFAULT_CHANNEL,
+        requested_workflow="desktop_chat",
+    )
+
+
+def _build_chat_work_guidance(cards: list[dict[str, Any]]) -> str:
+    """Build prompt guidance for desktop chat when injection is enabled."""
+    if not cards:
+        return ""
+
+    from ...core.infra.feature_flags import get_feature_flags
+
+    flags = get_feature_flags()
+    if (
+        not flags.enable_work_experience_layer
+        or not flags.enable_work_experience_prompt_injection
+    ):
+        return ""
+
+    from ...core.work_experience.prompt_injector import (
+        build_experience_injection,
+    )
+
+    return build_experience_injection(cards)
 
 
 class AgentRunner(Runner):
@@ -254,6 +295,8 @@ class AgentRunner(Runner):
         session_state_loaded = False
         chat_turn_started_at = time.time()
         final_response_text = ""
+        work_experience_cards: list[dict[str, Any]] = []
+        work_experience_injected = False
         try:
             session_id = request.session_id
             user_id = request.user_id
@@ -285,6 +328,43 @@ class AgentRunner(Runner):
                 ),
             )
 
+            try:
+                from ...core.work_experience.integration import (
+                    get_work_experience_interceptor,
+                )
+
+                interceptor = get_work_experience_interceptor()
+                experience_task = _build_chat_work_experience_task(
+                    query=query or "",
+                    session_id=session_id,
+                    channel=channel,
+                )
+                work_experience_cards = interceptor.pre_execute(experience_task)
+                work_guidance = _build_chat_work_guidance(
+                    work_experience_cards,
+                )
+                if work_guidance:
+                    env_context = f"{env_context}{work_guidance}"
+                    work_experience_injected = True
+                    logger.info(
+                        "WorkExperience guidance injected into chat turn",
+                        extra={
+                            "session_id": session_id,
+                            "agent_id": self.agent_id,
+                            "card_count": len(work_experience_cards),
+                            "card_ids": [
+                                c.get("experience_id")
+                                for c in work_experience_cards
+                            ],
+                        },
+                    )
+            except Exception:
+                logger.warning(
+                    "WorkExperience chat retrieval/injection failed; "
+                    "continuing without guidance",
+                    exc_info=True,
+                )
+
             # Get MCP clients from manager (hot-reloadable)
             mcp_clients = []
             if self._mcp_manager is not None:
@@ -303,6 +383,12 @@ class AgentRunner(Runner):
                     "user_id": user_id,
                     "channel": channel,
                     "agent_id": self.agent_id,
+                    "work_experience_injected": work_experience_injected,
+                    "work_experience_card_ids": [
+                        c.get("experience_id")
+                        for c in work_experience_cards
+                        if c.get("experience_id")
+                    ],
                     **(
                         {
                             "forced_tool_call_json": json.dumps(
@@ -434,6 +520,10 @@ class AgentRunner(Runner):
                     )
 
                     interceptor = get_work_experience_interceptor()
+                    if work_experience_injected and work_experience_cards:
+                        interceptor.record_effective_uses(
+                            work_experience_cards,
+                        )
                     interceptor.post_chat_turn(
                         session_id=session_id,
                         user_input=query or "",

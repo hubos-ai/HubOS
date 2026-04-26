@@ -15,6 +15,7 @@ import re
 from datetime import datetime, timezone
 from typing import Optional
 
+from hubos.core.work_experience.keyword_utils import extract_semantic_keywords
 from hubos.core.work_experience.schemas import (
     ExperienceLevel,
     WorkExperience,
@@ -253,12 +254,8 @@ class WorkExperienceRetriever:
         Returns:
             Matching WorkExperience cards sorted by maturity composite score descending.
         """
-        # Extract keywords from string values in task_input
-        keywords: list[str] = []
-        for value in task_input.values():
-            if isinstance(value, str):
-                tokens = re.findall(r"[a-zA-Z_][a-zA-Z0-9_-]*", value.lower())
-                keywords.extend(tokens)
+        # Extract ASCII and semantic business keywords from task input.
+        keywords = extract_semantic_keywords(task_input.values())
 
         # Build trigger hint from first key
         trigger_hint: Optional[str] = None

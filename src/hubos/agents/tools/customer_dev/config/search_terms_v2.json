@@ -1,0 +1,536 @@
+{
+  "version": "4.0",
+  "description": "精准产品关键词矩阵 - 基于实际产品线（教育设备+医学教学模型）的客户搜索 v4 - 产品词×角色×地理 动态组合",
+  "last_updated": "2026-04-26",
+  "keyword_rules": {
+    "product_lines": {
+      "medical_teaching": {
+        "description": "医学教学模型和急救训练设备",
+        "products": [
+          "anatomical model",
+          "human skeleton model",
+          "human body model",
+          "medical teaching model",
+          "CPR manikin",
+          "first aid training model",
+          "nursing training manikin",
+          "patient care simulator",
+          "venipuncture training arm",
+          "injection training model",
+          "suture practice pad",
+          "medical simulation equipment",
+          "clinical skills trainer",
+          "dental teaching model",
+          "heart model anatomical",
+          "brain model anatomical",
+          "human organ model"
+        ],
+        "modifiers": ["supplier", "distributor", "dealer", "wholesale"]
+      },
+      "science_lab": {
+        "description": "学校科学实验室设备",
+        "products": [
+          "school microscope",
+          "biology lab equipment",
+          "chemistry apparatus",
+          "physics lab instrument",
+          "laboratory glassware",
+          "science kit school",
+          "lab equipment school",
+          "dissection kit",
+          "prepared microscope slides",
+          "laboratory balance",
+          "pH meter school",
+          "magnetic stirrer",
+          "centrifuge school lab",
+          "hot plate laboratory",
+          "test tube rack"
+        ],
+        "modifiers": ["supplier", "distributor", "importer", "dealer"]
+      },
+      "teaching_models": {
+        "description": "各学科教学模型和教具",
+        "products": [
+          "teaching globe",
+          "mathematics teaching model",
+          "geometry model classroom",
+          "physics demonstration model",
+          "chemistry molecular model",
+          "earth science model",
+          "solar system model",
+          "human anatomy model",
+          "animal anatomy model",
+          "plant model botanical",
+          "rock mineral kit",
+          "fork tuning physics"
+        ],
+        "modifiers": ["supplier", "distributor", "wholesale"]
+      },
+      "stem_education": {
+        "description": "STEM教育和编程教具",
+        "products": [
+          "STEM education kit",
+          "robotics kit school",
+          "educational robot",
+          "programming toy educational",
+          "electronics learning kit",
+          "Arduino education kit",
+          "sensor data logger school",
+          "3D printer school"
+        ],
+        "modifiers": ["supplier", "distributor", "dealer"]
+      },
+      "lab_furniture": {
+        "description": "实验室家具和基础设施",
+        "products": [
+          "laboratory furniture school",
+          "lab bench",
+          "fume hood school",
+          "lab sink",
+          "science table classroom",
+          "lab stool",
+          "reagent shelf",
+          "emergency shower lab"
+        ],
+        "modifiers": ["manufacturer", "supplier", "contractor"]
+      }
+    },
+    "role_modifiers": ["supplier", "distributor", "importer", "wholesaler", "dealer"],
+    "geo_patterns": [
+      "{product} {role} {country}",
+      "{product} {role} {city}",
+      "{product} {role} {country} wholesale",
+      "import {product} {country}",
+      "{product} for school {country}",
+      "{product} {role} near {city}",
+      "buy {product} {country}",
+      "{product} {country} school university"
+    ],
+    "generation_rules": {
+      "max_terms_per_country": 15,
+      "products_per_line": 3,
+      "must_include_cities": true,
+      "dedup": true,
+      "exclude_words": ["amazon", "alibaba", "eBay", "Walmart", "youtube", "facebook"],
+      "domain_blacklist": [".gov", ".edu", ".k12.", ".ac.uk"]
+    }
+  },
+  "countries": {
+    "BR": {
+      "name": "巴西",
+      "english_name": "Brazil",
+      "language": "pt-BR",
+      "country_code": "BR",
+      "keywords": ["distribuidor", "importador", "fornecedor", "atacadista", "equipamento", "educacional", "laboratório", "escolar", "STEM", "didático"],
+      "local_search_terms": [
+        "distribuidor equipamentos educacionais Brasil",
+        "fornecedor laboratório escolar",
+        "importador material didático",
+        "equipamento educacional licitação",
+        "material científico escola"
+      ],
+      "search_modifiers": ["distribuidor Brasil", "importador educacional", "fornecedor escolar", "licitação", "prefeitura", "secretaria de educação"],
+      "platforms": ["gov.br", "comprasnet", "licitacoes-e"],
+      "notes": "巴西政府学校采购常通过 gov.br 及相关招标系统"
+    },
+    "MX": {
+      "name": "墨西哥",
+      "english_name": "Mexico",
+      "language": "es-MX",
+      "country_code": "MX",
+      "keywords": ["distribuidor", "importador", "proveedor", "mayorista", "equipo", "educativo", "laboratorio", "escolar", "STEM"],
+      "local_search_terms": [
+        "distribuidor equipo educativo México",
+        "proveedor laboratorio escolar",
+        "importador material didáctico",
+        "equipo científico escuela",
+        "material educativo SEP"
+      ],
+      "search_modifiers": ["distribuidor México", "importador educativo", "proveedor SEP", "colegio privado"],
+      "notes": "SEP(教育部)招标网站重要"
+    },
+    "PE": {
+      "name": "秘鲁",
+      "english_name": "Peru",
+      "language": "es-PE",
+      "country_code": "PE",
+      "keywords": ["distribuidor", "importador", "proveedor", "equipo", "educativo", "laboratorio", "escolar", "material", "didáctico"],
+      "local_search_terms": [
+        "distribuidor equipo educativo Perú",
+        "proveedor laboratorio escolar Lima",
+        "importador material didáctico Perú",
+        "equipo científico escuela Perú",
+        "material educativo MINEDU Perú",
+        "instrumental laboratorio colegio"
+      ],
+      "search_modifiers": ["distribuidor Perú", "proveedor educativo Lima", "material escolar importador"],
+      "notes": "MINEDU教育部招标，利马集中大部分采购"
+    },
+    "CO": {
+      "name": "哥伦比亚",
+      "english_name": "Colombia",
+      "language": "es-CO",
+      "country_code": "CO",
+      "keywords": ["distribuidor", "importador", "proveedor", "equipo", "educativo", "laboratorio", "escolar", "didáctico"],
+      "local_search_terms": [
+        "distribuidor equipo educativo Colombia",
+        "proveedor laboratorio escolar Bogotá",
+        "importador material didáctico",
+        "equipos laboratorio colegio",
+        "material científico escuela"
+      ],
+      "search_modifiers": ["distribuidor Colombia", "proveedor educativo Bogotá", "men laboratorio"],
+      "notes": "教育部(MEN)和 SECRETARÍA DE EDUCACIÓN 招标"
+    },
+    "CL": {
+      "name": "智利",
+      "english_name": "Chile",
+      "language": "es-CL",
+      "country_code": "CL",
+      "keywords": ["distribuidor", "proveedor", "equipo", "educativo", "laboratorio", "escolar", "científico"],
+      "local_search_terms": [
+        "distribuidor equipo educativo Chile",
+        "proveedor laboratorio escolar Santiago",
+        "equipos científicos colegio",
+        "material didáctico Chile"
+      ],
+      "search_modifiers": ["distribuidor Chile", "proveedor educativo Santiago", "MINEDUC laboratorio"],
+      "notes": "MINEDUC招标体系，圣地亚哥集中"
+    },
+    "RU": {
+      "name": "俄罗斯",
+      "english_name": "Russia",
+      "language": "ru",
+      "country_code": "RU",
+      "keywords": ["оборудование", "образование", "лаборатория", "школа", "учебный", "дистрибьютор", "импортер"],
+      "local_search_terms": [
+        "дистрибьютор учебного оборудования Россия",
+        "поставщик лабораторного оборудования школа",
+        "импортер образовательного оборудования",
+        "учебное оборудование оптовая поставка",
+        "лабораторное оборудование образовательное учреждение",
+        "школьное оборудование поставщик"
+      ],
+      "search_modifiers": ["дистрибьютор оборудования Россия", "поставщик школа", "государственная закупка"],
+      "notes": "注意制裁相关支付和物流风险"
+    },
+    "UZ": {
+      "name": "乌兹别克斯坦",
+      "english_name": "Uzbekistan",
+      "language": "uz",
+      "country_code": "UZ",
+      "keywords": ["ta'lim", "jihozlar", "laboratoriya", "maktab", "ta'lim jihozlari", "distributor", "import"],
+      "local_search_terms": [
+        "ta'lim jihozlari distributor O'zbekiston",
+        "laboratoriya jihozlari maktab",
+        "maktab jihozlari yetkazib beruvchi",
+        "o'quv jihozlari import",
+        "educational equipment supplier Uzbekistan",
+        "school laboratory equipment Tashkent"
+      ],
+      "search_modifiers": ["distributor O'zbekiston", "ta'lim jihozlari Toshkent"],
+      "notes": "俄语和乌兹别克语并用，塔什干集中采购"
+    },
+    "MY": {
+      "name": "马来西亚",
+      "english_name": "Malaysia",
+      "language": "ms-MY",
+      "country_code": "MY",
+      "keywords": ["peralatan pendidikan", "makmal", "sekolah", "sains", "STEM", "laboratory", "educational"],
+      "local_search_terms": [
+        "peralatan pendidikan pembekal Malaysia",
+        "peralatan makmal sekolah",
+        "pembekal peralatan sains sekolah",
+        "educational equipment distributor Malaysia",
+        "school laboratory supplier Kuala Lumpur",
+        "STEM equipment supplier Malaysia"
+      ],
+      "search_modifiers": ["pembekal pendidikan Malaysia", "school equipment supplier Malaysia", "MOE approved supplier"],
+      "notes": "英语和马来语并用，政府学校采购通过MOE"
+    },
+    "PH": {
+      "name": "菲律宾",
+      "english_name": "Philippines",
+      "language": "en-PH",
+      "country_code": "PH",
+      "keywords": ["educational equipment", "school laboratory", "science equipment", "STEM", "school supply", "DepEd"],
+      "local_search_terms": [
+        "educational equipment distributor Philippines",
+        "school laboratory supplier Manila",
+        "DepEd supplier equipment",
+        "science equipment school Philippines",
+        "STEM materials supplier DepEd"
+      ],
+      "search_modifiers": ["DepEd supplier Philippines", "educational distributor Manila", "school supply wholesale Philippines"],
+      "notes": "DepEd是主要采购方，马尼拉集中"
+    },
+    "US": {
+      "name": "美国",
+      "english_name": "United States",
+      "language": "en-US",
+      "country_code": "US",
+      "keywords": ["distributor", "wholesaler", "school supply", "educational equipment", "STEM", "laboratory", "K-12"],
+      "local_search_terms": [
+        "educational equipment distributor USA",
+        "school laboratory equipment supplier",
+        "K-12 science equipment wholesaler",
+        "STEM products distributor United States"
+      ],
+      "search_modifiers": ["school equipment supplier USA", "educational distributor USA", "STEM products wholesale", "K-12 curriculum materials"],
+      "notes": "K-12市场巨大，注意CPSIA合规"
+    },
+    "AE": {
+      "name": "阿联酋",
+      "english_name": "United Arab Emirates",
+      "language": "ar-AE",
+      "country_code": "AE",
+      "keywords": ["معدات تعليمية", "مختبر", "مدرسة", "موزع تعليمي"],
+      "local_search_terms": [
+        "موزع المعدات التعليمية الإمارات",
+        "مختبر المدارس دبي",
+        "educational equipment supplier UAE",
+        "school laboratory Dubai"
+      ],
+      "search_modifiers": ["educational equipment supplier UAE", "school laboratory Dubai", "MOE approved supplier"],
+      "notes": "阿布扎比和迪拜教育项目招标值得关注"
+    },
+    "SA": {
+      "name": "沙特阿拉伯",
+      "english_name": "Saudi Arabia",
+      "language": "ar-SA",
+      "country_code": "SA",
+      "keywords": ["معدات تعليمية", "مختبر علمي", "مدرسة", "تجهيزات تعليمية"],
+      "local_search_terms": [
+        "مورد المعدات التعليمية السعودية",
+        "مختبر المدارس السعودية",
+        "educational equipment supplier Saudi Arabia"
+      ],
+      "search_modifiers": ["مورد المعدات التعليمية السعودية", "مختبر المدارس", "التعليم العام"],
+      "notes": "Saudization合规要求"
+    },
+    "JP": {
+      "name": "日本",
+      "english_name": "Japan",
+      "language": "ja-JP",
+      "country_code": "JP",
+      "keywords": ["教育機器", "実験装置", "理科学習", "教材", "理科教材", "学校備品", "研究設備"],
+      "local_search_terms": [
+        "教育機器 輸入代理店",
+        "理科実験装置 卸売",
+        "学校教育 備品調達"
+      ],
+      "search_modifiers": ["教育機器 輸入代理店", "理科実験装置 卸売", "学校教育 備品調達"],
+      "notes": "客气、长期关系导向"
+    },
+    "KR": {
+      "name": "韩国",
+      "english_name": "South Korea",
+      "language": "ko-KR",
+      "country_code": "KR",
+      "keywords": ["교육 장비", "과학 실험실", "학교 시설", "교육용품"],
+      "local_search_terms": [
+        "교육 장비 수입업체",
+        "과학교실 장비 도매",
+        "학교용품 공급업체"
+      ],
+      "search_modifiers": ["교육 장비 수입업체", "과학교실 장비 도매", "학교용품 공급업체"],
+      "notes": "KICE教育课程认证重要"
+    },
+    "DE": {
+      "name": "德国",
+      "english_name": "Germany",
+      "language": "de-DE",
+      "country_code": "DE",
+      "keywords": ["Bildungsgeräte", "Laborausrüstung", "Schulbedarf", "Wissenschaftsexperiment"],
+      "local_search_terms": [
+        "Bildungsausrüstung Großhandel Deutschland",
+        "Schullabor Lieferant",
+        "Bildungsgeräte Import"
+      ],
+      "search_modifiers": ["Bildungsausrüstung Großhandel Deutschland", "Schullabor Lieferant", "Bildungsgeräte Import"],
+      "notes": "CE认证必需，环保RoHS合规"
+    },
+    "FR": {
+      "name": "法国",
+      "english_name": "France",
+      "language": "fr-FR",
+      "country_code": "FR",
+      "keywords": ["équipement éducatif", "matériel de laboratoire", "fournitures scolaires", "science"],
+      "local_search_terms": [
+        "fournisseur équipement éducatif France",
+        "distributeur matériel laboratoire scolaire",
+        "grossiste fournitures scolaires"
+      ],
+      "search_modifiers": ["fournisseur équipement éducatif France", "distributeur matériel laboratoire scolaire", "grossiste fournitures scolaires"],
+      "notes": "Norme NF教育标准"
+    },
+    "VN": {
+      "name": "越南",
+      "english_name": "Vietnam",
+      "language": "vi-VN",
+      "country_code": "VN",
+      "keywords": ["thiết bị giáo dục", "phòng thí nghiệm", "trường học", "đồ dùng học tập"],
+      "local_search_terms": [
+        "nhà phân phối thiết bị giáo dục Việt Nam",
+        "cung cấp thiết bị trường học",
+        "nhập khẩu thiết bị phòng thí nghiệm"
+      ],
+      "search_modifiers": ["nhà phân phối thiết bị giáo dục Việt Nam", "cung cấp thiết bị trường học", "nhập khẩu thiết bị phòng thí nghiệm"],
+      "notes": "注意胡志明市和河内教育系统"
+    },
+    "ID": {
+      "name": "印尼",
+      "english_name": "Indonesia",
+      "language": "id-ID",
+      "country_code": "ID",
+      "keywords": ["peralatan pendidikan", "laboratorium", "perlengkapan sekolah", "sains"],
+      "local_search_terms": [
+        "distributor peralatan pendidikan Indonesia",
+        "supplier sekolah",
+        "importir perlengkapan laboratorium"
+      ],
+      "search_modifiers": ["distributor peralatan pendidikan Indonesia", "supplier sekolah", "importir perlengkapan laboratorium"],
+      "notes": "政府学校采购通过电子招标系统"
+    },
+    "TH": {
+      "name": "泰国",
+      "english_name": "Thailand",
+      "language": "th-TH",
+      "country_code": "TH",
+      "keywords": ["อุปกรณ์การศึกษา", "ห้องปฏิบัติการ", "เครื่องมือวิทยาศาสตร์", "อุปกรณ์โรงเรียน"],
+      "local_search_terms": [
+        "ผู้จัดจำหน่ายอุปกรณ์การศึกษา ไทย",
+        "นำเข้าเครื่องมือห้องปฏิบัติการ",
+        "โรงเรียนเอกชน"
+      ],
+      "search_modifiers": ["ผู้จัดจำหน่ายอุปกรณ์การศึกษา ไทย", "นำเข้าเครื่องมือห้องปฏิบัติการ", "โรงเรียนเอกชน"],
+      "notes": "国际学校和私立学校是重要客户"
+    },
+    "IN": {
+      "name": "印度",
+      "english_name": "India",
+      "language": "en-IN",
+      "country_code": "IN",
+      "keywords": ["educational equipment", "school laboratory", "science equipment", "STEM", "K-12"],
+      "local_search_terms": [
+        "school equipment supplier India",
+        "educational distributor India",
+        "CBSE NCERT laboratory equipment"
+      ],
+      "search_modifiers": ["school equipment supplier India", "educational distributor India", "CBSE NCERT laboratory equipment", "private school supplier"],
+      "notes": "CBSE/ICSE学校是重要目标，注意价格敏感度"
+    },
+    "TR": {
+      "name": "土耳其",
+      "english_name": "Turkey",
+      "language": "tr-TR",
+      "country_code": "TR",
+      "keywords": ["eğitim ekipmanları", "laboratuvar cihazları", "okul malzemeleri", "bilim"],
+      "local_search_terms": [
+        "eğitim ekipmanları tedarikçisi Türkiye",
+        "laboratuvar cihazları toptancı",
+        "okul donanım ithalat"
+      ],
+      "search_modifiers": ["eğitim ekipmanları tedarikçisi Türkiye", "laboratuvar cihazları toptancı", "okul donanım ithalat"],
+      "notes": "注意土耳其里拉汇率风险"
+    },
+    "NG": {
+      "name": "尼日利亚",
+      "english_name": "Nigeria",
+      "language": "en-NG",
+      "country_code": "NG",
+      "keywords": ["educational equipment", "school laboratory", "science equipment", "K-12"],
+      "local_search_terms": [
+        "educational equipment supplier Nigeria",
+        "school laboratory equipment Lagos",
+        "West Africa educational distributor"
+      ],
+      "search_modifiers": ["educational equipment supplier Nigeria", "school laboratory equipment Lagos", "West Africa educational distributor"],
+      "notes": "撒哈拉以南非洲最大市场，质量认证重要"
+    },
+    "ZA": {
+      "name": "南非",
+      "english_name": "South Africa",
+      "language": "en-ZA",
+      "country_code": "ZA",
+      "keywords": ["educational equipment", "school laboratory", "science equipment", "STEM"],
+      "local_search_terms": [
+        "educational equipment supplier South Africa",
+        "school lab equipment distributor",
+        "STEM school supplier"
+      ],
+      "search_modifiers": ["educational equipment supplier South Africa", "school lab equipment distributor", "STEM school supplier"],
+      "notes": "非洲工业化程度较高，英语界面友好"
+    },
+    "EG": {
+      "name": "埃及",
+      "english_name": "Egypt",
+      "language": "ar-EG",
+      "country_code": "EG",
+      "keywords": ["معدات تعليمية", "معدات معامل", "لوازم مدارس", "علوم"],
+      "local_search_terms": [
+        "مورد المعدات التعليمية مصر",
+        "معدات المعامل المصرية",
+        "مدارس خاصة"
+      ],
+      "search_modifiers": ["مورد المعدات التعليمية مصر", "معدات المعامل المصرية", "مدارس خاصة"],
+      "notes": "阿拉伯地区大市场，国有和私立学校并存"
+    },
+    "GB": {
+      "name": "英国",
+      "english_name": "United Kingdom",
+      "language": "en-GB",
+      "country_code": "GB",
+      "keywords": ["educational equipment", "school laboratory", "science equipment", "STEM", "teaching resources"],
+      "local_search_terms": [
+        "educational equipment supplier UK",
+        "school laboratory equipment wholesaler",
+        "STEM resources distributor"
+      ],
+      "search_modifiers": ["educational equipment supplier UK", "school laboratory equipment wholesaler", "STEM resources distributor"],
+      "notes": "学校与培训机构采购体系成熟"
+    },
+    "ES": {
+      "name": "西班牙",
+      "english_name": "Spain",
+      "language": "es-ES",
+      "country_code": "ES",
+      "keywords": ["equipo educativo", "laboratorio escolar", "material científico", "didáctico"],
+      "local_search_terms": [
+        "distribuidor equipo educativo España",
+        "proveedor laboratorio escolar",
+        "material didáctico importador"
+      ],
+      "search_modifiers": ["distribuidor equipo educativo España", "proveedor laboratorio escolar", "material didáctico importador"],
+      "notes": "可作为拉美西语市场跳板"
+    },
+    "KZ": {
+      "name": "哈萨克斯坦",
+      "english_name": "Kazakhstan",
+      "language": "kk-KZ",
+      "country_code": "KZ",
+      "keywords": ["образование", "лаборатория", "школа", "учебный", "оборудование"],
+      "local_search_terms": [
+        "дистрибьютор учебного оборудования Казахстан",
+        "поставщик лабораторного оборудования школа",
+        "educational equipment supplier Kazakhstan"
+      ],
+      "search_modifiers": ["дистрибьютор оборудования Казахстан", "поставщик школа"],
+      "notes": "俄语和哈萨克语并用，阿斯塔纳和阿拉木图"
+    }
+  },
+  "search_templates": [
+    "{product} distributor {country_english}",
+    "{product} wholesaler {country_english}",
+    "{local_term}",
+    "{product} supplier {country_english} school",
+    "{product} {country_english} procurement",
+    "school procurement {product} {country_english}",
+    "STEM equipment distributor {country_english}",
+    "laboratory equipment supplier {country_english}"
+  ],
+  "anti_scam_keywords": [
+    "scam", "fraud", "lawsuit", "investigation", "bankruptcy", "wind up", "insolvent", "defaulted"
+  ],
+  "priority_countries_first": ["BR", "MX", "US", "RU", "AE", "SA", "PE", "MY", "PH"]
+}

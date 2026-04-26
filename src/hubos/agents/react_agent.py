@@ -43,6 +43,7 @@ from .tools import (
     desktop_screenshot,
     edit_file,
     execute_shell_command,
+    find_customer_leads,
     get_current_time,
     get_token_usage,
     glob_search,
@@ -253,6 +254,7 @@ class HubOSAgent(ToolGuardMixin, ReActAgent):
             "get_current_time": get_current_time,
             "set_user_timezone": set_user_timezone,
             "get_token_usage": get_token_usage,
+            "find_customer_leads": find_customer_leads,
             # HubOS-Runtime delegation tools (总经理 → Runtime)
             # See: docs/architecture-session-isolation.md, scripts/test_runtime_delegate.py
             "delegate_task": delegate_task,

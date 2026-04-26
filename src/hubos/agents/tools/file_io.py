@@ -70,17 +70,17 @@ def _resolve_write_path(file_path: str) -> str:
     """Same as ``_resolve_file_path`` but enforces sub-agent write scope.
 
     When a sub-agent is active (see
-    ``config.context.current_subagent_write_scope``), any relative path is
-    re-rooted under the scope and any absolute path must stay within it.
+    ``config.context.current_subagent_write_scope``), writes are allowed
+    anywhere under the agent's **own** workspace root, except for protected
+    identity files (AGENTS.md, PROFILE.md, SOUL.md, agent.json, etc.).
     Returns the resolved absolute path; raises :class:`SubAgentWriteDenied`
-    if the request would escape the scope.
+    if the request would escape the scope or targets a protected file.
     """
     scope = get_current_subagent_write_scope()
     if scope is None:
         return _resolve_file_path(file_path)
 
     scope = Path(scope).expanduser().resolve()
-    scope.mkdir(parents=True, exist_ok=True)
 
     raw = Path(file_path).expanduser()
     if raw.is_absolute():
@@ -88,14 +88,30 @@ def _resolve_write_path(file_path: str) -> str:
     else:
         candidate = (scope / raw).resolve()
 
+    # Check 1: must stay within the agent's own workspace
     try:
         candidate.relative_to(scope)
     except ValueError:
         raise SubAgentWriteDenied(
             f"sub-agent write denied: {file_path!r} resolves outside the "
-            f"allowed scope {scope!s}. Sub-agents can only write under "
-            f"'{scope.name}/' in the workspace.",
+            f"allowed scope {scope!s}. Sub-agents can only write within "
+            f"their own workspace.",
         )
+
+    # Check 2: protect identity/config files from being overwritten
+    _PROTECTED_FILES = frozenset({
+        "AGENTS.md", "SOUL.md", "PROFILE.md", "BOOTSTRAP.md",
+        "agent.json", "skill.json", "skills.json",
+    })
+    if candidate.name in _PROTECTED_FILES:
+        raise SubAgentWriteDenied(
+            f"sub-agent write denied: {candidate.name!r} is a protected "
+            f"identity file. Only the GM or a human can modify it.",
+        )
+
+    # Ensure parent directory exists
+    candidate.parent.mkdir(parents=True, exist_ok=True)
+
     return str(candidate)
 
 

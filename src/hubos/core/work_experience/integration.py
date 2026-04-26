@@ -53,13 +53,219 @@ When to use keyword-only fallback:
 """
 
 import logging
+import re
 from typing import Any, Optional
 from uuid import uuid4
 
 from hubos.core.execution.task_store import Task
 from hubos.core.infra.feature_flags import get_feature_flags
+from hubos.core.work_experience.keyword_utils import extract_semantic_keywords
 
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# Lesson extraction patterns for chat-turn reflection enrichment
+# ============================================================================
+
+# HubOS tool names — used to detect tool mentions in response text.
+# Keep this ordered so recommended_tool_order is deterministic.
+_HUBOS_TOOL_NAMES = (
+    "execute_shell_command", "read_file", "write_file", "edit_file",
+    "grep_search", "glob_search", "browser_use", "webReader",
+    "web_search_prime", "web_crawl", "find_customer_leads",
+    "delegate_task", "spawn_subagents", "coordinate_workflow",
+    "memory_search", "recall_long_term", "recall_session",
+    "tavily_search", "desktop_screenshot", "himalaya",
+    "super_crawler", "xcrawl", "send_file_to_user", "get_current_time",
+)
+
+# Chinese keywords that signal universal/always rules → scope = GLOBAL
+_GLOBAL_SCOPE_INDICATORS_ZH = frozenset({
+    "每次", "总是", "所有", "永远", "通用", "标准", "任何", "一律",
+    "方法论", "最佳实践", "核心策略", "通用方法",
+})
+
+# English keywords → scope = GLOBAL
+_GLOBAL_SCOPE_INDICATORS_EN = frozenset({
+    "always", "every time", "all", "universal", "standard", "any",
+    "best practice", "methodology",
+})
+
+
+def _truncate_lesson(text: str, max_len: int = 80) -> str:
+    """Truncate a lesson string, preserving meaning."""
+    text = text.strip()
+    if len(text) > max_len:
+        return text[: max_len - 3] + "..."
+    return text
+
+
+def _detect_scope_from_lessons(what_worked: list[str], what_failed: list[str]) -> str:
+    """
+    Determine the appropriate scope for a card based on its lesson content.
+
+    Returns one of: "global", "user", "session".
+
+    Rules:
+    - If lessons contain universal/always patterns → "global"
+    - If lessons contain domain-specific reusable knowledge → "user"
+    - Otherwise → "session"
+    """
+    all_lessons = " ".join(what_worked + what_failed).lower()
+
+    # Check for global scope indicators
+    for kw in _GLOBAL_SCOPE_INDICATORS_ZH:
+        if kw in all_lessons:
+            return "global"
+    for kw in _GLOBAL_SCOPE_INDICATORS_EN:
+        if kw in all_lessons:
+            return "global"
+
+    # If we have concrete, actionable lessons (not session-specific), use USER
+    if what_worked or what_failed:
+        return "user"
+
+    return "session"
+
+
+def _extract_tools_from_response(response: str) -> list[str]:
+    """Extract HubOS tool names mentioned in the response text."""
+    found = []
+    for tool in _HUBOS_TOOL_NAMES:
+        if tool in response:
+            found.append(tool)
+    return found
+
+
+def _extract_lessons_from_response(response: str) -> dict[str, list[str]]:
+    """
+    Extract structured, actionable lessons from an assistant response.
+
+    Scans for:
+    - ✅ success indicators → what_worked
+    - ❌ failure indicators → what_failed
+    - ⚠️ warning indicators → what_failed
+    - Chinese rule patterns (必须/务必/记得 vs 不要/避免/切记)
+    - English rule patterns (must/always vs avoid/don't/never)
+    - Bold text containing key rules
+
+    Returns:
+        {"what_worked": [...], "what_failed": [...], "tools": [...]}
+    """
+    what_worked: list[str] = []
+    what_failed: list[str] = []
+    seen_worked: set[str] = set()
+    seen_failed: set[str] = set()
+
+    # Regex to strip leading list prefixes: "1. ", "- ", "* ", "→ "
+    _RE_LIST_PREFIX = re.compile(r"^[\d]+[.)]\s*|^[-*•→]\s*")
+
+    lines = response.split("\n")
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        # Strip leading list/bullet prefix for emoji detection
+        # "1. ✅ Foo" → "✅ Foo", "- ⚠️ Bar" → "⚠️ Bar"
+        cleaned = _RE_LIST_PREFIX.sub("", stripped).strip()
+        lower = cleaned.lower()
+
+        # --- Emoji-prefixed lines ---
+        if cleaned.startswith("✅") or cleaned.startswith("✔"):
+            content = cleaned.lstrip("✅✔•→ ").strip()
+            if len(content) >= 3 and content not in seen_worked:
+                what_worked.append(_truncate_lesson(content))
+                seen_worked.add(content)
+            continue
+
+        if cleaned.startswith("❌"):
+            content = cleaned.lstrip("❌•→ ").strip()
+            if len(content) >= 3 and content not in seen_failed:
+                what_failed.append(_truncate_lesson(content))
+                seen_failed.add(content)
+            continue
+
+        if cleaned.startswith("⚠️") or cleaned.startswith("⚠"):
+            content = cleaned.lstrip("⚠️⚠•→ ").strip()
+            if len(content) >= 3 and content not in seen_failed:
+                what_failed.append(_truncate_lesson(content))
+                seen_failed.add(content)
+            continue
+
+        # --- Chinese rule patterns (on cleaned line) ---
+        # Positive rules (must do / remember)
+        for kw in ("必须", "务必", "记得", "每次", "记得要"):
+            if kw in lower:
+                clean = cleaned.lstrip("- •*→ ").strip()
+                if len(clean) >= 3 and clean not in seen_worked:
+                    what_worked.append(_truncate_lesson(clean))
+                    seen_worked.add(clean)
+                break
+
+        # Negative rules (avoid / don't)
+        for kw in ("不要", "避免", "切记不", "务必不", "不能", "无法"):
+            if kw in lower:
+                clean = cleaned.lstrip("- •*→ ").strip()
+                # Skip if already classified as what_worked (line has both positive & negative)
+                if len(clean) >= 3 and clean not in seen_failed and clean not in seen_worked:
+                    what_failed.append(_truncate_lesson(clean))
+                    seen_failed.add(clean)
+                break
+
+        # --- English rule patterns (on cleaned line) ---
+        for kw in ("must ", "always ", "ensure "):
+            if lower.startswith(kw):
+                clean = cleaned.strip()
+                if len(clean) >= 5 and clean not in seen_worked:
+                    what_worked.append(_truncate_lesson(clean))
+                    seen_worked.add(clean)
+                break
+
+        for kw in ("avoid ", "don't ", "never ", "do not "):
+            if lower.startswith(kw):
+                clean = cleaned.strip()
+                if len(clean) >= 5 and clean not in seen_failed:
+                    what_failed.append(_truncate_lesson(clean))
+                    seen_failed.add(clean)
+                break
+
+    # --- Bold text rule extraction ---
+    for match in re.finditer(r"\*\*(.{5,80}?)\*\*", response):
+        bold_text = match.group(1).strip()
+        bold_lower = bold_text.lower()
+        # Only capture bold text that contains rule-like keywords
+        has_rule_keyword = any(
+            kw in bold_lower
+            for kw in (
+                "必须", "不要", "避免", "切记", "重要", "关键", "注意",
+                "务必", "核心", "最佳", "坑", "不在",
+                "must", "avoid", "never", "important", "key", "critical",
+                "best", "pitfall", "gotcha",
+            )
+        )
+        if not has_rule_keyword:
+            continue
+
+        is_negative = any(
+            kw in bold_lower
+            for kw in ("不要", "避免", "不可", "不能", "不在", "avoid", "don't", "never")
+        )
+        if is_negative:
+            if bold_text not in seen_failed:
+                what_failed.append(_truncate_lesson(bold_text))
+                seen_failed.add(bold_text)
+        else:
+            if bold_text not in seen_worked:
+                what_worked.append(_truncate_lesson(bold_text))
+                seen_worked.add(bold_text)
+
+    # --- Tool mention extraction ---
+    tools = _extract_tools_from_response(response)
+
+    return {"what_worked": what_worked, "what_failed": what_failed, "tools": tools}
+
 
 # Lazy singleton
 _interceptor: Optional["WorkExperienceInterceptor"] = None
@@ -216,12 +422,7 @@ class WorkExperienceInterceptor:
     @staticmethod
     def _keywords_match(task_input: dict, card) -> int:
         """Count how many task input keywords overlap with card keywords."""
-        import re
-        kw_set = set()
-        for value in task_input.values():
-            if isinstance(value, str):
-                tokens = re.findall(r"[a-zA-Z_][a-zA-Z0-9_-]*", value.lower())
-                kw_set.update(tokens)
+        kw_set = set(extract_semantic_keywords(task_input.values()))
         card_kw = {k.lower() for k in card.trigger_keywords}
         return len(kw_set & card_kw)
 
@@ -232,13 +433,7 @@ class WorkExperienceInterceptor:
     @staticmethod
     def _extract_keywords(task_input: dict) -> list[str]:
         """Extract keywords from task_input for similarity matching."""
-        import re
-        keywords: list[str] = []
-        for value in task_input.values():
-            if isinstance(value, str):
-                tokens = re.findall(r"[a-zA-Z_][a-zA-Z0-9_-]*", value.lower())
-                keywords.extend(tokens)
-        return keywords
+        return extract_semantic_keywords(task_input.values())
 
     def record_effective_uses(self, cards: list[dict]) -> None:
         """
@@ -361,6 +556,19 @@ class WorkExperienceInterceptor:
                     "Chat reflection enrichment failed, continuing with raw report",
                     extra={"session_id": session_id, "error": str(exc)},
                 )
+
+            # ---- Scope detection: set scope based on lesson content ----
+            # Only if enrichment produced lessons (confidence above threshold)
+            if report.confidence >= 0.5 and (report.what_worked or report.what_failed):
+                scope_hint = _detect_scope_from_lessons(
+                    report.what_worked, report.what_failed,
+                )
+                context.task_input["scope"] = scope_hint
+
+                # Also store detected tools for the extractor
+                lessons = _extract_lessons_from_response(response)
+                if lessons["tools"]:
+                    context.task_input["tools_used"] = lessons["tools"]
 
             # Build keywords for similarity matching (same logic as retriever)
             keywords = self._extract_keywords(context.task_input)
@@ -525,24 +733,55 @@ class WorkExperienceInterceptor:
         channel: str,
         agent_id: str,
     ) -> None:
-        """Replace generic success bullets with chat-specific signal."""
-        query_summary = user_input.strip().replace("\n", " ")
-        response_summary = assistant_response.strip().replace("\n", " ")
-        if len(query_summary) > 80:
-            query_summary = query_summary[:77] + "..."
-        if len(response_summary) > 120:
-            response_summary = response_summary[:117] + "..."
+        """
+        Extract structured, reusable rules from a chat turn.
 
-        report.what_worked = [
-            f"Handled chat request: {query_summary}",
-            f"Delivered a response in {channel or 'console'} via agent {agent_id or 'default'}",
-            f"Response summary: {response_summary}",
-        ]
-        report.what_failed = []
-        report.root_cause = ""
-        report.next_time_strategy = (
-            "When a similar request appears, reuse this answer pattern and the same tool-selection strategy."
-        )
+        Instead of recording "this chat happened", extracts:
+        - what_worked: strategies/tools/approaches that succeeded
+        - what_failed: pitfalls, errors, things to avoid
+        - root_cause: why something failed (if applicable)
+        - next_time_strategy: concrete guidance for similar future tasks
+
+        If the response contains no actionable lessons, sets confidence
+        below the extraction threshold (0.5) so no card is created.
+        """
+        response = assistant_response.strip()
+        if not response:
+            report.confidence = 0.2
+            return
+
+        # ---- Extract structured lessons from response ----
+        lessons = _extract_lessons_from_response(response)
+        worked = lessons["what_worked"]
+        failed = lessons["what_failed"]
+        tools = lessons["tools"]
+
+        # ---- Quality gate: only create cards with actionable lessons ----
+        if not worked and not failed:
+            # No actionable lessons → suppress card creation
+            report.confidence = 0.3  # Below DEFAULT_MIN_CONFIDENCE=0.5
+            return
+
+        # ---- Populate structured fields ----
+        report.what_worked = worked[:5]
+        report.what_failed = failed[:5]
+
+        if failed:
+            report.root_cause = failed[0][:80]
+
+        # Build concrete next_time_strategy
+        strategy_parts: list[str] = []
+        if worked:
+            strategy_parts.append("Do: " + "; ".join(w[:40] for w in worked[:3]))
+        if failed:
+            strategy_parts.append("Avoid: " + "; ".join(f[:40] for f in failed[:2]))
+        report.next_time_strategy = " | ".join(strategy_parts)
+
+        # Boost confidence for lesson-rich responses
+        report.confidence = 0.85
+
+        # Store detected tools in task_input for extractor to use
+        # (accessed via context.task_input by the caller)
 
     @staticmethod
     def _build_reflection_context(task: Task):

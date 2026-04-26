@@ -953,6 +953,14 @@ def _default_builtin_tools() -> Dict[str, BuiltinToolConfig]:
             enabled=True,
             description="Get llm token usage",
         ),
+        "find_customer_leads": BuiltinToolConfig(
+            name="find_customer_leads",
+            enabled=True,
+            description=(
+                "Find and score B2B customer leads by country without "
+                "drafting or sending emails"
+            ),
+        ),
     }
 
 

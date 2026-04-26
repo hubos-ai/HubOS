@@ -702,7 +702,7 @@ export default function WorkExperiencePage() {
               showTotal: (tot: number) => `${tot} ${t("workExperience.totalCardsLabel")}`,
               onChange: (p) => fetchCards(p),
             }}
-            scroll={{ x: 900 }}
+            scroll={{ x: 900, y: "calc(100vh - 430px)" }}
           />
         </Card>
       </div>

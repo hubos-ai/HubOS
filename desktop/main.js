@@ -134,6 +134,10 @@ function buildBackendEnv() {
     // operator explicitly overrides the flag in the parent environment.
     ENABLE_WORK_EXPERIENCE_LAYER:
       process.env.ENABLE_WORK_EXPERIENCE_LAYER ?? "true",
+    // Desktop chat should also use accumulated experience as compact guidance
+    // before each response. Operators can still disable this explicitly.
+    ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION:
+      process.env.ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION ?? "true",
     // Don't inherit NODE_* / ELECTRON_* noise that could confuse Python.
     PYTHONUNBUFFERED: "1",
   };

@@ -6,6 +6,7 @@ from typing import Optional
 
 from hubos.core.orchestrator.reflection_engine import TaskContext
 from hubos.core.schemas.memory import ReflectionReport
+from hubos.core.work_experience.keyword_utils import extract_semantic_keywords
 from hubos.core.work_experience.schemas import (
     ExperienceLevel,
     WorkExperience,
@@ -215,7 +216,7 @@ class WorkExperienceExtractor:
 
     def _tokenize(self, text: str) -> list[str]:
         """Simple whitespace + punctuation tokenizer."""
-        return re.findall(r"[a-zA-Z_][a-zA-Z0-9_-]*", text.lower())
+        return extract_semantic_keywords([text])
 
     def _build_trigger_hint(self, context: TaskContext) -> str:
         """Build a compact trigger hint from task_input keys and values."""
@@ -313,17 +314,30 @@ class WorkExperienceExtractor:
 
     def _extract_tool_order(self, context: TaskContext) -> list[str]:
         """
-        Extract the recommended tool order from execution trace.
+        Extract the recommended tool order from execution trace and task_input.
+
+        Checks execution_trace first, then falls back to tools_used in task_input
+        (populated by the chat-turn enrichment for better tool detection).
 
         Returns tools in the order they were successfully used.
         """
         tools: list[str] = []
         seen = set()
+
+        # Primary: from execution trace
         for step in (context.execution_trace or []):
             tool = step.get("tool") or step.get("worker") or ""
-            if tool and tool not in seen:
+            if tool and tool not in seen and tool != "chat_reply":
                 tools.append(tool)
                 seen.add(tool)
+
+        # Secondary: from task_input.tools_used (populated by chat enrichment)
+        task_input = context.task_input or {}
+        for tool in (task_input.get("tools_used") or []):
+            if tool not in seen:
+                tools.append(tool)
+                seen.add(tool)
+
         return tools[:10]  # Limit to 10 tools
 
     def _extract_workflow(self, context: TaskContext) -> list[str]:

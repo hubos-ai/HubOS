@@ -50,11 +50,20 @@ def _sanitize_label(value: str, fallback: str = "sub") -> str:
     return cleaned or fallback
 
 
+# Identity / config files that sub-agents must NOT overwrite.
+# These define the agent's personality and role — only the GM or human can change them.
+_PROTECTED_FILES = frozenset({
+    "AGENTS.md", "SOUL.md", "PROFILE.md", "BOOTSTRAP.md",
+    "agent.json", "skill.json", "skills.json",
+})
+
+
 def _derive_subagent_scope(agent_id: str, context: dict[str, Any]) -> Path | None:
     """Pick the write scope for this sub-agent run, or ``None`` for GM runs.
 
-    A sub-agent may only write under ``<agent_workspace>/outputs/<leaf>/`` where
-    ``<leaf>`` identifies which workflow / step / label produced the write.
+    Sub-agents may write anywhere under their **own** workspace root, except
+    for protected identity files (AGENTS.md, PROFILE.md, SOUL.md, etc.).
+    The actual permission check lives in ``file_io._resolve_write_path``.
     """
     channel = str(context.get("channel") or "")
     wf_id = context.get("workflow_id")
@@ -70,16 +79,10 @@ def _derive_subagent_scope(agent_id: str, context: dict[str, Any]) -> Path | Non
     if not is_subagent:
         return None
 
-    base = (WORKING_DIR / "workspaces" / agent_id / "outputs").resolve()
-    if wf_id and step_id:
-        leaf = f"wf_{_sanitize_label(str(wf_id))}/{_sanitize_label(str(step_id))}"
-    elif label:
-        leaf = f"sub_{_sanitize_label(str(label))}"
-    elif wf_id:
-        leaf = f"wf_{_sanitize_label(str(wf_id))}"
-    else:
-        leaf = "sub"
-    return base / leaf
+    # Allow writes to the agent's own workspace root (not just outputs/).
+    # Protected files are blocked by _resolve_write_path in file_io.py.
+    base = (WORKING_DIR / "workspaces" / agent_id).resolve()
+    return base
 
 
 def _audit_log_path(parent_session: str | None) -> Path:
