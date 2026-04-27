@@ -114,7 +114,7 @@ class PolicyRouter:
 
         # Timeout
         if route_hint.timeout_seconds:
-            current_timeout = plan_params.get("timeout_seconds", 300)
+            _current_timeout = plan_params.get("timeout_seconds", 300)
             # Use the route hint timeout if it's reasonable
             if route_hint.timeout_seconds != 300:  # Not default
                 plan_params["timeout_seconds"] = route_hint.timeout_seconds

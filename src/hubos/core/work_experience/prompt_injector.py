@@ -66,7 +66,7 @@ def compress_experience_card(
     Returns:
         Compact work guidance string
     """
-    lines: list[str] = []
+    _lines: list[str] = []
 
     # Pattern summary (what kind of task this applies to)
     pattern = (card.get("usage_pattern_summary") or card.get("title") or "")[

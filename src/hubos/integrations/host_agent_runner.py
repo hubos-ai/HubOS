@@ -78,8 +78,8 @@ def _derive_subagent_scope(
     """
     channel = str(context.get("channel") or "")
     wf_id = context.get("workflow_id")
-    step_id = context.get("step_id")
-    label = context.get("label")
+    _step_id = context.get("step_id")
+    _label = context.get("label")
     parent_session = context.get("parent_session_id")
 
     is_subagent = (

@@ -643,7 +643,9 @@ async def _phase3_5_enrich_emails(
 
     enriched = 0
     needs_email = [
-        lead for lead in leads if not lead.get("email_pattern") and not lead.get("emails")
+        lead
+        for lead in leads
+        if not lead.get("email_pattern") and not lead.get("emails")
     ]
 
     if not needs_email:
@@ -1309,7 +1311,9 @@ async def find_customer_leads(
     raw_leads = _load_json(leads_path, [])
     leads = raw_leads if isinstance(raw_leads, list) else []
     no_email_count = sum(
-        1 for lead in leads if not lead.get("email_pattern") and not lead.get("emails")
+        1
+        for lead in leads
+        if not lead.get("email_pattern") and not lead.get("emails")
     )
 
     if no_email_count > 0:

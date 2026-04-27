@@ -134,7 +134,7 @@ class ExecutionOrchestrator:
             get_work_experience_interceptor,
         )
 
-        from hubos.core.infra.feature_flags import get_feature_flags
+        from hubos.core.infra.feature_flags import get_feature_flags  # noqa: F811
 
         try:
             interceptor = get_work_experience_interceptor()

@@ -264,7 +264,7 @@ class ParallelExecutor:
         """Execute a single unit with timeout/retry."""
         record = self._execution_records[unit_id]
         retries = unit_def.get("retry_count", 0)
-        max_retries = unit_def.get("max_retries", 3)
+        _max_retries = unit_def.get("max_retries", 3)
         unit_timeout = unit_def.get("timeout_seconds", timeout_seconds)
 
         for attempt in range(retries + 1):

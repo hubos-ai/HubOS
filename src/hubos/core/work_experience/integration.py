@@ -599,7 +599,7 @@ class WorkExperienceInterceptor:
             q = (t.get("user_input") or "")[:200]
             r = (t.get("assistant_response") or "")[:500]
             context_parts.append(
-                f"Round {i + 1}:\nUser: {q}\nAssistant: {r}\n"
+                f"Round {i + 1}:\nUser: {q}\nAssistant: {r}\n",
             )
         context_text = "\n".join(context_parts)
 

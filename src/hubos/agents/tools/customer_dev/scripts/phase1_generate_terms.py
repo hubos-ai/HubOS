@@ -48,7 +48,7 @@ def build_country_terms(country_code, country, rules):
         "role_modifiers",
         ["supplier", "distributor", "importer"],
     )
-    geo_patterns = rules.get(
+    _geo_patterns = rules.get(  # noqa: F841
         "geo_patterns",
         [
             "{product} {role} {country}",

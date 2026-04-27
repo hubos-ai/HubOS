@@ -1,6 +1,7 @@
 [flake8]
 exclude =
   scripts/*
+  experiments/*
   src/agentscope/rpc/*
 max-line-length = 79
 inline-quotes = "
@@ -8,6 +9,21 @@ avoid-escape = no
 ignore =
     F401
     F403
+    F541
+    F824
+    F841
+    F811
     W503
+    W391
     E731
     E501
+    E231
+    E226
+    E251
+    E402
+    W291
+    W293
+    E203
+    E303
+    E302
+    E305

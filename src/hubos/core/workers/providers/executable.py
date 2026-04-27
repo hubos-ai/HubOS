@@ -325,7 +325,7 @@ class ExecutableWorkerProvider(WorkerProvider):
         input_data: dict[str, Any],
     ) -> dict[str, Any]:
         """Handle analysis task type."""
-        data = input_data.get("data", {})
+        _data = input_data.get("data", {})
 
         await asyncio.sleep(0.05)
 

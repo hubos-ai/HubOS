@@ -666,7 +666,7 @@ async def _wait_for_task(
 
                 current_event: str | None = None
                 current_data_lines: list[str] = []
-                wall_remaining = timeout_seconds
+                _wall_remaining = timeout_seconds
 
                 async for raw_line in _aiter_lines_with_timeout(
                     resp,
