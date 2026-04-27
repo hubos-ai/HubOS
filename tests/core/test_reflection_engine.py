@@ -117,7 +117,9 @@ class TestReflectionEngine:
 
         assert isinstance(report, ReflectionReport)
         assert report.task_id == "task-success-1"
-        assert len(report.what_worked) > 0
+        # With no content in execution trace, what_worked may be empty.
+        # The old code added vacuous "Task completed successfully"; the new
+        # code only extracts substantive content from trace steps.
         assert report.confidence >= 0.5
 
     def test_reflect_failure_generates_analysis(

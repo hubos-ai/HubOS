@@ -52,6 +52,7 @@ When to use keyword-only fallback:
     rather than returning zero results for valid but non-prefix-matching tasks.
 """
 
+import json
 import logging
 import re
 from typing import Any, Optional
@@ -285,6 +286,12 @@ class WorkExperienceInterceptor:
     - Entirely controlled by ENABLE_WORK_EXPERIENCE_LAYER flag
     """
 
+    # ---- Turn buffer for periodic methodology summarization ----
+    _MAX_BUFFER_SIZE = 50
+    _BUFFER_SUMMARIZE_THRESHOLD = 10      # turns before LLM summary
+    _BUFFER_TIME_THRESHOLD_SEC = 1800     # 30 minutes between summaries
+    _BUFFER_KEYWORD_THRESHOLD = 3         # turns with overlapping keywords
+
     def __init__(self) -> None:
         """Initialize the interceptor with a store, retriever, and reflection engine."""
         from hubos.core.work_experience.store import LocalWorkExperienceStore
@@ -296,6 +303,11 @@ class WorkExperienceInterceptor:
         self._retriever = WorkExperienceRetriever(store=self._store, max_results=5)
         self._service = WorkExperienceService(store=self._store)
         self._reflection_engine = ReflectionEngine()
+
+        # Turn buffer: accumulates conversation turns for periodic methodology
+        # summarization instead of generating a card from every single turn.
+        self._turn_buffer: list[dict[str, str]] = []
+        self._last_summary_time: float = 0.0  # epoch seconds
 
     def pre_execute(self, task: Task) -> list[dict]:
         """
@@ -466,6 +478,211 @@ class WorkExperienceInterceptor:
                     exc,
                 )
 
+    # ------------------------------------------------------------------
+    # Methodology summarization (LLM-based, periodic)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _summarize_methodology_with_llm(
+        turns: list[dict[str, str]],
+    ) -> Optional[dict]:
+        """
+        Call LLM to extract methodology from accumulated conversation turns.
+
+        Returns None if the LLM is unavailable or determines there are no
+        actionable lessons.  On success returns a dict with keys:
+        has_lessons, what_worked, what_failed, guidance, title.
+        """
+        if not turns:
+            return None
+
+        # Build context from buffered turns (keep it short)
+        context_parts: list[str] = []
+        for i, t in enumerate(turns[-10:]):  # last 10 turns max
+            q = (t.get("user_input") or "")[:200]
+            r = (t.get("assistant_response") or "")[:500]
+            context_parts.append(f"Round {i+1}:\nUser: {q}\nAssistant: {r}\n")
+        context_text = "\n".join(context_parts)
+
+        prompt = (
+            "你是一个工作经验总结专家。请分析以下多轮对话，判断是否包含值得记住的工作经验/方法论。\n\n"
+            f"{context_text}\n"
+            "只有当对话包含以下之一时才提取：\n"
+            "1. 发现了更有效的工作方法（比如从A方法切换到B方法效果更好）\n"
+            "2. 踩了坑并找到了解决方案\n"
+            "3. 总结出了可复用的方法论或流程\n"
+            "4. 发现了关键信息会影响未来同类工作\n\n"
+            "如果有经验，用JSON输出：\n"
+            '{"has_lessons": true, "what_worked": ["方法1"], "what_failed": ["失败1"], '
+            '"guidance": "下次怎么做的一句话总结", "title": "经验标题(20字内)"}\n\n'
+            "如果没有，输出：\n"
+            '{"has_lessons": false}\n\n'
+            "只输出JSON，不要解释。"
+        )
+
+        try:
+            from hubos.core.llm.runtime import get_llm_runtime
+
+            runtime = get_llm_runtime()
+            if not runtime.is_available():
+                return None
+
+            result = runtime.generate_direct(
+                prompt=prompt,
+                system_prompt="You are a work experience extraction assistant. Output only valid JSON.",
+                temperature=0.3,
+                max_tokens=256,
+            )
+            if not result.success or not result.text:
+                return None
+
+            # Parse JSON from response (handle markdown code blocks)
+            text = result.text.strip()
+            if text.startswith("```"):
+                # Strip ```json ... ``` wrapper
+                lines = text.split("\n")
+                text = "\n".join(
+                    line for line in lines if not line.strip().startswith("```")
+                )
+
+            data = json.loads(text)
+            if not data.get("has_lessons"):
+                return None
+
+            return {
+                "what_worked": data.get("what_worked", [])[:5],
+                "what_failed": data.get("what_failed", [])[:3],
+                "guidance": (data.get("guidance") or "")[:200],
+                "title": (data.get("title") or "")[:60],
+            }
+        except json.JSONDecodeError:
+            logger.debug("LLM methodology summary returned non-JSON, skipping")
+            return None
+        except Exception as exc:
+            logger.debug(
+                "LLM methodology summarization failed: %s", exc,
+            )
+            return None
+
+    def _should_trigger_periodic_summary(self) -> bool:
+        """Check if the turn buffer should trigger a periodic LLM summary."""
+        import time
+
+        buf = self._turn_buffer
+        if not buf:
+            return False
+
+        # 1. Buffer size threshold
+        if len(buf) >= self._BUFFER_SUMMARIZE_THRESHOLD:
+            return True
+
+        # 2. Time threshold (30 min since last summary)
+        now = time.time()
+        if (
+            self._last_summary_time > 0
+            and (now - self._last_summary_time) >= self._BUFFER_TIME_THRESHOLD_SEC
+            and len(buf) >= 3
+        ):
+            return True
+
+        # 3. Keyword overlap threshold: >= N turns share significant keywords
+        if len(buf) >= self._BUFFER_KEYWORD_THRESHOLD:
+            # Quick check: do recent turns share keywords?
+            all_kw: list[str] = []
+            for t in buf[-6:]:
+                words = (t.get("user_input") or "").lower().split()
+                all_kw.extend(w for w in words if len(w) > 4)
+            if all_kw:
+                from collections import Counter
+
+                top_kw = Counter(all_kw).most_common(3)
+                if any(count >= self._BUFFER_KEYWORD_THRESHOLD for _, count in top_kw):
+                    return True
+
+        return False
+
+    def _flush_buffer_to_methodology_card(
+        self,
+        session_id: str = "",
+        agent_id: str = "default",
+        channel: str = "console",
+    ) -> Optional[dict[str, Any]]:
+        """
+        Summarize buffered turns into a methodology card via LLM.
+        Clears the buffer after summarization.
+        """
+        import time
+
+        if not self._turn_buffer:
+            return None
+
+        summary = self._summarize_methodology_with_llm(self._turn_buffer)
+        self._last_summary_time = time.time()
+
+        # Clear buffer regardless of outcome
+        buf_count = len(self._turn_buffer)
+        self._turn_buffer = []
+
+        if summary is None:
+            logger.debug(
+                "Periodic summary: no methodology extracted from %d turns",
+                buf_count,
+            )
+            return None
+
+        # Create a methodology card from the LLM summary
+        from hubos.core.work_experience.schemas import (
+            WorkExperience,
+            WorkExperienceScope,
+            WorkExperienceStatus,
+            ExperienceLevel,
+        )
+        from uuid import uuid4
+
+        card = WorkExperience(
+            experience_id=uuid4(),
+            scope=WorkExperienceScope.GLOBAL,
+            status=WorkExperienceStatus.CANDIDATE,
+            experience_level=ExperienceLevel.NEW,
+            title=summary["title"],
+            what_worked=summary["what_worked"],
+            what_failed=summary["what_failed"],
+            guidance=summary["guidance"],
+            confidence=0.75,
+            maturity_score=37.5,
+            source_session_id=session_id,
+            source_task_id=f"methodology-summary-{uuid4().hex[:8]}",
+            source_trace_id="periodic",
+            trigger_keywords=self._extract_keywords_from_turns(),
+            trigger_hint="input_text:" + (summary["title"][:20].lower().replace(" ", "_")),
+        )
+
+        self._store.save(card)
+        logger.info(
+            "WorkExperience methodology card created from periodic summary",
+            extra={
+                "session_id": session_id,
+                "experience_id": str(card.experience_id),
+                "title": card.title[:80],
+                "buffer_turns_consumed": buf_count,
+            },
+        )
+        return {
+            "experience_id": str(card.experience_id),
+            "title": card.title,
+            "status": card.status.value,
+            "scope": card.scope.value,
+            "buffer_turns_consumed": buf_count,
+        }
+
+    def _extract_keywords_from_turns(self) -> list[str]:
+        """Extract keywords from buffered turns for trigger matching."""
+        texts: list[str] = []
+        for t in self._turn_buffer:
+            texts.append(t.get("user_input") or "")
+            texts.append(t.get("assistant_response") or "")
+        return extract_semantic_keywords(texts)[:15]
+
     def post_chat_turn(
         self,
         *,
@@ -477,11 +694,12 @@ class WorkExperienceInterceptor:
         execution_time_ms: int = 0,
     ) -> Optional[dict[str, Any]]:
         """
-        Reflect on a completed chat turn and persist a candidate card.
+        Reflect on a completed chat turn and optionally persist a card.
 
-        This bridges the real desktop/web chat runtime to the Work Experience
-        layer. The user-facing chat path does not flow through the core
-        execution orchestrator, so we synthesize a minimal TaskContext here.
+        Strategy (v2):
+        1. Quick regex extraction → if actionable lessons found, create card immediately
+        2. Otherwise, buffer the turn for periodic LLM-based methodology summarization
+        3. Trigger LLM summary when buffer conditions are met
         """
         flags = get_feature_flags()
         if not flags.enable_work_experience_layer:
@@ -500,6 +718,56 @@ class WorkExperienceInterceptor:
             )
             return None
 
+        # ---- Quick regex extraction (fast path) ----
+        quick_lessons = _extract_lessons_from_response(response)
+        has_quick_lessons = bool(quick_lessons["what_worked"] or quick_lessons["what_failed"])
+
+        result = None
+        if has_quick_lessons:
+            # Fast path: regex found actionable lessons, create card directly
+            result = self._create_card_from_lessons(
+                lessons=quick_lessons,
+                query=query,
+                response=response,
+                session_id=session_id,
+                channel=channel,
+                agent_id=agent_id,
+            )
+
+        # ---- Buffer turn for periodic summarization ----
+        self._turn_buffer.append({
+            "user_input": query,
+            "assistant_response": response[:1000],  # truncate to save memory
+            "channel": channel,
+            "agent_id": agent_id,
+        })
+        # Enforce max buffer size
+        if len(self._turn_buffer) > self._MAX_BUFFER_SIZE:
+            self._turn_buffer = self._turn_buffer[-self._MAX_BUFFER_SIZE:]
+
+        # ---- Check if periodic LLM summary should trigger ----
+        summary_result = None
+        if self._should_trigger_periodic_summary():
+            summary_result = self._flush_buffer_to_methodology_card(
+                session_id=session_id,
+                agent_id=agent_id,
+                channel=channel,
+            )
+
+        # Return whichever result is more interesting
+        return result or summary_result
+
+    def _create_card_from_lessons(
+        self,
+        *,
+        lessons: dict[str, list[str]],
+        query: str,
+        response: str,
+        session_id: str,
+        channel: str,
+        agent_id: str,
+    ) -> Optional[dict[str, Any]]:
+        """Create a work experience card from extracted lessons (fast regex path)."""
         trace_id = f"chat-trace-{uuid4()}"
         task_id = f"chat-turn-{uuid4()}"
 
@@ -538,7 +806,7 @@ class WorkExperienceInterceptor:
                 retry_count=0,
                 trace_id=trace_id,
             ),
-            execution_time_ms=max(execution_time_ms, 0),
+            execution_time_ms=0,
         )
 
         try:
@@ -557,27 +825,22 @@ class WorkExperienceInterceptor:
                     extra={"session_id": session_id, "error": str(exc)},
                 )
 
-            # ---- Scope detection: set scope based on lesson content ----
-            # Only if enrichment produced lessons (confidence above threshold)
+            # Scope detection
             if report.confidence >= 0.5 and (report.what_worked or report.what_failed):
                 scope_hint = _detect_scope_from_lessons(
                     report.what_worked, report.what_failed,
                 )
                 context.task_input["scope"] = scope_hint
 
-                # Also store detected tools for the extractor
-                lessons = _extract_lessons_from_response(response)
-                if lessons["tools"]:
+                if lessons.get("tools"):
                     context.task_input["tools_used"] = lessons["tools"]
 
-            # Build keywords for similarity matching (same logic as retriever)
             keywords = self._extract_keywords(context.task_input)
 
             # Try to find an existing experience to update
             existing = self._service.find_existing_for_update(context, keywords)
 
             if existing is not None:
-                # Update existing experience instead of creating a new card
                 updated = self._service.update_existing_experience(
                     existing.experience_id,
                     report,
@@ -600,42 +863,27 @@ class WorkExperienceInterceptor:
                     "updated": updated,
                 }
 
-            # No similar experience found — create a new card
+            # Create new card
             from hubos.core.work_experience.extractor import WorkExperienceExtractor
 
             extractor = WorkExperienceExtractor(store=self._store)
             card = extractor.extract(report, context)
             if card is None:
-                logger.debug(
-                    "No WorkExperience card extracted from chat turn",
-                    extra={"session_id": session_id, "task_id": task_id},
-                )
                 return None
 
-            # Apply compression to new card fields to prevent unbounded growth.
-            # This mirrors what update_existing_experience does, but for first creation.
+            # Apply compression
             card.what_worked = self._service._merge_and_compress_list(
-                [],
-                card.what_worked,
-                max_items=5,
-                filter_generic=True,
+                [], card.what_worked, max_items=5, filter_generic=True,
             )
             card.what_failed = self._service._merge_and_compress_list(
-                [],
-                card.what_failed,
-                max_items=3,
-                filter_generic=False,
+                [], card.what_failed, max_items=3, filter_generic=False,
             )
             card.guidance = self._service._distill_guidance(
-                "",
-                report.next_time_strategy or "",
-                card.what_worked,
-                card.what_failed,
+                "", report.next_time_strategy or "",
+                card.what_worked, card.what_failed,
             )
             card.avoidance = self._service._merge_avoidance(
-                "",
-                report.root_cause or "",
-                report.what_failed or [],
+                "", report.root_cause or "", report.what_failed or [],
             )
 
             self._store.save(card)
@@ -657,12 +905,8 @@ class WorkExperienceInterceptor:
             }
         except Exception as exc:
             logger.warning(
-                "WorkExperience chat extraction failed, continuing",
-                extra={
-                    "session_id": session_id,
-                    "agent_id": agent_id,
-                    "error": str(exc),
-                },
+                "WorkExperience card creation from lessons failed",
+                extra={"session_id": session_id, "error": str(exc)},
             )
             return None
 

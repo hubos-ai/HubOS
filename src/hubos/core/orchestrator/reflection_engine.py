@@ -166,13 +166,19 @@ class ReflectionEngine:
 
         # Analyze based on task result
         if context.task_result.status == TaskStatus.SUCCESS:
-            confidence = 0.8
-            what_worked.append("Task completed successfully")
+            confidence = 0.5  # Base confidence, will be boosted by enrichment
 
-            # Analyze execution trace for good patterns
+            # NOTE: We intentionally do NOT add generic "Task completed" or
+            # "Worker X succeeded" to what_worked.  Those are vacuous filler
+            # that bypass the quality gate in the extractor.  Real lessons
+            # should come from enrichment (regex + LLM) in integration.py.
+
+            # Analyze execution trace for meaningful patterns
             for step in context.execution_trace:
-                if step.get("success") and step.get("worker"):
-                    what_worked.append(f"Worker {step['worker']} succeeded")
+                content = step.get("content", "")
+                if content and len(content) > 20:
+                    # Only add if the step has substantive content
+                    what_worked.append(content[:80])
 
         elif context.task_result.status == TaskStatus.FAILURE:
             confidence = 0.6
