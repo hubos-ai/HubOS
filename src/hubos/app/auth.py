@@ -57,6 +57,7 @@ _PUBLIC_PREFIXES: tuple[str, ...] = (
     "/logo.svg",
     "/dark-logo.svg",
     "/hubos-symbol.svg",
+    "/hubos-buddy.png",
 )
 
 

@@ -19,7 +19,7 @@ const defaultConfig = {
     greeting: "Hello, how can I help you today?",
     description:
       "I am a helpful assistant that can help you with your questions.",
-    avatar: `${import.meta.env.BASE_URL}hubos-symbol.svg`,
+    avatar: `${import.meta.env.BASE_URL}hubos-buddy.png?v=20260427`,
     prompts: [
       {
         value: "Let's start a new journey!",

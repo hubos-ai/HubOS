@@ -472,6 +472,13 @@ if os.path.isdir(_CONSOLE_STATIC_DIR):
             return FileResponse(f, media_type="image/svg+xml")
         raise HTTPException(status_code=404, detail="Not Found")
 
+    @app.get("/hubos-buddy.png")
+    def _console_buddy_icon():
+        f = _console_path / "hubos-buddy.png"
+        if f.is_file():
+            return FileResponse(f, media_type="image/png")
+        raise HTTPException(status_code=404, detail="Not Found")
+
     @app.get("/hubos-dark.png")
     def _console_dark_icon():
         f = _console_path / "hubos-dark.png"
