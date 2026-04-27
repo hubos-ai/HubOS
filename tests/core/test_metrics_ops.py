@@ -56,7 +56,7 @@ class TestMetricsServicePrometheusExport:
 
         # Should contain a numeric timestamp
         lines = output.split("\n")
-        timestamp_lines = [l for l in lines if l and not l.startswith("#")]
+        timestamp_lines = [ln for ln in lines if ln and not ln.startswith("#")]
         assert len(timestamp_lines) > 0
 
     def test_export_multiple_calls(self) -> None:
