@@ -110,3 +110,7 @@ desktop/release/
 
 # Worktrees
 .worktrees/
+-e 
+# Codex backups and deploy venv
+.codex-backups/
+.venv-deploy/
