@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for collaboration bus."""
 
 from uuid import uuid4
@@ -90,7 +91,7 @@ class TestCollaborationBus:
                 session_id="session",
                 message_type=MessageType.REQUEST,
                 payload={},
-            )
+            ),
         )
         bus.publish(
             CollaborationMessage(
@@ -100,7 +101,7 @@ class TestCollaborationBus:
                 session_id="session",
                 message_type=MessageType.NOTIFICATION,
                 payload={},
-            )
+            ),
         )
 
         # Only NOTIFICATION should be received
@@ -123,9 +124,11 @@ class TestCollaborationBus:
                     task_id=f"task-{i}",
                     trace_id=f"trace-{i}",
                     session_id="session-1" if i < 3 else "session-2",
-                    message_type=MessageType.REQUEST if i % 2 == 0 else MessageType.NOTIFICATION,
+                    message_type=MessageType.REQUEST
+                    if i % 2 == 0
+                    else MessageType.NOTIFICATION,
                     payload={},
-                )
+                ),
             )
 
         # Filter by task_id
@@ -138,7 +141,9 @@ class TestCollaborationBus:
 
         # Filter by unit_id (sender or recipient)
         unit_filtered = bus.get_messages(unit_id=unit_b)
-        assert len(unit_filtered) == 3  # messages where unit_b is sender or recipient
+        assert (
+            len(unit_filtered) == 3
+        )  # messages where unit_b is sender or recipient
 
     def test_worker_to_worker_via_coordinator(self) -> None:
         """Test A->Coordinator->B collaboration chain."""
@@ -234,7 +239,7 @@ class TestCollaborationBus:
                     session_id="session",
                     message_type=MessageType.NOTIFICATION,
                     payload={},
-                )
+                ),
             )
 
         assert len(bus.get_messages()) == 3
@@ -267,7 +272,7 @@ class TestCollaborationBusLogging:
                 session_id="session",
                 message_type=MessageType.REQUEST,
                 payload={},
-            )
+            ),
         )
 
         assert received[0].trace_id == trace_id
@@ -296,7 +301,7 @@ class TestCollaborationBusLogging:
                 session_id="session",
                 message_type=MessageType.REQUEST,
                 payload={"step": 1, "type": "request"},
-            )
+            ),
         )
 
         # B -> C: forwarded request
@@ -309,7 +314,7 @@ class TestCollaborationBusLogging:
                 session_id="session",
                 message_type=MessageType.REQUEST,
                 payload={"step": 2, "type": "forwarded"},
-            )
+            ),
         )
 
         # C -> A: response
@@ -322,7 +327,7 @@ class TestCollaborationBusLogging:
                 session_id="session",
                 message_type=MessageType.RESPONSE,
                 payload={"step": 3, "type": "response"},
-            )
+            ),
         )
 
         # All messages share same trace_id for full path tracking

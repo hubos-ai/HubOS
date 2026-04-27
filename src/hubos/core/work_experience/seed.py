@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Seed data loader for Work Experience cards.
 
 Bundled methodology cards that are installed on first run. These represent
@@ -28,6 +29,7 @@ def seed_work_experience_cards(store=None) -> int:
     """
     if store is None:
         from hubos.core.work_experience.store import LocalWorkExperienceStore
+
         store = LocalWorkExperienceStore()
 
     if not _SEED_DIR.exists():
@@ -48,6 +50,7 @@ def seed_work_experience_cards(store=None) -> int:
                 continue
 
             from hubos.core.work_experience.store import _dict_to_card
+
             card = _dict_to_card(data)
             store.save(card)
             seeded += 1

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Coordinator core implementation with task state machine."""
 
 import logging
@@ -50,7 +51,10 @@ class Coordinator:
     Only coordinator can mutate task state (Modular Boundaries rule #3).
     """
 
-    def __init__(self, worker_registry: Optional[dict[str, Any]] = None) -> None:
+    def __init__(
+        self,
+        worker_registry: Optional[dict[str, Any]] = None,
+    ) -> None:
         """
         Initialize the coordinator.
 
@@ -131,7 +135,7 @@ class Coordinator:
         """
         if self.current_state != TaskState.NORMALIZED:
             raise InvalidStateError(
-                f"normalize() called in state {self.current_state.value}, expected NORMALIZED"
+                f"normalize() called in state {self.current_state.value}, expected NORMALIZED",
             )
         self._normalized_data = normalized_data
         logger.info(
@@ -142,7 +146,11 @@ class Coordinator:
             },
         )
 
-    def create_plan(self, steps: list[dict[str, Any]], acceptance_criteria: list[str]) -> ExecutionPlan:
+    def create_plan(
+        self,
+        steps: list[dict[str, Any]],
+        acceptance_criteria: list[str],
+    ) -> ExecutionPlan:
         """
         Create an execution plan.
 
@@ -161,7 +169,7 @@ class Coordinator:
         """
         if self.current_state != TaskState.NORMALIZED:
             raise InvalidStateError(
-                f"create_plan() called in state {self.current_state.value}, expected NORMALIZED"
+                f"create_plan() called in state {self.current_state.value}, expected NORMALIZED",
             )
         if not self._event:
             raise CoordinatorError("No event loaded")
@@ -197,7 +205,7 @@ class Coordinator:
         """
         if self.current_state != TaskState.PLANNED:
             raise InvalidStateError(
-                f"dispatch() called in state {self.current_state.value}, expected PLANNED"
+                f"dispatch() called in state {self.current_state.value}, expected PLANNED",
             )
         self._transition_to(TaskState.DISPATCHED)
         logger.info(
@@ -220,9 +228,12 @@ class Coordinator:
         Raises:
             InvalidStateError: If called in wrong state.
         """
-        if self.current_state != TaskState.DISPATCHED and self.current_state != TaskState.RUNNING:
+        if (
+            self.current_state != TaskState.DISPATCHED
+            and self.current_state != TaskState.RUNNING
+        ):
             raise InvalidStateError(
-                f"receive_result() called in state {self.current_state.value}, expected DISPATCHED or RUNNING"
+                f"receive_result() called in state {self.current_state.value}, expected DISPATCHED or RUNNING",
             )
         # Transition to RUNNING if we're still in DISPATCHED (first result)
         if self.current_state == TaskState.DISPATCHED:
@@ -258,7 +269,7 @@ class Coordinator:
         if self.current_state != TaskState.RUNNING:
             raise InvalidStateError(
                 f"merge() called in state {self.current_state.value}, expected RUNNING. "
-                f"Did you forget to call receive_result() first?"
+                f"Did you forget to call receive_result() first?",
             )
 
         self._transition_to(TaskState.MERGING)
@@ -286,9 +297,11 @@ class Coordinator:
                 if result.output_data["conclusion"] != all_content[-1]:
                     high_conflicts.append(
                         f"Unit {result.unit_id}: conflicting conclusions: "
-                        f"{result.output_data['conclusion']} vs {all_content[-1]}"
+                        f"{result.output_data['conclusion']} vs {all_content[-1]}",
                     )
-                    conflicts.append(f"Unit {result.unit_id}: conflicting conclusions")
+                    conflicts.append(
+                        f"Unit {result.unit_id}: conflicting conclusions",
+                    )
 
             if result.output_data.get("content"):
                 all_content.append(result.output_data["content"])
@@ -296,7 +309,9 @@ class Coordinator:
 
             # Check confidence (MEDIUM severity - auto-merge with warning)
             if result.confidence < 0.7:
-                conflicts.append(f"Unit {result.unit_id}: low confidence {result.confidence}")
+                conflicts.append(
+                    f"Unit {result.unit_id}: low confidence {result.confidence}",
+                )
 
             merge_results.append(mr)
 
@@ -354,7 +369,7 @@ class Coordinator:
         """
         if self.current_state != TaskState.RESPONDED:
             raise InvalidStateError(
-                f"persist() called in state {self.current_state.value}, expected RESPONDED"
+                f"persist() called in state {self.current_state.value}, expected RESPONDED",
             )
         self._transition_to(TaskState.PERSISTED)
         logger.info(
@@ -376,7 +391,7 @@ class Coordinator:
         """
         if self.current_state != TaskState.RUNNING:
             raise InvalidStateError(
-                f"retry() called in state {self.current_state.value}, expected RUNNING"
+                f"retry() called in state {self.current_state.value}, expected RUNNING",
             )
         self._transition_to(TaskState.RETRYING)
         logger.info(
@@ -397,7 +412,9 @@ class Coordinator:
             error: The error message.
         """
         if self._state_machine.is_terminal():
-            raise InvalidStateError(f"fail() called but state {self.current_state.value} is terminal")
+            raise InvalidStateError(
+                f"fail() called but state {self.current_state.value} is terminal",
+            )
         self._transition_to(TaskState.FAILED)
         logger.error(
             "Task failed",
@@ -419,7 +436,7 @@ class Coordinator:
         """
         if self.current_state != TaskState.MERGING:
             raise InvalidStateError(
-                f"request_human() called in state {self.current_state.value}, expected MERGING"
+                f"request_human() called in state {self.current_state.value}, expected MERGING",
             )
         self._transition_to(TaskState.NEEDS_HUMAN)
         logger.warning(
@@ -491,8 +508,11 @@ class Coordinator:
                     step_type=PlanStepType(step_def.get("type", "sequential")),
                     worker_provider=step_def.get("worker_provider"),
                     input_data=step_def.get("input_data", {}),
-                    acceptance_criteria=step_def.get("acceptance_criteria", []),
+                    acceptance_criteria=step_def.get(
+                        "acceptance_criteria",
+                        [],
+                    ),
                     timeout_seconds=step_def.get("timeout_seconds", 300),
-                )
+                ),
             )
         return plan_steps

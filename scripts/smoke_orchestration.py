@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Stage A 冒烟测试：验证 src/hubos/orchestration/ 整体可用。
 
 通过条件：
   1. 所有 .py 通过编译（py_compile）
   2. 包顶层 import 不抛错
-  3. 关键类（Coordinator / DagScheduler / TaskStore / EventStore / 
+  3. 关键类（Coordinator / DagScheduler / TaskStore / EventStore /
      ExecutionOrchestrator / WorkerProvider / LLMRuntime）可导入并实例化
   4. 一个最小 ConversationEvent → Coordinator.process_event 流程跑通
 """
@@ -98,7 +99,9 @@ for mod in modules_to_import:
 if import_failures:
     for mod, err in import_failures:
         print(f"  - {mod:<60s}  {err}")
-    fail(f"{len(import_failures)}/{len(modules_to_import)} modules failed to import")
+    fail(
+        f"{len(import_failures)}/{len(modules_to_import)} modules failed to import",
+    )
 ok(f"{len(modules_to_import)} modules imported cleanly")
 
 # ---------- 3. Key classes can be instantiated ----------
@@ -127,14 +130,21 @@ step("4. ConversationEvent class can be imported")
 try:
     from hubos.core.schemas.events import ConversationEvent
     import dataclasses
+
     if dataclasses.is_dataclass(ConversationEvent):
         names = [f.name for f in dataclasses.fields(ConversationEvent)]
         ok(f"ConversationEvent is dataclass with fields: {names}")
     else:
         ok(f"ConversationEvent loaded: {ConversationEvent}")
     # Confirm Coordinator has the expected entry point
-    api = [m for m in dir(coord) if not m.startswith('_') and callable(getattr(coord, m))]
-    ok(f"Coordinator public methods: {api[:10]}{'...' if len(api) > 10 else ''}")
+    api = [
+        m
+        for m in dir(coord)
+        if not m.startswith("_") and callable(getattr(coord, m))
+    ]
+    ok(
+        f"Coordinator public methods: {api[:10]}{'...' if len(api) > 10 else ''}",
+    )
 except Exception as e:  # noqa: BLE001
     traceback.print_exc()
     fail(f"step-4 crashed: {e}")

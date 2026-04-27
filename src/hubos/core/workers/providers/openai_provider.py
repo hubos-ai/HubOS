@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """OpenAI worker provider for real task execution."""
 
 import asyncio
@@ -55,7 +56,14 @@ class OpenAIWorkerProvider(WorkerProvider):
     Falls back to stub provider if OpenAI is not configured.
     """
 
-    SUPPORTED_TASKS = {"research", "analysis", "summary", "general", "code", "review"}
+    SUPPORTED_TASKS = {
+        "research",
+        "analysis",
+        "summary",
+        "general",
+        "code",
+        "review",
+    }
 
     def __init__(self, config: Optional[OpenAIConfig] = None) -> None:
         """
@@ -76,8 +84,13 @@ class OpenAIWorkerProvider(WorkerProvider):
         return OpenAIConfig(
             api_key=api_key,
             model=os.environ.get("OPENAI_MODEL", "gpt-4o"),
-            base_url=os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-            timeout_seconds=int(os.environ.get("OPENAI_TIMEOUT_SECONDS", "60")),
+            base_url=os.environ.get(
+                "OPENAI_BASE_URL",
+                "https://api.openai.com/v1",
+            ),
+            timeout_seconds=int(
+                os.environ.get("OPENAI_TIMEOUT_SECONDS", "60"),
+            ),
             max_retries=int(os.environ.get("OPENAI_MAX_RETRIES", "3")),
         )
 
@@ -114,16 +127,22 @@ class OpenAIWorkerProvider(WorkerProvider):
         """
         if not self._enabled:
             raise WorkerExecutionError(
-                f"OpenAI provider not enabled (no API key)"
+                f"OpenAI provider not enabled (no API key)",
             )
 
         start_time = time.time()
 
         # Extract prompt from input_data
-        prompt = input_data.get("prompt") or input_data.get("content") or input_data.get("message", "")
+        prompt = (
+            input_data.get("prompt")
+            or input_data.get("content")
+            or input_data.get("message", "")
+        )
 
         if not prompt:
-            raise WorkerExecutionError(f"OpenAI requires 'prompt' in input_data")
+            raise WorkerExecutionError(
+                f"OpenAI requires 'prompt' in input_data",
+            )
 
         logger.info(
             "OpenAI worker executing",
@@ -167,7 +186,7 @@ class OpenAIWorkerProvider(WorkerProvider):
                 },
             )
             raise WorkerTimeoutError(
-                f"OpenAI request timed out after {elapsed_ms}ms"
+                f"OpenAI request timed out after {elapsed_ms}ms",
             )
 
         except Exception as e:
@@ -185,7 +204,7 @@ class OpenAIWorkerProvider(WorkerProvider):
             )
 
             raise WorkerExecutionError(
-                f"OpenAI execution failed ({error_type}): {e}"
+                f"OpenAI execution failed ({error_type}): {e}",
             ) from e
 
     async def _call_openai(
@@ -210,7 +229,10 @@ class OpenAIWorkerProvider(WorkerProvider):
             "Content-Type": "application/json",
         }
 
-        system_prompt = input_data.get("system_prompt") or input_data.get("system", "")
+        system_prompt = input_data.get("system_prompt") or input_data.get(
+            "system",
+            "",
+        )
 
         payload: dict[str, Any] = {
             "model": self._config.model,
@@ -218,15 +240,19 @@ class OpenAIWorkerProvider(WorkerProvider):
         }
 
         if system_prompt:
-            payload["messages"].append({
-                "role": "system",
-                "content": system_prompt,
-            })
+            payload["messages"].append(
+                {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+            )
 
-        payload["messages"].append({
-            "role": "user",
-            "content": prompt,
-        })
+        payload["messages"].append(
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        )
 
         # Add temperature if specified
         if "temperature" in input_data:
@@ -243,7 +269,9 @@ class OpenAIWorkerProvider(WorkerProvider):
                 url,
                 headers=headers,
                 json=payload,
-                timeout=aiohttp.ClientTimeout(total=self._config.timeout_seconds),
+                timeout=aiohttp.ClientTimeout(
+                    total=self._config.timeout_seconds,
+                ),
             ) as response:
                 if response.status == 401:
                     raise Exception("OpenAI authentication failed (401)")
@@ -253,7 +281,9 @@ class OpenAIWorkerProvider(WorkerProvider):
                     raise Exception(f"OpenAI server error ({response.status})")
                 elif response.status != 200:
                     text = await response.text()
-                    raise Exception(f"OpenAI request failed ({response.status}): {text}")
+                    raise Exception(
+                        f"OpenAI request failed ({response.status}): {text}",
+                    )
 
                 result = await response.json()
 
@@ -283,13 +313,26 @@ class OpenAIWorkerProvider(WorkerProvider):
 
         if "timeout" in error_str or "timed out" in error_str:
             return OpenAIErrorType.TIMEOUT.value
-        elif "401" in error_str or "authentication" in error_str or "api key" in error_str:
+        elif (
+            "401" in error_str
+            or "authentication" in error_str
+            or "api key" in error_str
+        ):
             return OpenAIErrorType.AUTHENTICATION.value
         elif "429" in error_str or "rate limit" in error_str:
             return OpenAIErrorType.RATE_LIMIT.value
-        elif "400" in error_str or "invalid" in error_str or "malformed" in error_str:
+        elif (
+            "400" in error_str
+            or "invalid" in error_str
+            or "malformed" in error_str
+        ):
             return OpenAIErrorType.INVALID_INPUT.value
-        elif "500" in error_str or "502" in error_str or "503" in error_str or "server error" in error_str:
+        elif (
+            "500" in error_str
+            or "502" in error_str
+            or "503" in error_str
+            or "server error" in error_str
+        ):
             return OpenAIErrorType.SERVER_ERROR.value
         else:
             return OpenAIErrorType.UNKNOWN.value

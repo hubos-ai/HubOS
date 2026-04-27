@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """LLM Service for real model execution.
 
 Provides unified interface for model generation across different providers.

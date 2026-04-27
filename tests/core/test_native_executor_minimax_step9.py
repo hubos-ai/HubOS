@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Test NativeExecutor with MiniMax provider - Step 9.
 
 Tests that NativeExecutor properly calls MiniMax provider
@@ -13,10 +14,15 @@ class TestNativeExecutorMiniMax:
 
     def test_executor_calls_minimax_when_enabled(self):
         """Test that executor calls MiniMax when real model execution is enabled."""
-        from hubos.core.execution.executors.native_executor import NativeExecutor
+        from hubos.core.execution.executors.native_executor import (
+            NativeExecutor,
+        )
 
-        with patch('hubos.core.infra.feature_flags.get_feature_flags') as mock_ff, \
-             patch('hubos.core.llm.runtime.get_llm_runtime') as mock_runtime:
+        with patch(
+            "hubos.core.infra.feature_flags.get_feature_flags",
+        ) as mock_ff, patch(
+            "hubos.core.llm.runtime.get_llm_runtime",
+        ) as mock_runtime:
             mock_flags = MagicMock()
             mock_flags.enable_real_model_execution = True
             mock_ff.return_value = mock_flags
@@ -40,15 +46,23 @@ class TestNativeExecutorMiniMax:
             )
 
             assert result.success is True
-            assert result.output["response_text"] == "This is the MiniMax response"
+            assert (
+                result.output["response_text"]
+                == "This is the MiniMax response"
+            )
             assert "Processed" not in result.output["response_text"]
 
     def test_executor_handles_error(self):
         """Test that executor properly handles LLM errors."""
-        from hubos.core.execution.executors.native_executor import NativeExecutor
+        from hubos.core.execution.executors.native_executor import (
+            NativeExecutor,
+        )
 
-        with patch('hubos.core.infra.feature_flags.get_feature_flags') as mock_ff, \
-             patch('hubos.core.llm.runtime.get_llm_runtime') as mock_runtime:
+        with patch(
+            "hubos.core.infra.feature_flags.get_feature_flags",
+        ) as mock_ff, patch(
+            "hubos.core.llm.runtime.get_llm_runtime",
+        ) as mock_runtime:
             mock_flags = MagicMock()
             mock_flags.enable_real_model_execution = True
             mock_ff.return_value = mock_flags
@@ -75,9 +89,13 @@ class TestNativeExecutorMiniMax:
 
     def test_executor_uses_mock_when_disabled(self):
         """Test that executor uses mock when real model is disabled."""
-        from hubos.core.execution.executors.native_executor import NativeExecutor
+        from hubos.core.execution.executors.native_executor import (
+            NativeExecutor,
+        )
 
-        with patch('hubos.core.infra.feature_flags.get_feature_flags') as mock_ff:
+        with patch(
+            "hubos.core.infra.feature_flags.get_feature_flags",
+        ) as mock_ff:
             mock_flags = MagicMock()
             mock_flags.enable_real_model_execution = False
             mock_ff.return_value = mock_flags
@@ -102,24 +120,30 @@ class TestMiniMaxProvider:
 
     def test_provider_requires_api_key(self):
         """Test that provider raises error when API key is not set."""
-        with patch.dict('os.environ', {}, clear=True):
-            from hubos.core.llm.providers.minimax_provider import MiniMaxProvider
+        with patch.dict("os.environ", {}, clear=True):
+            from hubos.core.llm.providers.minimax_provider import (
+                MiniMaxProvider,
+            )
 
             provider = MiniMaxProvider(api_key=None)
             assert provider.is_configured is False
 
     def test_provider_is_configured_with_key(self):
         """Test that provider is configured when API key is provided."""
-        with patch.dict('os.environ', {}, clear=True):
-            from hubos.core.llm.providers.minimax_provider import MiniMaxProvider
+        with patch.dict("os.environ", {}, clear=True):
+            from hubos.core.llm.providers.minimax_provider import (
+                MiniMaxProvider,
+            )
 
             provider = MiniMaxProvider(api_key="test-key-123")
             assert provider.is_configured is True
 
     def test_generate_without_key_raises(self):
         """Test that generate() raises error when API key is not configured."""
-        with patch.dict('os.environ', {}, clear=True):
-            from hubos.core.llm.providers.minimax_provider import MiniMaxProvider
+        with patch.dict("os.environ", {}, clear=True):
+            from hubos.core.llm.providers.minimax_provider import (
+                MiniMaxProvider,
+            )
 
             provider = MiniMaxProvider(api_key=None)
 

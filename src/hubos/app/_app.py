@@ -525,5 +525,9 @@ if os.path.isdir(_CONSOLE_STATIC_DIR):
         if candidate.is_file():
             suffix = candidate.suffix.lower()
             mime = _STATIC_MIME.get(suffix)
-            return FileResponse(str(candidate), media_type=mime) if mime else FileResponse(str(candidate))
+            return (
+                FileResponse(str(candidate), media_type=mime)
+                if mime
+                else FileResponse(str(candidate))
+            )
         return _serve_console_index()

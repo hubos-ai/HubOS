@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Base worker provider interface."""
 
 from abc import ABC, abstractmethod
@@ -68,7 +69,12 @@ class WorkerProvider(ABC):
         """Return the provider name."""
 
     @abstractmethod
-    async def execute(self, unit_id: UUID, input_data: dict[str, Any], timeout_seconds: int) -> WorkerResult:
+    async def execute(
+        self,
+        unit_id: UUID,
+        input_data: dict[str, Any],
+        timeout_seconds: int,
+    ) -> WorkerResult:
         """
         Execute a task unit.
 

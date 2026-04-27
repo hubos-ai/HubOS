@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Feature flag access for the Work Experience Layer."""
 
 from hubos.core.infra.feature_flags import get_feature_flags
@@ -13,5 +14,5 @@ def require_work_experience() -> None:
     if not is_work_experience_enabled():
         raise RuntimeError(
             "Work Experience Layer is disabled. "
-            "Set ENABLE_WORK_EXPERIENCE_LAYER=true to enable it."
+            "Set ENABLE_WORK_EXPERIENCE_LAYER=true to enable it.",
         )

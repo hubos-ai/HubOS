@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Orchestrator module for coordinator-first agent system."""
 
 from hubos.core.orchestrator.coordinator import Coordinator

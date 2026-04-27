@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Work Experience Layer — Work Guidance Prompt Injection.
 
 Compresses WorkExperience cards into compact work guidance hints and injects them into
@@ -36,7 +37,11 @@ _INJECTION_FOOTER = "\n[/Work Guidance]\n"
 # Work Guidance Compression
 # =============================================================================
 
-def compress_experience_card(card: dict[str, Any], max_chars: int = DEFAULT_MAX_CHARS_PER_CARD) -> str:
+
+def compress_experience_card(
+    card: dict[str, Any],
+    max_chars: int = DEFAULT_MAX_CHARS_PER_CARD,
+) -> str:
     """
     Compress a work experience card into a compact work guidance string.
 
@@ -64,7 +69,9 @@ def compress_experience_card(card: dict[str, Any], max_chars: int = DEFAULT_MAX_
     lines: list[str] = []
 
     # Pattern summary (what kind of task this applies to)
-    pattern = (card.get("usage_pattern_summary") or card.get("title") or "")[:50].strip()
+    pattern = (card.get("usage_pattern_summary") or card.get("title") or "")[
+        :50
+    ].strip()
 
     # Recommended tool order
     tool_order = card.get("recommended_tool_order") or []
@@ -129,7 +136,7 @@ def compress_experience_card(card: dict[str, Any], max_chars: int = DEFAULT_MAX_
 
     # Hard truncate to max_chars
     if len(guidance) > max_chars:
-        guidance = guidance[:max_chars - 3] + "..."
+        guidance = guidance[: max_chars - 3] + "..."
 
     return guidance
 
@@ -154,7 +161,9 @@ def _trim_to_budget(
     result = []
     total = 0
     for hint in hints:
-        needed = total + len(hint) + (1 if result else 0)  # +1 for newline between hints
+        needed = (
+            total + len(hint) + (1 if result else 0)
+        )  # +1 for newline between hints
         if needed <= budget:
             result.append(hint)
             total = needed
@@ -167,6 +176,7 @@ def _trim_to_budget(
 # =============================================================================
 # Injection Builder
 # =============================================================================
+
 
 def build_experience_injection(
     cards: list[dict[str, Any]],

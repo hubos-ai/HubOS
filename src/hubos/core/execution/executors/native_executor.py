@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Native executor for Parallel Core V1.5 Step 5.
 
 Fallback executor that processes DAG nodes directly without CAMEL.
@@ -41,12 +42,29 @@ class NativeExecutor(BaseExecutor):
         try:
             # Check if real model execution is enabled
             from hubos.core.infra.feature_flags import get_feature_flags
+
             flags = get_feature_flags()
 
             if flags.enable_real_model_execution:
-                return self._execute_with_llm(node_id, role, input_text, timeout_ms, attempt, metadata, start_time)
+                return self._execute_with_llm(
+                    node_id,
+                    role,
+                    input_text,
+                    timeout_ms,
+                    attempt,
+                    metadata,
+                    start_time,
+                )
             else:
-                return self._execute_mock(node_id, role, input_text, timeout_ms, attempt, metadata, start_time)
+                return self._execute_mock(
+                    node_id,
+                    role,
+                    input_text,
+                    timeout_ms,
+                    attempt,
+                    metadata,
+                    start_time,
+                )
 
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
@@ -173,7 +191,15 @@ class NativeExecutor(BaseExecutor):
             "name": self.executor_name,
             "supports_mixed": True,
             "max_parallelism": 10,
-            "roles": ["ceo", "info", "dev", "review", "planner", "analyst", "any"],
+            "roles": [
+                "ceo",
+                "info",
+                "dev",
+                "review",
+                "planner",
+                "analyst",
+                "any",
+            ],
             "fallback": True,
         }
 

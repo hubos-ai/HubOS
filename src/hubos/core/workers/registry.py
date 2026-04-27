@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Process-wide registry for the host application's ``HostAgentRunner``.
 
 The host wires its own runner (typically backed by a multi-agent manager) at

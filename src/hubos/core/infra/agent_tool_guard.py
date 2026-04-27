@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Agent Tool Permission Guard.
 
 Provides:
@@ -113,7 +114,10 @@ class AgentToolGuard:
         self._tool_policies: dict[str, dict[str, Any]] = {}
         self.set_tool_policies(tool_policies)
 
-    def set_tool_policies(self, tool_policies: Optional[list[dict[str, Any]]]) -> None:
+    def set_tool_policies(
+        self,
+        tool_policies: Optional[list[dict[str, Any]]],
+    ) -> None:
         """Set dynamic tool policies from settings."""
         self._tool_policies = {}
         if not tool_policies:
@@ -128,6 +132,7 @@ class AgentToolGuard:
         """Get agent registry (lazy load)."""
         if self._agent_registry is None:
             from hubos.core.infra.agent_registry import get_agent_registry
+
             self._agent_registry = get_agent_registry()
         return self._agent_registry
 

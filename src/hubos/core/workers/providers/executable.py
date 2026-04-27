@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Executable worker provider with timeout, retry, and error classification."""
 
 import asyncio
@@ -41,7 +42,7 @@ class RetryPolicy:
 
     def get_delay(self, attempt: int) -> float:
         """Calculate delay for given retry attempt."""
-        delay = self.base_delay_seconds * (self.exponential_base ** attempt)
+        delay = self.base_delay_seconds * (self.exponential_base**attempt)
         return min(delay, self.max_delay_seconds)
 
 
@@ -165,7 +166,7 @@ class ExecutableWorkerProvider(WorkerProvider):
             except asyncio.TimeoutError:
                 error_type = WorkerErrorType.TIMEOUT
                 last_error = WorkerTimeoutError(
-                    f"Task {unit_id} timed out after {timeout_seconds}s (attempt {attempt + 1})"
+                    f"Task {unit_id} timed out after {timeout_seconds}s (attempt {attempt + 1})",
                 )
                 logger.warning(
                     "Worker task timed out",
@@ -196,7 +197,9 @@ class ExecutableWorkerProvider(WorkerProvider):
 
             except Exception as e:  # noqa: BLE001
                 error_type = WorkerErrorType.UNKNOWN
-                last_error = WorkerExecutionError(f"Task {unit_id} failed: {e}")
+                last_error = WorkerExecutionError(
+                    f"Task {unit_id} failed: {e}",
+                )
                 logger.error(
                     "Worker task unexpected error",
                     extra={
@@ -274,7 +277,10 @@ class ExecutableWorkerProvider(WorkerProvider):
             timestamp=datetime.now(timezone.utc),
         )
 
-    async def _handle_research_summary(self, input_data: dict[str, Any]) -> dict[str, Any]:
+    async def _handle_research_summary(
+        self,
+        input_data: dict[str, Any],
+    ) -> dict[str, Any]:
         """Handle research-summary task type."""
         query = input_data.get("query", "")
         topic = input_data.get("topic", "")
@@ -297,7 +303,10 @@ class ExecutableWorkerProvider(WorkerProvider):
             ],
         }
 
-    async def _handle_research(self, input_data: dict[str, Any]) -> dict[str, Any]:
+    async def _handle_research(
+        self,
+        input_data: dict[str, Any],
+    ) -> dict[str, Any]:
         """Handle research task type."""
         query = input_data.get("query", "")
 
@@ -311,7 +320,10 @@ class ExecutableWorkerProvider(WorkerProvider):
             "artifacts": [],
         }
 
-    async def _handle_analysis(self, input_data: dict[str, Any]) -> dict[str, Any]:
+    async def _handle_analysis(
+        self,
+        input_data: dict[str, Any],
+    ) -> dict[str, Any]:
         """Handle analysis task type."""
         data = input_data.get("data", {})
 
@@ -325,7 +337,10 @@ class ExecutableWorkerProvider(WorkerProvider):
             "artifacts": [],
         }
 
-    async def _handle_summary(self, input_data: dict[str, Any]) -> dict[str, Any]:
+    async def _handle_summary(
+        self,
+        input_data: dict[str, Any],
+    ) -> dict[str, Any]:
         """Handle summary task type."""
         content = input_data.get("content", "")
 
@@ -333,12 +348,17 @@ class ExecutableWorkerProvider(WorkerProvider):
 
         return {
             "task_type": "summary",
-            "content": f"Summary: {content[:100]}..." if len(content) > 100 else f"Summary: {content}",
+            "content": f"Summary: {content[:100]}..."
+            if len(content) > 100
+            else f"Summary: {content}",
             "confidence": 0.90,
             "artifacts": [],
         }
 
-    async def _handle_general(self, input_data: dict[str, Any]) -> dict[str, Any]:
+    async def _handle_general(
+        self,
+        input_data: dict[str, Any],
+    ) -> dict[str, Any]:
         """Handle general task type."""
         await asyncio.sleep(0.05)
 

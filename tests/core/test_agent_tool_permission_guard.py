@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for agent tool permission guard."""
 
 import tempfile
@@ -5,7 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from hubos.core.infra.agent_registry import AgentRegistry, ModelProvider, AgentStatus, RiskLevel
+from hubos.core.infra.agent_registry import (
+    AgentRegistry,
+    ModelProvider,
+    AgentStatus,
+    RiskLevel,
+)
 from hubos.core.infra.agent_tool_guard import (
     AgentToolGuard,
     ToolErrorCode,
@@ -109,7 +115,9 @@ class TestToolPermissionCheck:
         )
 
         result = guard.check_permission(
-            agent.agent_id, "tool1", context={"action": "dangerous_action"}
+            agent.agent_id,
+            "tool1",
+            context={"action": "dangerous_action"},
         )
 
         assert result.allowed is False
@@ -130,7 +138,9 @@ class TestToolPermissionCheck:
         )
 
         result = guard.check_permission(
-            agent.agent_id, "tool1", context={"action": "safe_action"}
+            agent.agent_id,
+            "tool1",
+            context={"action": "safe_action"},
         )
 
         assert result.allowed is True
@@ -197,7 +207,11 @@ class TestToolPermissionAuditLog:
     """Test that tool permission checks are logged."""
 
     def test_denied_logged_with_warning(
-        self, guard, registry, caplog, _hubos_logger_propagating
+        self,
+        guard,
+        registry,
+        caplog,
+        _hubos_logger_propagating,
     ):
         """Test that denied permissions are logged as warnings."""
         agent = registry.create_agent(
@@ -215,7 +229,11 @@ class TestToolPermissionAuditLog:
         assert "Tool permission denied" in caplog.text
 
     def test_allowed_logged_with_info(
-        self, guard, registry, caplog, _hubos_logger_propagating
+        self,
+        guard,
+        registry,
+        caplog,
+        _hubos_logger_propagating,
     ):
         """Test that allowed permissions are logged as info."""
         agent = registry.create_agent(
@@ -248,7 +266,11 @@ class TestEnforceToolPermission:
         )
 
         # Should not raise
-        enforce_tool_permission(agent.agent_id, "tool1", agent_registry=registry)
+        enforce_tool_permission(
+            agent.agent_id,
+            "tool1",
+            agent_registry=registry,
+        )
 
     def test_enforce_raises_on_denial(self, guard, registry):
         """Test enforce raises exception on denial."""
@@ -262,7 +284,11 @@ class TestEnforceToolPermission:
         )
 
         with pytest.raises(ToolPermissionError) as exc_info:
-            enforce_tool_permission(agent.agent_id, "tool2", agent_registry=registry)
+            enforce_tool_permission(
+                agent.agent_id,
+                "tool2",
+                agent_registry=registry,
+            )
 
         assert exc_info.value.error_code == ToolErrorCode.TOOL_NOT_ALLOWED
 
@@ -281,7 +307,11 @@ class TestConvenienceFunction:
             allowed_tools=["tool1"],
         )
 
-        result = check_agent_tool_permission(agent.agent_id, "tool1", agent_registry=registry)
+        result = check_agent_tool_permission(
+            agent.agent_id,
+            "tool1",
+            agent_registry=registry,
+        )
 
         assert result.allowed is True
 
@@ -321,14 +351,24 @@ class TestHighRiskToolsMapping:
 
     def test_critical_risk_tools(self, guard):
         """Test critical risk tools are properly mapped."""
-        critical_tools = ["database_delete", "config_global_write", "tenant_delete"]
+        critical_tools = [
+            "database_delete",
+            "config_global_write",
+            "tenant_delete",
+        ]
         for tool in critical_tools:
             risk = guard._get_tool_risk_level(tool)
             assert risk == "critical"
 
     def test_high_risk_tools(self, guard):
         """Test high risk tools are properly mapped."""
-        high_risk = ["database_write", "file_delete", "policy_full_rollback", "plugin_install", "plugin_uninstall"]
+        high_risk = [
+            "database_write",
+            "file_delete",
+            "policy_full_rollback",
+            "plugin_install",
+            "plugin_uninstall",
+        ]
         for tool in high_risk:
             risk = guard._get_tool_risk_level(tool)
             assert risk == "high"
@@ -360,7 +400,14 @@ class TestDynamicToolPolicy:
         )
         guard = AgentToolGuard(
             agent_registry=registry,
-            tool_policies=[{"id": "tool1", "enabled": False, "risk": "low", "approval_required": False}],
+            tool_policies=[
+                {
+                    "id": "tool1",
+                    "enabled": False,
+                    "risk": "low",
+                    "approval_required": False,
+                },
+            ],
         )
         result = guard.check_permission(agent.agent_id, "tool1")
         assert result.allowed is False
@@ -377,7 +424,14 @@ class TestDynamicToolPolicy:
         )
         guard = AgentToolGuard(
             agent_registry=registry,
-            tool_policies=[{"id": "tool1", "enabled": True, "risk": "low", "approval_required": True}],
+            tool_policies=[
+                {
+                    "id": "tool1",
+                    "enabled": True,
+                    "risk": "low",
+                    "approval_required": True,
+                },
+            ],
         )
         result = guard.check_permission(agent.agent_id, "tool1")
         assert result.allowed is False

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Base executor interface for Parallel Core V1.5 Step 5.
 
 Defines the contract that all executors must implement.
@@ -11,6 +12,7 @@ from typing import Any, Optional
 @dataclass
 class ExecutionResult:
     """Result of a node execution."""
+
     success: bool
     output: Optional[Any] = None
     error: Optional[str] = None

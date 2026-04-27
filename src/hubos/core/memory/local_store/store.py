@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Local file-backed memory store.
 
 Filesystem layout (under ``get_memory_root()``)::
@@ -55,7 +56,9 @@ class LocalMemoryStore:
     """
 
     def __init__(self, root: Optional[Path] = None) -> None:
-        self.root: Path = Path(root).expanduser() if root else get_memory_root()
+        self.root: Path = (
+            Path(root).expanduser() if root else get_memory_root()
+        )
         self.sessions_dir = self.root / "sessions"
         self.archives_dir = self.root / "archives"
         self.daily_dir = self.root / "daily"
@@ -111,7 +114,11 @@ class LocalMemoryStore:
             encoding="utf-8",
         )
 
-    def update_metadata(self, session_id: str, metadata: Dict[str, Any]) -> None:
+    def update_metadata(
+        self,
+        session_id: str,
+        metadata: Dict[str, Any],
+    ) -> None:
         session_dir = self.sessions_dir / session_id
         if not session_dir.exists():
             raise FileNotFoundError(f"Session {session_id} not found")
@@ -120,11 +127,18 @@ class LocalMemoryStore:
             encoding="utf-8",
         )
 
-    def end_session(self, session_id: str, ended_at: str, end_reason: str) -> None:
+    def end_session(
+        self,
+        session_id: str,
+        ended_at: str,
+        end_reason: str,
+    ) -> None:
         session_dir = self.sessions_dir / session_id
         if not session_dir.exists():
             raise FileNotFoundError(f"Session {session_id} not found")
-        metadata = json.loads((session_dir / "metadata.json").read_text(encoding="utf-8"))
+        metadata = json.loads(
+            (session_dir / "metadata.json").read_text(encoding="utf-8"),
+        )
         metadata["ended_at"] = ended_at
         metadata["end_reason"] = end_reason
         (session_dir / "metadata.json").write_text(
@@ -139,7 +153,10 @@ class LocalMemoryStore:
 
     def append_daily_summary_index(self, record: Dict[str, Any]) -> None:
         line = json.dumps(record, ensure_ascii=False) + "\n"
-        with (self.index_dir / "daily_summaries.jsonl").open("a", encoding="utf-8") as f:
+        with (self.index_dir / "daily_summaries.jsonl").open(
+            "a",
+            encoding="utf-8",
+        ) as f:
             f.write(line)
 
     # ─── Archive ──────────────────────────────────────────────────────
@@ -148,7 +165,9 @@ class LocalMemoryStore:
         session_dir = self.sessions_dir / session_id
         if not session_dir.exists():
             raise FileNotFoundError(f"Session {session_id} not found")
-        metadata = json.loads((session_dir / "metadata.json").read_text(encoding="utf-8"))
+        metadata = json.loads(
+            (session_dir / "metadata.json").read_text(encoding="utf-8"),
+        )
         started = datetime.fromisoformat(metadata["started_at"])
         archive_subdir = self.archives_dir / started.strftime("%Y-%m")
         archive_subdir.mkdir(exist_ok=True)
@@ -157,7 +176,10 @@ class LocalMemoryStore:
             session_data = {
                 "metadata": metadata,
                 "messages": [
-                    json.loads(line) for line in (session_dir / "messages.jsonl").open(encoding="utf-8")
+                    json.loads(line)
+                    for line in (session_dir / "messages.jsonl").open(
+                        encoding="utf-8",
+                    )
                     if line.strip()
                 ],
             }
@@ -171,18 +193,31 @@ class LocalMemoryStore:
             if not session_dir.is_dir():
                 continue
             try:
-                metadata = json.loads((session_dir / "metadata.json").read_text(encoding="utf-8"))
+                metadata = json.loads(
+                    (session_dir / "metadata.json").read_text(
+                        encoding="utf-8"
+                    ),
+                )
                 started = datetime.fromisoformat(metadata["started_at"])
                 if started < cutoff:
                     self.archive_session(session_dir.name)
                     archived.append(session_dir.name)
-            except (FileNotFoundError, KeyError, ValueError, json.JSONDecodeError):
+            except (
+                FileNotFoundError,
+                KeyError,
+                ValueError,
+                json.JSONDecodeError,
+            ):
                 continue
         return archived
 
     # ─── Index helpers ────────────────────────────────────────────────
 
-    def _update_sessions_index(self, session_id: str, metadata: Dict[str, Any]) -> None:
+    def _update_sessions_index(
+        self,
+        session_id: str,
+        metadata: Dict[str, Any],
+    ) -> None:
         try:
             # 'started' / 'started_at' and 'agent' / 'agent_id' / 'user' /
             # 'user_id' are both in use across callers. Accept either and
@@ -205,7 +240,10 @@ class LocalMemoryStore:
                 "topics": [],
             }
             line = json.dumps(index_record, ensure_ascii=False) + "\n"
-            with (self.index_dir / "sessions_index.jsonl").open("a", encoding="utf-8") as f:
+            with (self.index_dir / "sessions_index.jsonl").open(
+                "a",
+                encoding="utf-8",
+            ) as f:
                 f.write(line)
         except (TypeError, ValueError):
             pass
@@ -217,7 +255,9 @@ class LocalMemoryStore:
         try:
             with (session_dir / "messages.jsonl").open(encoding="utf-8") as f:
                 msg_count = sum(1 for line in f if line.strip())
-            metadata = json.loads((session_dir / "metadata.json").read_text(encoding="utf-8"))
+            metadata = json.loads(
+                (session_dir / "metadata.json").read_text(encoding="utf-8"),
+            )
             metadata["message_count"] = msg_count
             (session_dir / "metadata.json").write_text(
                 json.dumps(metadata, indent=2, ensure_ascii=False),
@@ -233,14 +273,19 @@ class LocalMemoryStore:
         if not session_dir.exists():
             return self._load_archived_session(session_id)
         try:
-            metadata = json.loads((session_dir / "metadata.json").read_text(encoding="utf-8"))
+            metadata = json.loads(
+                (session_dir / "metadata.json").read_text(encoding="utf-8"),
+            )
             with (session_dir / "messages.jsonl").open(encoding="utf-8") as f:
                 messages = [json.loads(line) for line in f if line.strip()]
             return {"metadata": metadata, "messages": messages}
         except (FileNotFoundError, json.JSONDecodeError):
             return None
 
-    def _load_archived_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+    def _load_archived_session(
+        self,
+        session_id: str,
+    ) -> Optional[Dict[str, Any]]:
         for archive_month in self.archives_dir.iterdir():
             if not archive_month.is_dir():
                 continue
@@ -317,13 +362,17 @@ class LocalMemoryStore:
         if session_id:
             session_dirs = [self.sessions_dir / session_id]
         else:
-            session_dirs = [d for d in self.sessions_dir.iterdir() if d.is_dir()]
+            session_dirs = [
+                d for d in self.sessions_dir.iterdir() if d.is_dir()
+            ]
         q_lower = query.lower()
         for session_dir in session_dirs:
             if not session_dir.exists():
                 continue
             try:
-                with (session_dir / "messages.jsonl").open(encoding="utf-8") as f:
+                with (session_dir / "messages.jsonl").open(
+                    encoding="utf-8",
+                ) as f:
                     for line in f:
                         if not line.strip():
                             continue

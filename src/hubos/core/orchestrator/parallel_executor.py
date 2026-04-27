@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Parallel task execution engine with dependency management."""
 
 import asyncio
@@ -138,7 +139,10 @@ class ParallelExecutor:
             List of unit IDs ready for execution.
         """
         ready: list[UUID] = []
-        dep_map = {UUID(u["step_id"]): set(UUID(d) for d in u.get("depends_on", [])) for u in unit_defs}
+        dep_map = {
+            UUID(u["step_id"]): set(UUID(d) for d in u.get("depends_on", []))
+            for u in unit_defs
+        }
 
         for unit_id, record in self._execution_records.items():
             if record.status != UnitStatus.PENDING:
@@ -174,7 +178,10 @@ class ParallelExecutor:
         results: dict[UUID, Any] = {}
 
         # Create dependency map
-        dep_map = {UUID(u["step_id"]): [UUID(d) for d in u.get("depends_on", [])] for u in unit_defs}
+        dep_map = {
+            UUID(u["step_id"]): [UUID(d) for d in u.get("depends_on", [])]
+            for u in unit_defs
+        }
 
         # Track which units are waiting
         waiting: dict[UUID, list[UUID]] = {}  # unit_id -> units waiting for it
@@ -184,7 +191,9 @@ class ParallelExecutor:
                     waiting[dep] = []
                 waiting[dep].append(unit_id)
 
-        while len(self._completed_units) + len(self._failed_units) < len(unit_ids):
+        while len(self._completed_units) + len(self._failed_units) < len(
+            unit_ids,
+        ):
             # Get ready units
             ready = self.get_ready_units(unit_defs)
 
@@ -199,7 +208,12 @@ class ParallelExecutor:
                         "No units ready and none running - possible deadlock",
                         extra={
                             "trace_id": trace_id,
-                            "pending": [str(u) for u in self._execution_records if self._execution_records[u].status == UnitStatus.PENDING],
+                            "pending": [
+                                str(u)
+                                for u in self._execution_records
+                                if self._execution_records[u].status
+                                == UnitStatus.PENDING
+                            ],
                             "running": [str(u) for u in self._running_units],
                         },
                     )
@@ -210,14 +224,19 @@ class ParallelExecutor:
                 continue
 
             # Execute ready units (up to max_parallel)
-            for unit_id in ready[: self._max_parallel - len(self._running_units)]:
+            for unit_id in ready[
+                : self._max_parallel - len(self._running_units)
+            ]:
                 record = self._execution_records[unit_id]
                 record.status = UnitStatus.RUNNING
                 record.started_at = datetime.now(timezone.utc)
                 self._running_units.add(unit_id)
 
                 # Find unit def
-                unit_def = next((u for u in unit_defs if UUID(u["step_id"]) == unit_id), None)
+                unit_def = next(
+                    (u for u in unit_defs if UUID(u["step_id"]) == unit_id),
+                    None,
+                )
                 if unit_def:
                     asyncio.create_task(
                         self._execute_unit(
@@ -226,7 +245,7 @@ class ParallelExecutor:
                             timeout_seconds,
                             trace_id,
                             session_id,
-                        )
+                        ),
                     )
 
             # Small yield
@@ -262,7 +281,10 @@ class ParallelExecutor:
                 )
 
                 result = await asyncio.wait_for(
-                    self._worker_executor(unit_id, unit_def.get("input_data", {})),
+                    self._worker_executor(
+                        unit_id,
+                        unit_def.get("input_data", {}),
+                    ),
                     timeout=unit_timeout,
                 )
 

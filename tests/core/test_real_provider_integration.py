@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for real provider integration (Week 5)."""
 
 import asyncio
@@ -6,7 +7,10 @@ from uuid import uuid4
 
 import pytest
 
-from hubos.core.workers.providers.base import WorkerExecutionError, WorkerTimeoutError
+from hubos.core.workers.providers.base import (
+    WorkerExecutionError,
+    WorkerTimeoutError,
+)
 from hubos.core.workers.providers.openai_provider import (
     OpenAIConfig,
     OpenAIErrorType,
@@ -99,11 +103,13 @@ class TestOpenAIProvider:
         provider = OpenAIWorkerProvider(OpenAIConfig(api_key="test-key"))
 
         with pytest.raises(WorkerExecutionError) as exc_info:
-            asyncio.run(provider.execute(
-                unit_id=uuid4(),
-                input_data={},
-                timeout_seconds=30,
-            ))
+            asyncio.run(
+                provider.execute(
+                    unit_id=uuid4(),
+                    input_data={},
+                    timeout_seconds=30,
+                ),
+            )
 
         assert "prompt" in str(exc_info.value)
 
@@ -112,11 +118,13 @@ class TestOpenAIProvider:
         provider = OpenAIWorkerProvider(OpenAIConfig(api_key=""))
 
         with pytest.raises(WorkerExecutionError) as exc_info:
-            asyncio.run(provider.execute(
-                unit_id=uuid4(),
-                input_data={"prompt": "Hello"},
-                timeout_seconds=30,
-            ))
+            asyncio.run(
+                provider.execute(
+                    unit_id=uuid4(),
+                    input_data={"prompt": "Hello"},
+                    timeout_seconds=30,
+                ),
+            )
 
         assert "not enabled" in str(exc_info.value)
 
@@ -161,7 +169,14 @@ class TestProviderTaskTypes:
         """Test all supported task types."""
         provider = OpenAIWorkerProvider(OpenAIConfig(api_key="test"))
 
-        supported = {"research", "analysis", "summary", "general", "code", "review"}
+        supported = {
+            "research",
+            "analysis",
+            "summary",
+            "general",
+            "code",
+            "review",
+        }
 
         for task_type in supported:
             assert provider.supports(task_type) is True

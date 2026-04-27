@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Self-iteration reflection engine for task反思 and policy generation."""
 
 import logging
@@ -184,7 +185,9 @@ class ReflectionEngine:
             confidence = 0.6
             what_failed.append("Task failed")
             if context.task_result.error_message:
-                what_failed.append(f"Error: {context.task_result.error_message}")
+                what_failed.append(
+                    f"Error: {context.task_result.error_message}",
+                )
 
             # Root cause analysis
             root_cause = self._analyze_root_cause(context)
@@ -203,11 +206,17 @@ class ReflectionEngine:
             if isinstance(feedback_failed, list):
                 what_failed.extend(feedback_failed)
 
-            confidence = max(confidence, 0.85)  # Human feedback boosts confidence
+            confidence = max(
+                confidence,
+                0.85,
+            )  # Human feedback boosts confidence
 
         # Generate policy suggestions
         policy_suggestions = self._generate_policy_suggestions(
-            context, what_worked, what_failed, confidence
+            context,
+            what_worked,
+            what_failed,
+            confidence,
         )
 
         return ReflectionReport(
@@ -230,8 +239,13 @@ class ReflectionEngine:
         root_cause_parts: list[str] = []
 
         # Check for timeout
-        if context.task_result.error_message and "timeout" in context.task_result.error_message.lower():
-            root_cause_parts.append("Execution timeout - consider increasing timeout or optimizing")
+        if (
+            context.task_result.error_message
+            and "timeout" in context.task_result.error_message.lower()
+        ):
+            root_cause_parts.append(
+                "Execution timeout - consider increasing timeout or optimizing",
+            )
 
         # Check for worker failures
         failed_workers = set()
@@ -240,16 +254,22 @@ class ReflectionEngine:
                 failed_workers.add(step["worker"])
 
         if failed_workers:
-            root_cause_parts.append(f"Failed workers: {', '.join(failed_workers)}")
+            root_cause_parts.append(
+                f"Failed workers: {', '.join(failed_workers)}",
+            )
 
         # Check retry behavior
         if context.task_result.retry_count > 0:
-            root_cause_parts.append(f"Retried {context.task_result.retry_count} times")
+            root_cause_parts.append(
+                f"Retried {context.task_result.retry_count} times",
+            )
 
         # Check input complexity
         input_size = len(str(context.task_input))
         if input_size > 10000:
-            root_cause_parts.append(f"Large input ({input_size} chars) may cause issues")
+            root_cause_parts.append(
+                f"Large input ({input_size} chars) may cause issues",
+            )
 
         if not root_cause_parts:
             return "Unknown root cause"
@@ -261,8 +281,13 @@ class ReflectionEngine:
         strategies: list[str] = []
 
         # Timeout strategy
-        if context.task_result.error_message and "timeout" in context.task_result.error_message.lower():
-            strategies.append("Consider increasing timeout by 50% for similar tasks")
+        if (
+            context.task_result.error_message
+            and "timeout" in context.task_result.error_message.lower()
+        ):
+            strategies.append(
+                "Consider increasing timeout by 50% for similar tasks",
+            )
 
         # Parallel strategy
         if len(context.execution_trace) > 3:
@@ -281,7 +306,9 @@ class ReflectionEngine:
         if failed_workers:
             strategies.append(f"Avoid workers: {', '.join(failed_workers)}")
         if successful_workers:
-            strategies.append(f"Prefer workers: {', '.join(successful_workers)}")
+            strategies.append(
+                f"Prefer workers: {', '.join(successful_workers)}",
+            )
 
         if not strategies:
             return "No specific recovery strategy needed"
@@ -306,32 +333,41 @@ class ReflectionEngine:
 
         # Generate worker priority policy if we have data
         if what_worked:
-            worker_hints = self._extract_worker_hints(context.execution_trace, what_worked)
+            worker_hints = self._extract_worker_hints(
+                context.execution_trace,
+                what_worked,
+            )
             if worker_hints:
-                suggestions.append({
-                    "trigger": trigger,
-                    "action": {
-                        "worker_priority": worker_hints["preferred"],
-                        "skip_providers": worker_hints.get("avoid", []),
+                suggestions.append(
+                    {
+                        "trigger": trigger,
+                        "action": {
+                            "worker_priority": worker_hints["preferred"],
+                            "skip_providers": worker_hints.get("avoid", []),
+                        },
+                        "confidence": confidence,
+                        "applicability": 0.6,
                     },
-                    "confidence": confidence,
-                    "applicability": 0.6,
-                })
+                )
 
         # Generate timeout policy
         if context.execution_time_ms > 0:
-            suggested_timeout = int(context.execution_time_ms * 1.5 / 1000)  # 1.5x buffer
-            suggestions.append({
-                "trigger": trigger,
-                "action": {
-                    "timeout_seconds": suggested_timeout,
+            suggested_timeout = int(
+                context.execution_time_ms * 1.5 / 1000,
+            )  # 1.5x buffer
+            suggestions.append(
+                {
+                    "trigger": trigger,
+                    "action": {
+                        "timeout_seconds": suggested_timeout,
+                    },
+                    "confidence": confidence * 0.9,
+                    "applicability": 0.5,
                 },
-                "confidence": confidence * 0.9,
-                "applicability": 0.5,
-            })
+            )
 
         # Limit suggestions
-        return suggestions[:self._config.max_policy_suggestions]
+        return suggestions[: self._config.max_policy_suggestions]
 
     def _extract_trigger(self, task_input: dict[str, Any]) -> str:
         """Extract a trigger key from task input for policy matching."""
@@ -356,8 +392,16 @@ class ReflectionEngine:
             else:
                 worker_scores[worker] = worker_scores.get(worker, 0) - 1
 
-        preferred = [w for w, score in sorted(worker_scores.items(), key=lambda x: -x[1]) if score > 0]
-        avoid = [w for w, score in sorted(worker_scores.items(), key=lambda x: -x[1]) if score < 0]
+        preferred = [
+            w
+            for w, score in sorted(worker_scores.items(), key=lambda x: -x[1])
+            if score > 0
+        ]
+        avoid = [
+            w
+            for w, score in sorted(worker_scores.items(), key=lambda x: -x[1])
+            if score < 0
+        ]
 
         return {"preferred": preferred[:3], "avoid": avoid[:2]}
 
@@ -436,10 +480,16 @@ class ReflectionEngine:
                 self._policy_store[trigger] = policy
                 logger.info(
                     "New policy created",
-                    extra={"trigger": trigger, "policy_id": str(policy.policy_id)},
+                    extra={
+                        "trigger": trigger,
+                        "policy_id": str(policy.policy_id),
+                    },
                 )
 
-    def generate_route_hint(self, task_input: dict[str, Any]) -> Optional[RouteHint]:
+    def generate_route_hint(
+        self,
+        task_input: dict[str, Any],
+    ) -> Optional[RouteHint]:
         """
         Generate route hint for a given task input.
 
@@ -460,7 +510,9 @@ class ReflectionEngine:
                 continue
 
             # Simple trigger matching (could be more sophisticated)
-            if trigger.startswith(policy_trigger) or policy_trigger.startswith(trigger.split(":")[0]):
+            if trigger.startswith(policy_trigger) or policy_trigger.startswith(
+                trigger.split(":")[0],
+            ):
                 score = policy.confidence * policy.applicability
                 if score > best_score:
                     best_score = score
@@ -499,7 +551,11 @@ class ReflectionEngine:
 
         return route_hint
 
-    def record_policy_effectiveness(self, policy_id: UUID, was_effective: bool) -> None:
+    def record_policy_effectiveness(
+        self,
+        policy_id: UUID,
+        was_effective: bool,
+    ) -> None:
         """Record whether a policy hit was effective."""
         for policy in self._policy_store.values():
             if policy.policy_id == policy_id:
@@ -507,7 +563,9 @@ class ReflectionEngine:
                     policy.effective_count += 1
                 # Update success rate
                 if policy.hit_count > 0:
-                    policy.success_rate = policy.effective_count / policy.hit_count
+                    policy.success_rate = (
+                        policy.effective_count / policy.hit_count
+                    )
                 policy.updated_at = datetime.now(timezone.utc)
                 break
 
@@ -536,12 +594,17 @@ class ReflectionEngine:
         """Get policies matching criteria."""
         results = list(self._policy_store.values())
         if trigger_prefix:
-            results = [p for p in results if p.trigger.startswith(trigger_prefix)]
+            results = [
+                p for p in results if p.trigger.startswith(trigger_prefix)
+            ]
         if disabled is not None:
             results = [p for p in results if p.disabled == disabled]
         return results
 
-    def get_reflection_report(self, task_id: str) -> Optional[ReflectionReport]:
+    def get_reflection_report(
+        self,
+        task_id: str,
+    ) -> Optional[ReflectionReport]:
         """Get reflection report for a task."""
         return self._reflection_reports.get(task_id)
 
@@ -556,12 +619,16 @@ class ReflectionEngine:
             "reflection_success_count": self._reflection_success_count,
             "reflection_success_rate": (
                 self._reflection_success_count / self._reflection_count
-                if self._reflection_count > 0 else 0.0
+                if self._reflection_count > 0
+                else 0.0
             ),
             "avg_reflection_latency_ms": (
                 self._total_reflection_latency_ms / self._reflection_count
-                if self._reflection_count > 0 else 0.0
+                if self._reflection_count > 0
+                else 0.0
             ),
             "policy_count": len(self._policy_store),
-            "enabled_policy_count": sum(1 for p in self._policy_store.values() if not p.disabled),
+            "enabled_policy_count": sum(
+                1 for p in self._policy_store.values() if not p.disabled
+            ),
         }

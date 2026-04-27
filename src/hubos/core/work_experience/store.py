@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Local file-based WorkExperience store.
 
 Follows the same patterns as LocalMemoryStore:
@@ -15,7 +16,11 @@ from pathlib import Path
 from typing import Any, Optional
 from uuid import UUID
 
-from hubos.core.work_experience.schemas import ExperienceLevel, WorkExperience, WorkExperienceScope
+from hubos.core.work_experience.schemas import (
+    ExperienceLevel,
+    WorkExperience,
+    WorkExperienceScope,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +52,10 @@ def _card_to_dict(card: WorkExperience) -> dict:
 
 def _dict_to_card(data: dict) -> WorkExperience:
     """Reconstruct a WorkExperience from a JSON-loaded dict."""
-    from hubos.core.work_experience.schemas import ExperienceLevel, WorkExperienceStatus
+    from hubos.core.work_experience.schemas import (
+        ExperienceLevel,
+        WorkExperienceStatus,
+    )
 
     data = dict(data)
     # Restore WorkExperienceScope enum
@@ -59,7 +67,9 @@ def _dict_to_card(data: dict) -> WorkExperience:
     # Restore ExperienceLevel enum (with fallback for old cards)
     if isinstance(data.get("experience_level"), str):
         try:
-            data["experience_level"] = ExperienceLevel(data["experience_level"])
+            data["experience_level"] = ExperienceLevel(
+                data["experience_level"],
+            )
         except ValueError:
             data["experience_level"] = ExperienceLevel.NEW
     # Restore UUID fields
@@ -67,7 +77,12 @@ def _dict_to_card(data: dict) -> WorkExperience:
         if isinstance(data.get(uuid_field), str):
             data[uuid_field] = UUID(data[uuid_field])
     # Restore datetime fields
-    for dt_field in ("created_at", "updated_at", "last_retrieved_at", "last_used_at"):
+    for dt_field in (
+        "created_at",
+        "updated_at",
+        "last_retrieved_at",
+        "last_used_at",
+    ):
         if isinstance(data.get(dt_field), str):
             data[dt_field] = datetime.fromisoformat(data[dt_field])
     return WorkExperience(**data)
@@ -107,7 +122,11 @@ class LocalWorkExperienceStore:
         for scope in WorkExperienceScope:
             (self._scope_dir / scope.value).mkdir(parents=True, exist_ok=True)
 
-    def _card_path(self, experience_id: UUID, scope: WorkExperienceScope) -> Path:
+    def _card_path(
+        self,
+        experience_id: UUID,
+        scope: WorkExperienceScope,
+    ) -> Path:
         return self._scope_dir / scope.value / f"{experience_id}.json"
 
     # ---- Low-level JSON ops (same pattern as LocalMemoryStore) ----
@@ -172,15 +191,23 @@ class LocalWorkExperienceStore:
         """List all cards across all scopes. Pass include_disabled=True to include disabled cards."""
         results: list[WorkExperience] = []
         for scope in WorkExperienceScope:
-            results.extend(self._list_scope_dir(scope, include_disabled=include_disabled))
+            results.extend(
+                self._list_scope_dir(scope, include_disabled=include_disabled),
+            )
         return results
 
-    def list_by_scope(self, scope: WorkExperienceScope, include_disabled: bool = False) -> list[WorkExperience]:
+    def list_by_scope(
+        self,
+        scope: WorkExperienceScope,
+        include_disabled: bool = False,
+    ) -> list[WorkExperience]:
         """List cards for a given scope. Pass include_disabled=True to include disabled cards."""
         return self._list_scope_dir(scope, include_disabled=include_disabled)
 
     def _list_scope_dir(
-        self, scope: WorkExperienceScope, include_disabled: bool = False
+        self,
+        scope: WorkExperienceScope,
+        include_disabled: bool = False,
     ) -> list[WorkExperience]:
         """List cards in a scope directory."""
         scope_dir = self._scope_dir / scope.value
@@ -221,7 +248,9 @@ class LocalWorkExperienceStore:
                 "experience_id": str(experience_id),
                 "title": exp.title[:60],
                 "hit_count": exp.hit_count,
-                "last_retrieved_at": exp.last_retrieved_at.isoformat() if exp.last_retrieved_at else None,
+                "last_retrieved_at": exp.last_retrieved_at.isoformat()
+                if exp.last_retrieved_at
+                else None,
             },
         )
 
@@ -252,12 +281,16 @@ class LocalWorkExperienceStore:
                 "experience_id": str(experience_id),
                 "title": exp.title[:60],
                 "effective_count": exp.effective_count,
-                "last_used_at": exp.last_used_at.isoformat() if exp.last_used_at else None,
+                "last_used_at": exp.last_used_at.isoformat()
+                if exp.last_used_at
+                else None,
             },
         )
 
     def update_experience_level(
-        self, experience_id: UUID, level: ExperienceLevel
+        self,
+        experience_id: UUID,
+        level: ExperienceLevel,
     ) -> bool:
         """Update a card's experience level. Returns True if found and updated."""
         exp = self.get(experience_id)
@@ -365,15 +398,20 @@ class LocalWorkExperienceStore:
         total_effective = sum(c.effective_count for c in cards)
 
         def quality_score(c: WorkExperience) -> float:
-            return c.confidence * (1.0 + c.hit_count / 10.0 + c.effective_count / 5.0)
+            return c.confidence * (
+                1.0 + c.hit_count / 10.0 + c.effective_count / 5.0
+            )
 
         return {
             "total_cards": len(cards),
             "total_hits": total_hits,
             "total_effective_uses": total_effective,
             "avg_confidence": sum(c.confidence for c in cards) / len(cards),
-            "avg_quality_score": sum(quality_score(c) for c in cards) / len(cards),
-            "hit_rate": total_effective / total_hits if total_hits > 0 else 0.0,
+            "avg_quality_score": sum(quality_score(c) for c in cards)
+            / len(cards),
+            "hit_rate": total_effective / total_hits
+            if total_hits > 0
+            else 0.0,
         }
 
     def get_top_effective_cards(self, n: int = 10) -> list[WorkExperience]:

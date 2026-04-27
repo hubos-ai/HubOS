@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """MiniMax AI provider implementation.
 
 Handles API calls to MiniMax chat completion endpoint.
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MiniMaxResponse:
     """Response from MiniMax API."""
+
     text: str
     finish_reason: str
     usage: Optional[dict[str, int]] = None
@@ -47,8 +49,14 @@ class MiniMaxProvider:
             timeout_seconds: Request timeout
         """
         self._api_key = api_key or os.environ.get("MINIMAX_API_KEY", "")
-        self._base_url = (base_url or os.environ.get("MINIMAX_BASE_URL", self.DEFAULT_BASE_URL)).rstrip("/")
-        self._model = model or os.environ.get("MINIMAX_MODEL", self.DEFAULT_MODEL)
+        self._base_url = (
+            base_url
+            or os.environ.get("MINIMAX_BASE_URL", self.DEFAULT_BASE_URL)
+        ).rstrip("/")
+        self._model = model or os.environ.get(
+            "MINIMAX_MODEL",
+            self.DEFAULT_MODEL,
+        )
         self._timeout = timeout_seconds
 
     @property
@@ -80,14 +88,18 @@ class MiniMaxProvider:
             RuntimeError: If API call fails
         """
         if not self._api_key:
-            raise RuntimeError("MiniMax API key not configured (set MINIMAX_API_KEY env)")
+            raise RuntimeError(
+                "MiniMax API key not configured (set MINIMAX_API_KEY env)",
+            )
 
         # Build messages
         messages = []
         # Combine system_prompt and role into single system message if provided
         system_content = system_prompt or ""
         if role:
-            system_content = f"{system_content}\n\n[Role: {role.upper()}]".strip()
+            system_content = (
+                f"{system_content}\n\n[Role: {role.upper()}]".strip()
+            )
         if system_content:
             messages.append({"role": "system", "content": system_content})
         messages.append({"role": "user", "content": prompt})
@@ -114,7 +126,10 @@ class MiniMaxProvider:
             )
 
             start_time = time.time()
-            with urllib.request.urlopen(request, timeout=float(self._timeout)) as response:
+            with urllib.request.urlopen(
+                request,
+                timeout=float(self._timeout),
+            ) as response:
                 elapsed_ms = (time.time() - start_time) * 1000
                 data = json.loads(response.read().decode("utf-8"))
 
@@ -146,7 +161,9 @@ class MiniMaxProvider:
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8") if e.fp else ""
             logger.error(f"MiniMax API HTTP error {e.code}: {error_body}")
-            raise RuntimeError(f"MiniMax API error {e.code}: {error_body[:500]}")
+            raise RuntimeError(
+                f"MiniMax API error {e.code}: {error_body[:500]}",
+            )
         except urllib.error.URLError as e:
             logger.error(f"MiniMax API connection error: {e.reason}")
             raise RuntimeError(f"MiniMax connection error: {e.reason}")

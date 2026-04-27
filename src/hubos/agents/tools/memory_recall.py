@@ -55,11 +55,17 @@ def _get_store() -> LocalMemoryStore:
     global _store_singleton
     if _store_singleton is None:
         _store_singleton = LocalMemoryStore()
-        logger.info("memory_recall: LocalMemoryStore initialized at %s", _store_singleton.root)
+        logger.info(
+            "memory_recall: LocalMemoryStore initialized at %s",
+            _store_singleton.root,
+        )
     return _store_singleton
 
 
-def _filter_by_user(records: list[dict[str, Any]], user_id: str) -> list[dict[str, Any]]:
+def _filter_by_user(
+    records: list[dict[str, Any]],
+    user_id: str,
+) -> list[dict[str, Any]]:
     """Best-effort user_id filter. Records without user_id are kept (legacy
     sessions); records with a different user_id are dropped."""
     if not user_id:
@@ -117,14 +123,18 @@ async def recall_long_term(
     try:
         store = _get_store()
     except Exception as e:  # noqa: BLE001
-        return _err(f"recall_long_term: memory store unavailable: {type(e).__name__}: {e}")
+        return _err(
+            f"recall_long_term: memory store unavailable: {type(e).__name__}: {e}",
+        )
 
     try:
         session_hits_raw = store.search_sessions(query.strip())
         session_hits_raw = _filter_by_user(session_hits_raw, user_id)
     except Exception as e:  # noqa: BLE001
         logger.exception("recall_long_term: search_sessions failed")
-        return _err(f"recall_long_term: search_sessions failed: {type(e).__name__}: {e}")
+        return _err(
+            f"recall_long_term: search_sessions failed: {type(e).__name__}: {e}",
+        )
 
     message_hits_raw: list[dict[str, Any]] = []
     if include_messages:
@@ -132,7 +142,9 @@ async def recall_long_term(
             message_hits_raw = store.search_messages(query.strip())
         except Exception as e:  # noqa: BLE001
             logger.exception("recall_long_term: search_messages failed")
-            return _err(f"recall_long_term: search_messages failed: {type(e).__name__}: {e}")
+            return _err(
+                f"recall_long_term: search_messages failed: {type(e).__name__}: {e}",
+            )
 
     session_hits = [
         {
@@ -153,7 +165,11 @@ async def recall_long_term(
             content = " ".join(
                 str(b.get("text", "")) for b in content if isinstance(b, dict)
             )
-        snippet = (str(content)[:200] + "…") if len(str(content)) > 200 else str(content)
+        snippet = (
+            (str(content)[:200] + "…")
+            if len(str(content)) > 200
+            else str(content)
+        )
         message_hits.append(
             {
                 "session_id": m.get("_session_id"),
@@ -217,13 +233,17 @@ async def recall_session(
     try:
         store = _get_store()
     except Exception as e:  # noqa: BLE001
-        return _err(f"recall_session: memory store unavailable: {type(e).__name__}: {e}")
+        return _err(
+            f"recall_session: memory store unavailable: {type(e).__name__}: {e}",
+        )
 
     try:
         loaded = store.load_session(session_id.strip())
     except Exception as e:  # noqa: BLE001
         logger.exception("recall_session: load_session failed")
-        return _err(f"recall_session: load_session failed: {type(e).__name__}: {e}")
+        return _err(
+            f"recall_session: load_session failed: {type(e).__name__}: {e}",
+        )
 
     if loaded is None:
         return _ok(

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Adapt this app's agent runtime as a ``HostAgentRunner`` for hubos.core.
 
 This is the ONLY file that:
@@ -52,13 +53,23 @@ def _sanitize_label(value: str, fallback: str = "sub") -> str:
 
 # Identity / config files that sub-agents must NOT overwrite.
 # These define the agent's personality and role — only the GM or human can change them.
-_PROTECTED_FILES = frozenset({
-    "AGENTS.md", "SOUL.md", "PROFILE.md", "BOOTSTRAP.md",
-    "agent.json", "skill.json", "skills.json",
-})
+_PROTECTED_FILES = frozenset(
+    {
+        "AGENTS.md",
+        "SOUL.md",
+        "PROFILE.md",
+        "BOOTSTRAP.md",
+        "agent.json",
+        "skill.json",
+        "skills.json",
+    },
+)
 
 
-def _derive_subagent_scope(agent_id: str, context: dict[str, Any]) -> Path | None:
+def _derive_subagent_scope(
+    agent_id: str,
+    context: dict[str, Any],
+) -> Path | None:
     """Pick the write scope for this sub-agent run, or ``None`` for GM runs.
 
     Sub-agents may write anywhere under their **own** workspace root, except
@@ -72,9 +83,7 @@ def _derive_subagent_scope(agent_id: str, context: dict[str, Any]) -> Path | Non
     parent_session = context.get("parent_session_id")
 
     is_subagent = (
-        channel in _SUBAGENT_CHANNELS
-        or bool(wf_id)
-        or bool(parent_session)
+        channel in _SUBAGENT_CHANNELS or bool(wf_id) or bool(parent_session)
     )
     if not is_subagent:
         return None
@@ -93,7 +102,10 @@ def _audit_log_path(parent_session: str | None) -> Path:
     derive the path without filesystem side-effects.
     """
     root = WORKING_DIR / "audit" / "subagents"
-    name = _sanitize_label(parent_session or "unknown", fallback="unknown") + ".jsonl"
+    name = (
+        _sanitize_label(parent_session or "unknown", fallback="unknown")
+        + ".jsonl"
+    )
     return root / name
 
 
@@ -106,23 +118,19 @@ def _extract_tool_use_blocks(msg: Any) -> Iterable[dict[str, Any]]:
         return []
     out: list[dict[str, Any]] = []
     for block in content:
-        btype = (
-            getattr(block, "type", None)
-            or (block.get("type") if isinstance(block, dict) else None)
+        btype = getattr(block, "type", None) or (
+            block.get("type") if isinstance(block, dict) else None
         )
         if btype != "tool_use":
             continue
-        name = (
-            getattr(block, "name", None)
-            or (block.get("name") if isinstance(block, dict) else None)
+        name = getattr(block, "name", None) or (
+            block.get("name") if isinstance(block, dict) else None
         )
-        inp = (
-            getattr(block, "input", None)
-            or (block.get("input") if isinstance(block, dict) else None)
+        inp = getattr(block, "input", None) or (
+            block.get("input") if isinstance(block, dict) else None
         )
-        tid = (
-            getattr(block, "id", None)
-            or (block.get("id") if isinstance(block, dict) else None)
+        tid = getattr(block, "id", None) or (
+            block.get("id") if isinstance(block, dict) else None
         )
         out.append({"tool_id": tid, "name": name, "input": inp})
     return out
@@ -228,30 +236,38 @@ def build_host_agent_runner(
 
         # ---- sub-agent write scope (C) + audit trail (B) ------------------
         scope = _derive_subagent_scope(agent_id, ctx)
-        parent_session = str(ctx.get("parent_session_id") or ctx.get("session_id") or "")
+        parent_session = str(
+            ctx.get("parent_session_id") or ctx.get("session_id") or "",
+        )
         scope_token = None
         audit_path: Path | None = None
         if scope is not None:
             scope_token = current_subagent_write_scope.set(scope)
             audit_path = _audit_log_path(parent_session)
-            _write_audit(audit_path, {
-                "ts": datetime.now(tz=timezone.utc).isoformat(),
-                "event": "subagent_started",
-                "agent_id": agent_id,
-                "parent_session_id": parent_session,
-                "workflow_id": ctx.get("workflow_id"),
-                "step_id": ctx.get("step_id"),
-                "label": ctx.get("label"),
-                "channel": channel,
-                "session_id": session_id,
-                "write_scope": str(scope),
-                "prompt_preview": prompt[:240],
-            })
+            _write_audit(
+                audit_path,
+                {
+                    "ts": datetime.now(tz=timezone.utc).isoformat(),
+                    "event": "subagent_started",
+                    "agent_id": agent_id,
+                    "parent_session_id": parent_session,
+                    "workflow_id": ctx.get("workflow_id"),
+                    "step_id": ctx.get("step_id"),
+                    "label": ctx.get("label"),
+                    "channel": channel,
+                    "session_id": session_id,
+                    "write_scope": str(scope),
+                    "prompt_preview": prompt[:240],
+                },
+            )
             logger.info(
                 "sub-agent run started: agent=%s parent_session=%s workflow=%s "
                 "step=%s label=%s scope=%s",
-                agent_id, parent_session,
-                ctx.get("workflow_id"), ctx.get("step_id"), ctx.get("label"),
+                agent_id,
+                parent_session,
+                ctx.get("workflow_id"),
+                ctx.get("step_id"),
+                ctx.get("label"),
                 scope,
             )
 
@@ -267,17 +283,22 @@ def build_host_agent_runner(
                 if audit_path is not None:
                     for blk in _extract_tool_use_blocks(msg):
                         tool_use_count += 1
-                        _write_audit(audit_path, {
-                            "ts": datetime.now(tz=timezone.utc).isoformat(),
-                            "event": "subagent_tool_use",
-                            "agent_id": agent_id,
-                            "parent_session_id": parent_session,
-                            "workflow_id": ctx.get("workflow_id"),
-                            "step_id": ctx.get("step_id"),
-                            "label": ctx.get("label"),
-                            "session_id": session_id,
-                            **blk,
-                        })
+                        _write_audit(
+                            audit_path,
+                            {
+                                "ts": datetime.now(
+                                    tz=timezone.utc,
+                                ).isoformat(),
+                                "event": "subagent_tool_use",
+                                "agent_id": agent_id,
+                                "parent_session_id": parent_session,
+                                "workflow_id": ctx.get("workflow_id"),
+                                "step_id": ctx.get("step_id"),
+                                "label": ctx.get("label"),
+                                "session_id": session_id,
+                                **blk,
+                            },
+                        )
 
                 text = _extract_text(msg)
                 if text:
@@ -293,24 +314,30 @@ def build_host_agent_runner(
             raise
         finally:
             if audit_path is not None:
-                _write_audit(audit_path, {
-                    "ts": datetime.now(tz=timezone.utc).isoformat(),
-                    "event": "subagent_finished",
-                    "agent_id": agent_id,
-                    "parent_session_id": parent_session,
-                    "workflow_id": ctx.get("workflow_id"),
-                    "step_id": ctx.get("step_id"),
-                    "label": ctx.get("label"),
-                    "session_id": session_id,
-                    "elapsed_ms": int((time.time() - t0) * 1000),
-                    "tool_use_count": tool_use_count,
-                    "error": err_text,
-                })
+                _write_audit(
+                    audit_path,
+                    {
+                        "ts": datetime.now(tz=timezone.utc).isoformat(),
+                        "event": "subagent_finished",
+                        "agent_id": agent_id,
+                        "parent_session_id": parent_session,
+                        "workflow_id": ctx.get("workflow_id"),
+                        "step_id": ctx.get("step_id"),
+                        "label": ctx.get("label"),
+                        "session_id": session_id,
+                        "elapsed_ms": int((time.time() - t0) * 1000),
+                        "tool_use_count": tool_use_count,
+                        "error": err_text,
+                    },
+                )
                 logger.info(
                     "sub-agent run finished: agent=%s parent_session=%s "
                     "tool_uses=%d elapsed_ms=%d error=%s",
-                    agent_id, parent_session, tool_use_count,
-                    int((time.time() - t0) * 1000), err_text,
+                    agent_id,
+                    parent_session,
+                    tool_use_count,
+                    int((time.time() - t0) * 1000),
+                    err_text,
                 )
             if scope_token is not None:
                 current_subagent_write_scope.reset(scope_token)
@@ -347,9 +374,8 @@ def _extract_text(msg: Any) -> str:
     if isinstance(content, list):
         out: list[str] = []
         for block in content:
-            block_type = (
-                getattr(block, "type", None)
-                or (block.get("type") if isinstance(block, dict) else None)
+            block_type = getattr(block, "type", None) or (
+                block.get("type") if isinstance(block, dict) else None
             )
             if block_type and block_type != "text":
                 continue

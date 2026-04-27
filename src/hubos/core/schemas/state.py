@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Task state machine definitions."""
 
 from enum import Enum
@@ -36,7 +37,11 @@ LEGAL_TRANSITIONS: dict[TaskState, set[TaskState]] = {
     TaskState.NORMALIZED: {TaskState.PLANNED},
     TaskState.PLANNED: {TaskState.DISPATCHED},
     TaskState.DISPATCHED: {TaskState.RUNNING},
-    TaskState.RUNNING: {TaskState.MERGING, TaskState.RETRYING, TaskState.FAILED},
+    TaskState.RUNNING: {
+        TaskState.MERGING,
+        TaskState.RETRYING,
+        TaskState.FAILED,
+    },
     TaskState.RETRYING: {TaskState.RUNNING},
     TaskState.MERGING: {TaskState.RESPONDED, TaskState.NEEDS_HUMAN},
     TaskState.RESPONDED: {TaskState.PERSISTED},
@@ -52,7 +57,9 @@ class InvalidStateTransitionError(Exception):
     def __init__(self, current: TaskState, target: TaskState) -> None:
         self.current = current
         self.target = target
-        super().__init__(f"Invalid transition from {current.value} to {target.value}")
+        super().__init__(
+            f"Invalid transition from {current.value} to {target.value}",
+        )
 
 
 class TaskStateMachine:
@@ -81,7 +88,11 @@ class TaskStateMachine:
         """Check if a transition to target state is legal."""
         return target in LEGAL_TRANSITIONS.get(self._state, set())
 
-    def transition(self, target: TaskState, validator: Optional[Callable[[TaskState, TaskState], bool]] = None) -> None:
+    def transition(
+        self,
+        target: TaskState,
+        validator: Optional[Callable[[TaskState, TaskState], bool]] = None,
+    ) -> None:
         """
         Transition to target state.
 
@@ -103,4 +114,8 @@ class TaskStateMachine:
 
     def is_terminal(self) -> bool:
         """Check if current state is a terminal state."""
-        return self._state in {TaskState.PERSISTED, TaskState.FAILED, TaskState.NEEDS_HUMAN}
+        return self._state in {
+            TaskState.PERSISTED,
+            TaskState.FAILED,
+            TaskState.NEEDS_HUMAN,
+        }

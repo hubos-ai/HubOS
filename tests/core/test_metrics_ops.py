@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for metrics service operational aspects."""
 
 import time
@@ -35,7 +36,9 @@ class TestMetricsServicePrometheusExport:
         # Should contain HELP and TYPE comments
         assert "# HELP" in output
         assert "# TYPE" in output
-        assert "counter" in output or "gauge" in output or "histogram" in output
+        assert (
+            "counter" in output or "gauge" in output or "histogram" in output
+        )
 
     def test_export_includes_uptime(self) -> None:
         """Test export includes uptime metric."""
@@ -95,7 +98,11 @@ class TestMetricsServiceCounters:
     def test_increment_counter_with_labels(self) -> None:
         """Test counter increment with labels."""
         metrics = MetricsService()
-        metrics.register_counter("labeled_counter", "Labeled counter", ["status"])
+        metrics.register_counter(
+            "labeled_counter",
+            "Labeled counter",
+            ["status"],
+        )
 
         metrics.increment_counter("labeled_counter", {"status": "success"})
         metrics.increment_counter("labeled_counter", {"status": "failure"})
@@ -208,7 +215,11 @@ class TestMetricsServiceConvenience:
     def test_record_worker_execution(self) -> None:
         """Test recording worker execution."""
         metrics = MetricsService()
-        metrics.record_worker_execution("openai", success=True, latency_ms=150.0)
+        metrics.record_worker_execution(
+            "openai",
+            success=True,
+            latency_ms=150.0,
+        )
 
         output = metrics.export_prometheus()
         assert "hubos_core_worker_executions_total" in output

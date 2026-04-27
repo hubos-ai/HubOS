@@ -87,9 +87,7 @@ class MCPClientManager:
         import time
 
         enabled = {
-            key: cfg
-            for key, cfg in config.clients.items()
-            if cfg.enabled
+            key: cfg for key, cfg in config.clients.items() if cfg.enabled
         }
         if not enabled:
             return
@@ -101,12 +99,17 @@ class MCPClientManager:
         )
         t0 = time.monotonic()
 
-        async def _init_one(key: str, client_config: "MCPClientConfig") -> None:
+        async def _init_one(
+            key: str,
+            client_config: "MCPClientConfig",
+        ) -> None:
             t = time.monotonic()
             try:
                 await self._add_client(key, client_config)
                 logger.info(
-                    "MCP client '%s' ready in %.1fs", key, time.monotonic() - t
+                    "MCP client '%s' ready in %.1fs",
+                    key,
+                    time.monotonic() - t,
                 )
             except BaseException as exc:
                 if isinstance(exc, (KeyboardInterrupt, SystemExit)):
@@ -121,7 +124,8 @@ class MCPClientManager:
 
         await asyncio.gather(*[_init_one(k, v) for k, v in enabled.items()])
         logger.info(
-            "All MCP clients connected in %.1fs", time.monotonic() - t0
+            "All MCP clients connected in %.1fs",
+            time.monotonic() - t0,
         )
 
     # ------------------------------------------------------------------

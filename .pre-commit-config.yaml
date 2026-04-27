@@ -17,7 +17,7 @@ repos:
       - id: check-docstring-first
         exclude: '(?x)(.*/skills/.*|^scripts/pack/)'
       - id: check-json
-        exclude: '(?x)(.*/skills/.*|^scripts/pack/)'
+        exclude: '(?x)(.*/skills/.*|^scripts/pack/|locales/.*\.json)'
       - id: fix-encoding-pragma
         exclude: '(?x)(.*/skills/.*|^scripts/pack/)'
       - id: detect-private-key

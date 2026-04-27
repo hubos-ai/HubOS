@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Work Experience Layer — Governance Service.
 
 Provides administrative operations for work experience cards:
@@ -39,23 +40,38 @@ class WorkExperienceService:
 
     def promote_to_observed(self, experience_id) -> bool:
         """Promote a new card to observed level."""
-        return self._store.update_experience_level(experience_id, ExperienceLevel.OBSERVED)
+        return self._store.update_experience_level(
+            experience_id,
+            ExperienceLevel.OBSERVED,
+        )
 
     def promote_to_mature(self, experience_id) -> bool:
         """Promote an observed card to mature level."""
-        return self._store.update_experience_level(experience_id, ExperienceLevel.MATURE)
+        return self._store.update_experience_level(
+            experience_id,
+            ExperienceLevel.MATURE,
+        )
 
     def demote_to_observed(self, experience_id) -> bool:
         """Demote a mature card to observed level."""
-        return self._store.update_experience_level(experience_id, ExperienceLevel.OBSERVED)
+        return self._store.update_experience_level(
+            experience_id,
+            ExperienceLevel.OBSERVED,
+        )
 
     def demote_to_new(self, experience_id) -> bool:
         """Demote a card to new level."""
-        return self._store.update_experience_level(experience_id, ExperienceLevel.NEW)
+        return self._store.update_experience_level(
+            experience_id,
+            ExperienceLevel.NEW,
+        )
 
     def mark_deprecated(self, experience_id) -> bool:
         """Mark a card as deprecated (excluded from retrieval)."""
-        return self._store.update_experience_level(experience_id, ExperienceLevel.DEPRECATED)
+        return self._store.update_experience_level(
+            experience_id,
+            ExperienceLevel.DEPRECATED,
+        )
 
     def update_maturity_score(self, experience_id, score: float) -> bool:
         """Update a card's maturity score."""
@@ -67,21 +83,39 @@ class WorkExperienceService:
         """Approve a candidate card. Also promotes to observed if new."""
         card = self._store.get(experience_id)
         if card and card.experience_level == ExperienceLevel.NEW:
-            self._store.update_experience_level(experience_id, ExperienceLevel.OBSERVED)
-        return self._store.update_status(experience_id, WorkExperienceStatus.APPROVED)
+            self._store.update_experience_level(
+                experience_id,
+                ExperienceLevel.OBSERVED,
+            )
+        return self._store.update_status(
+            experience_id,
+            WorkExperienceStatus.APPROVED,
+        )
 
     def reject(self, experience_id) -> bool:
         """Reject a candidate or approved card. Marks as deprecated."""
-        self._store.update_experience_level(experience_id, ExperienceLevel.DEPRECATED)
-        return self._store.update_status(experience_id, WorkExperienceStatus.REJECTED)
+        self._store.update_experience_level(
+            experience_id,
+            ExperienceLevel.DEPRECATED,
+        )
+        return self._store.update_status(
+            experience_id,
+            WorkExperienceStatus.REJECTED,
+        )
 
     def archive(self, experience_id) -> bool:
         """Archive a card (any non-terminal status)."""
-        return self._store.update_status(experience_id, WorkExperienceStatus.ARCHIVED)
+        return self._store.update_status(
+            experience_id,
+            WorkExperienceStatus.ARCHIVED,
+        )
 
     def reactivate(self, experience_id) -> bool:
         """Reactivate a rejected card back to candidate for re-review."""
-        return self._store.update_status(experience_id, WorkExperienceStatus.CANDIDATE)
+        return self._store.update_status(
+            experience_id,
+            WorkExperienceStatus.CANDIDATE,
+        )
 
     # ---- Listing ----
 
@@ -103,37 +137,82 @@ class WorkExperienceService:
         all_cards = self._store.list_all(include_disabled=include_disabled)
         return [c for c in all_cards if c.experience_level == level]
 
-    def list_candidates(self, include_disabled: bool = False) -> list[WorkExperience]:
+    def list_candidates(
+        self,
+        include_disabled: bool = False,
+    ) -> list[WorkExperience]:
         """List all candidate (not yet reviewed) cards."""
-        return self.list_by_status(WorkExperienceStatus.CANDIDATE, include_disabled=include_disabled)
+        return self.list_by_status(
+            WorkExperienceStatus.CANDIDATE,
+            include_disabled=include_disabled,
+        )
 
-    def list_approved(self, include_disabled: bool = False) -> list[WorkExperience]:
+    def list_approved(
+        self,
+        include_disabled: bool = False,
+    ) -> list[WorkExperience]:
         """List all approved cards."""
-        return self.list_by_status(WorkExperienceStatus.APPROVED, include_disabled=include_disabled)
+        return self.list_by_status(
+            WorkExperienceStatus.APPROVED,
+            include_disabled=include_disabled,
+        )
 
-    def list_rejected(self, include_disabled: bool = False) -> list[WorkExperience]:
+    def list_rejected(
+        self,
+        include_disabled: bool = False,
+    ) -> list[WorkExperience]:
         """List all rejected cards."""
-        return self.list_by_status(WorkExperienceStatus.REJECTED, include_disabled=include_disabled)
+        return self.list_by_status(
+            WorkExperienceStatus.REJECTED,
+            include_disabled=include_disabled,
+        )
 
-    def list_archived(self, include_disabled: bool = False) -> list[WorkExperience]:
+    def list_archived(
+        self,
+        include_disabled: bool = False,
+    ) -> list[WorkExperience]:
         """List all archived cards."""
-        return self.list_by_status(WorkExperienceStatus.ARCHIVED, include_disabled=include_disabled)
+        return self.list_by_status(
+            WorkExperienceStatus.ARCHIVED,
+            include_disabled=include_disabled,
+        )
 
     def list_new(self, include_disabled: bool = False) -> list[WorkExperience]:
         """List all new experience level cards."""
-        return self.list_by_level(ExperienceLevel.NEW, include_disabled=include_disabled)
+        return self.list_by_level(
+            ExperienceLevel.NEW,
+            include_disabled=include_disabled,
+        )
 
-    def list_observed(self, include_disabled: bool = False) -> list[WorkExperience]:
+    def list_observed(
+        self,
+        include_disabled: bool = False,
+    ) -> list[WorkExperience]:
         """List all observed experience level cards."""
-        return self.list_by_level(ExperienceLevel.OBSERVED, include_disabled=include_disabled)
+        return self.list_by_level(
+            ExperienceLevel.OBSERVED,
+            include_disabled=include_disabled,
+        )
 
-    def list_mature(self, include_disabled: bool = False) -> list[WorkExperience]:
+    def list_mature(
+        self,
+        include_disabled: bool = False,
+    ) -> list[WorkExperience]:
         """List all mature experience level cards."""
-        return self.list_by_level(ExperienceLevel.MATURE, include_disabled=include_disabled)
+        return self.list_by_level(
+            ExperienceLevel.MATURE,
+            include_disabled=include_disabled,
+        )
 
-    def list_deprecated(self, include_disabled: bool = False) -> list[WorkExperience]:
+    def list_deprecated(
+        self,
+        include_disabled: bool = False,
+    ) -> list[WorkExperience]:
         """List all deprecated experience level cards."""
-        return self.list_by_level(ExperienceLevel.DEPRECATED, include_disabled=include_disabled)
+        return self.list_by_level(
+            ExperienceLevel.DEPRECATED,
+            include_disabled=include_disabled,
+        )
 
     # ---- Similar experience finding ----
 
@@ -148,7 +227,11 @@ class WorkExperienceService:
 
         Uses the store's find_similar method for efficient lookup.
         """
-        return self._store.find_similar(trigger_hint_prefix, keywords, exclude_id)
+        return self._store.find_similar(
+            trigger_hint_prefix,
+            keywords,
+            exclude_id,
+        )
 
     def find_existing_for_update(
         self,
@@ -174,14 +257,19 @@ class WorkExperienceService:
         # Use 8 chars to avoid cutting Chinese words mid-character
         # "思考一下如何让别的局" (10) cuts "局域网" in half
         # "思考一下如何" (8) is a clean semantic boundary
-        trigger_hint_prefix = f"{first_key}:{str(first_val)[:8].lower().replace(' ', '_')}"
+        trigger_hint_prefix = (
+            f"{first_key}:{str(first_val)[:8].lower().replace(' ', '_')}"
+        )
 
         similar = self.find_similar(trigger_hint_prefix, keywords)
         if not similar:
             return None
 
         # Return the most mature one
-        return max(similar, key=lambda c: c.experience_level.retrieval_weight())
+        return max(
+            similar,
+            key=lambda c: c.experience_level.retrieval_weight(),
+        )
 
     # ---- Deduplication ----
 
@@ -213,8 +301,9 @@ class WorkExperienceService:
             # Same trigger_hint prefix (first 10 chars)
             if not other.trigger_hint or not card.trigger_hint:
                 continue
-            if not other.trigger_hint.startswith(card.trigger_hint[:10]) and \
-               not card.trigger_hint.startswith(other.trigger_hint[:10]):
+            if not other.trigger_hint.startswith(
+                card.trigger_hint[:10],
+            ) and not card.trigger_hint.startswith(other.trigger_hint[:10]):
                 continue
 
             # Keyword overlap check
@@ -265,20 +354,52 @@ class WorkExperienceService:
             return False
 
         # Combine fields
-        combined_what_worked = list(set(target.what_worked) | set(source.what_worked))
-        combined_what_failed = list(set(target.what_failed) | set(source.what_failed))
-        combined_keywords = list(set(target.trigger_keywords) | set(source.trigger_keywords))
-        combined_tags = list(set(target.applicability_tags) | set(source.applicability_tags))
+        combined_what_worked = list(
+            set(target.what_worked) | set(source.what_worked),
+        )
+        combined_what_failed = list(
+            set(target.what_failed) | set(source.what_failed),
+        )
+        combined_keywords = list(
+            set(target.trigger_keywords) | set(source.trigger_keywords),
+        )
+        combined_tags = list(
+            set(target.applicability_tags) | set(source.applicability_tags),
+        )
 
         # Longer guidance/avoidance wins
-        guidance = target.guidance if len(target.guidance) >= len(source.guidance) else source.guidance
-        avoidance = target.avoidance if len(target.avoidance) >= len(source.avoidance) else source.avoidance
+        guidance = (
+            target.guidance
+            if len(target.guidance) >= len(source.guidance)
+            else source.guidance
+        )
+        avoidance = (
+            target.avoidance
+            if len(target.avoidance) >= len(source.avoidance)
+            else source.avoidance
+        )
 
         # Combine new fields
-        combined_tool_order = list(dict.fromkeys(target.recommended_tool_order + source.recommended_tool_order))
-        combined_workflow = list(dict.fromkeys(target.recommended_workflow + source.recommended_workflow))
-        combined_task_types = list(set(target.applicable_task_types) | set(source.applicable_task_types))
-        combined_pattern = target.usage_pattern_summary if len(target.usage_pattern_summary) >= len(source.usage_pattern_summary) else source.usage_pattern_summary
+        combined_tool_order = list(
+            dict.fromkeys(
+                target.recommended_tool_order + source.recommended_tool_order,
+            ),
+        )
+        combined_workflow = list(
+            dict.fromkeys(
+                target.recommended_workflow + source.recommended_workflow,
+            ),
+        )
+        combined_task_types = list(
+            set(target.applicable_task_types)
+            | set(source.applicable_task_types),
+        )
+        combined_pattern = (
+            target.usage_pattern_summary
+            if len(target.usage_pattern_summary)
+            >= len(source.usage_pattern_summary)
+            else source.usage_pattern_summary
+        )
 
         # Update target
         target.what_worked = combined_what_worked
@@ -288,7 +409,9 @@ class WorkExperienceService:
         target.trigger_keywords = combined_keywords
         target.applicability_tags = combined_tags
         target.hit_count = target.hit_count + source.hit_count
-        target.effective_count = target.effective_count + source.effective_count
+        target.effective_count = (
+            target.effective_count + source.effective_count
+        )
         # New fields
         target.recommended_tool_order = combined_tool_order
         target.recommended_workflow = combined_workflow
@@ -314,7 +437,10 @@ class WorkExperienceService:
     # An item is removed ONLY if it starts with a generic prefix AND is short enough
     # that the "specific" part is just minor variation.
     _GENERIC_WORKED_PREFIXES = (
-        ("handled chat request", 20),   # "Handled chat request" + ~20 chars of specific content
+        (
+            "handled chat request",
+            20,
+        ),  # "Handled chat request" + ~20 chars of specific content
         ("delivered a response", 30),
         ("response summary", 30),
     )
@@ -340,19 +466,32 @@ class WorkExperienceService:
                 return True  # Just the generic phrase, remove it
         # Also remove items that are pure generic wrappers (via agent / in console pattern)
         # but only if they have no specific content after the generic label
-        if len(item) < 50 and any(g in lowered for g in [
-            "via agent default",
-            "in console via agent",
-            "response summary:",
-        ]):
+        if len(item) < 50 and any(
+            g in lowered
+            for g in [
+                "via agent default",
+                "in console via agent",
+                "response summary:",
+            ]
+        ):
             return True
         return False
 
     # Generic continuation patterns that indicate the prefix had no real content
-    _GENERIC_CONTINUATION_PREFIXES = frozenset([
-        "in ", "via ", "on ", "at ", "with ", "to ", "for ",
-        "in console", "via agent", "in channel",
-    ])
+    _GENERIC_CONTINUATION_PREFIXES = frozenset(
+        [
+            "in ",
+            "via ",
+            "on ",
+            "at ",
+            "with ",
+            "to ",
+            "for ",
+            "in console",
+            "via agent",
+            "in channel",
+        ],
+    )
 
     def _strip_generic_prefix(self, item: str) -> str:
         """Strip generic chat prefixes from a worked item to get the specific content.
@@ -365,12 +504,15 @@ class WorkExperienceService:
         lowered = item.lower()
         for prefix, _ in self._GENERIC_WORKED_PREFIXES:
             if lowered.startswith(prefix):
-                stripped = item[len(prefix):].strip()
+                stripped = item[len(prefix) :].strip()
                 # Strip leading punctuation (colon, dash, etc.) after the prefix
-                while stripped and stripped[0] in ':-,;. ':
+                while stripped and stripped[0] in ":-,;. ":
                     stripped = stripped[1:].strip()
                 # If starts with a generic continuation (not real content), discard
-                if any(stripped.lower().startswith(cp) for cp in self._GENERIC_CONTINUATION_PREFIXES):
+                if any(
+                    stripped.lower().startswith(cp)
+                    for cp in self._GENERIC_CONTINUATION_PREFIXES
+                ):
                     return ""
                 # If nothing meaningful left after prefix, return empty string
                 if len(stripped) < 3:
@@ -458,8 +600,7 @@ class WorkExperienceService:
 
         # Prefer the imperative derived from what_worked (most reliable signal)
         concrete_worked = [
-            w for w in what_worked
-            if not self._is_generic_phrase(w)
+            w for w in what_worked if not self._is_generic_phrase(w)
         ]
         if concrete_worked:
             concrete_worked.sort(key=lambda x: -len(x))
@@ -505,9 +646,16 @@ class WorkExperienceService:
         """
         phrase = phrase.strip()
         # Remove common prefixes
-        for prefix in ["Used ", "Used ", "Used ", "Handled ", "Delivered ", "Completed "]:
+        for prefix in [
+            "Used ",
+            "Used ",
+            "Used ",
+            "Handled ",
+            "Delivered ",
+            "Completed ",
+        ]:
             if phrase.startswith(prefix):
-                phrase = phrase[len(prefix):]
+                phrase = phrase[len(prefix) :]
         # Truncate at "with", "for", "in", "via" (secondary clauses)
         for delim in [" with ", " for ", " in ", " via "]:
             if delim in phrase:
@@ -590,7 +738,11 @@ class WorkExperienceService:
         for i, step in enumerate(execution_trace[:10]):
             tool = step.get("tool") or step.get("worker") or f"step_{i}"
             success = step.get("success", True)
-            step_desc = f"{len(result)+1}. {tool}" if success else f"{len(result)+1}. {tool} (failed)"
+            step_desc = (
+                f"{len(result)+1}. {tool}"
+                if success
+                else f"{len(result)+1}. {tool} (failed)"
+            )
             if step_desc not in seen:
                 seen.add(step_desc)
                 result.append(step_desc)
@@ -691,12 +843,20 @@ class WorkExperienceService:
         # Update success rate estimate
         total_uses = existing.hit_count + 1
         if total_uses > 0:
-            existing.success_rate_estimate = existing.effective_count / total_uses
+            existing.success_rate_estimate = (
+                existing.effective_count / total_uses
+            )
 
         # Update experience level if maturity is high enough
-        if new_maturity >= 80.0 and existing.experience_level == ExperienceLevel.OBSERVED:
+        if (
+            new_maturity >= 80.0
+            and existing.experience_level == ExperienceLevel.OBSERVED
+        ):
             existing.experience_level = ExperienceLevel.MATURE
-        elif new_maturity >= 40.0 and existing.experience_level == ExperienceLevel.NEW:
+        elif (
+            new_maturity >= 40.0
+            and existing.experience_level == ExperienceLevel.NEW
+        ):
             existing.experience_level = ExperienceLevel.OBSERVED
 
         self._store.save(existing)
@@ -720,7 +880,9 @@ class WorkExperienceService:
         This is the score shown in the admin UI quality-score field
         and used by GET /cards/{id}/quality-score and GET /stats.
         """
-        return card.confidence * (1.0 + card.hit_count / 10.0 + card.effective_count / 5.0)
+        return card.confidence * (
+            1.0 + card.hit_count / 10.0 + card.effective_count / 5.0
+        )
 
     # ---- Maturity ranking ----
 
@@ -739,10 +901,10 @@ class WorkExperienceService:
         effective_ratio = card.effective_ratio()
 
         return (
-            level_weight * 0.4 +
-            maturity_norm * 0.3 +
-            effective_ratio * 0.2 +
-            card.confidence * 0.1
+            level_weight * 0.4
+            + maturity_norm * 0.3
+            + effective_ratio * 0.2
+            + card.confidence * 0.1
         )
 
     def top_cards(
@@ -791,7 +953,10 @@ class WorkExperienceService:
         candidates = self.list_candidates()
         approved_count = 0
         for card in candidates:
-            if card.confidence >= min_confidence and card.effective_count >= min_effective_uses:
+            if (
+                card.confidence >= min_confidence
+                and card.effective_count >= min_effective_uses
+            ):
                 if self.approve(card.experience_id):
                     approved_count += 1
         return approved_count

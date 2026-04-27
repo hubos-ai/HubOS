@@ -48,7 +48,12 @@ def get_save_path(save_dir: str, session_id: str, user_id: str) -> str:
     return os.path.join(save_dir, file_path)
 
 
-async def save_state(save_dir: str, session_id: str, user_id: str, state: dict) -> None:
+async def save_state(
+    save_dir: str,
+    session_id: str,
+    user_id: str,
+    state: dict,
+) -> None:
     """对应 session.py:71-93（简化：不用 aiofiles，用 to_thread 保留 IO 语义）"""
     path = get_save_path(save_dir, session_id, user_id)
     payload = json.dumps(state, ensure_ascii=False)
@@ -60,7 +65,11 @@ async def save_state(save_dir: str, session_id: str, user_id: str, state: dict) 
     await asyncio.to_thread(_write)
 
 
-async def load_state(save_dir: str, session_id: str, user_id: str) -> dict | None:
+async def load_state(
+    save_dir: str,
+    session_id: str,
+    user_id: str,
+) -> dict | None:
     """对应 session.py:95-132"""
     path = get_save_path(save_dir, session_id, user_id)
     if not os.path.exists(path):
@@ -133,7 +142,11 @@ async def simulate_query(
         {"memory": agent.memory, "last_user": user_id},
     )
 
-    return {"session_id": session_id, "user_id": user_id, "memory_len": len(agent.memory)}
+    return {
+        "session_id": session_id,
+        "user_id": user_id,
+        "memory_len": len(agent.memory),
+    }
 
 
 # ---------- 并发测试 ----------
@@ -156,7 +169,11 @@ async def test_concurrent_isolation(save_dir: str) -> None:
     sessions_per_user = ["s1", "s2", "s3"]
     queries_per_pair = 5
 
-    async def run_one_session(uid: str, full_sid: str, expected_texts: list[str]) -> None:
+    async def run_one_session(
+        uid: str,
+        full_sid: str,
+        expected_texts: list[str],
+    ) -> None:
         for text in expected_texts:
             await simulate_query(save_dir, full_sid, uid, text)
 
@@ -231,7 +248,11 @@ async def test_filename_sanitization() -> None:
     cases = [
         ("discord:dm:12345", "user01", "user01_discord--dm--12345.json"),
         ("console:alice", "alice", "alice_console--alice.json"),
-        ('win/evil\\name:*?"<>|', "u1", 'u1_win--evil--name--------------.json'),
+        (
+            'win/evil\\name:*?"<>|',
+            "u1",
+            "u1_win--evil--name--------------.json",
+        ),
         ("normal-sid", "", "normal-sid.json"),
     ]
     failures = []
@@ -239,7 +260,9 @@ async def test_filename_sanitization() -> None:
         path = get_save_path("/tmp", sid, uid)
         actual = os.path.basename(path)
         if actual != expected_filename:
-            failures.append(f"sid={sid!r} uid={uid!r}: got {actual}, want {expected_filename}")
+            failures.append(
+                f"sid={sid!r} uid={uid!r}: got {actual}, want {expected_filename}",
+            )
 
     if failures:
         print("  ✗ filename sanitize 失败：")
@@ -273,8 +296,12 @@ async def test_cross_user_no_bleed() -> None:
         b = await load_state(tmp, "console:shared", "bob")
 
         assert a is not None and b is not None
-        a_texts = {m["content"] for m in a["memory"] if m.get("role") == "user"}
-        b_texts = {m["content"] for m in b["memory"] if m.get("role") == "user"}
+        a_texts = {
+            m["content"] for m in a["memory"] if m.get("role") == "user"
+        }
+        b_texts = {
+            m["content"] for m in b["memory"] if m.get("role") == "user"
+        }
 
         if a_texts != {"secret-alice"} or b_texts != {"secret-bob"}:
             print(f"  ✗ 跨 user 串台：alice={a_texts}, bob={b_texts}")

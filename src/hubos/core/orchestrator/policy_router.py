@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Policy routing integration for execution planning.
 
 Applies learned policy hints to influence worker selection,
@@ -97,7 +98,9 @@ class PolicyRouter:
                 logger.info(
                     "Applied worker priority from policy",
                     extra={
-                        "policy_id": str(route_hint.policy_id) if route_hint.policy_id else None,
+                        "policy_id": str(route_hint.policy_id)
+                        if route_hint.policy_id
+                        else None,
                         "worker_priority": route_hint.worker_priority,
                     },
                 )
@@ -105,7 +108,9 @@ class PolicyRouter:
         # Skip providers
         if route_hint.skip_providers:
             current_skip = plan_params.get("skip_providers", [])
-            plan_params["skip_providers"] = list(set(current_skip + route_hint.skip_providers))
+            plan_params["skip_providers"] = list(
+                set(current_skip + route_hint.skip_providers),
+            )
 
         # Timeout
         if route_hint.timeout_seconds:
@@ -116,7 +121,9 @@ class PolicyRouter:
                 logger.info(
                     "Applied timeout from policy",
                     extra={
-                        "policy_id": str(route_hint.policy_id) if route_hint.policy_id else None,
+                        "policy_id": str(route_hint.policy_id)
+                        if route_hint.policy_id
+                        else None,
                         "timeout_seconds": route_hint.timeout_seconds,
                     },
                 )
@@ -136,7 +143,9 @@ class PolicyRouter:
             "Route hint applied",
             extra={
                 "trigger_task_id": route_hint.trigger_task_id,
-                "policy_id": str(route_hint.policy_id) if route_hint.policy_id else None,
+                "policy_id": str(route_hint.policy_id)
+                if route_hint.policy_id
+                else None,
                 "confidence": route_hint.confidence,
             },
         )
@@ -189,7 +198,9 @@ class PolicyRouter:
             self._policy_hit_count / total_hits if total_hits > 0 else 0.0
         )
         effective_rate = (
-            self._effective_count / self._policy_hit_count if self._policy_hit_count > 0 else 0.0
+            self._effective_count / self._policy_hit_count
+            if self._policy_hit_count > 0
+            else 0.0
         )
 
         return {

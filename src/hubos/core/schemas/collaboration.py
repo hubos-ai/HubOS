@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Collaboration message schemas for worker-to-worker communication."""
 
 from dataclasses import dataclass, field
@@ -62,7 +63,9 @@ class CollaborationMessage:
         """Convert to dictionary."""
         return {
             "message_id": str(self.message_id),
-            "from_unit_id": str(self.from_unit_id) if self.from_unit_id else None,
+            "from_unit_id": str(self.from_unit_id)
+            if self.from_unit_id
+            else None,
             "to_unit_id": str(self.to_unit_id) if self.to_unit_id else None,
             "task_id": self.task_id,
             "trace_id": self.trace_id,
@@ -77,14 +80,24 @@ class CollaborationMessage:
     def from_dict(cls, data: dict[str, Any]) -> "CollaborationMessage":
         """Create from dictionary."""
         return cls(
-            message_id=UUID(data["message_id"]) if data.get("message_id") else None,
-            from_unit_id=UUID(data["from_unit_id"]) if data.get("from_unit_id") else None,
-            to_unit_id=UUID(data["to_unit_id"]) if data.get("to_unit_id") else None,
+            message_id=UUID(data["message_id"])
+            if data.get("message_id")
+            else None,
+            from_unit_id=UUID(data["from_unit_id"])
+            if data.get("from_unit_id")
+            else None,
+            to_unit_id=UUID(data["to_unit_id"])
+            if data.get("to_unit_id")
+            else None,
             task_id=data.get("task_id", ""),
             trace_id=data.get("trace_id", ""),
             session_id=data.get("session_id", ""),
-            message_type=MessageType(data["message_type"]) if data.get("message_type") else MessageType.REQUEST,
+            message_type=MessageType(data["message_type"])
+            if data.get("message_type")
+            else MessageType.REQUEST,
             payload=data.get("payload", {}),
             broadcast=data.get("broadcast", False),
-            timestamp=datetime.fromisoformat(data["timestamp"]) if data.get("timestamp") else None,
+            timestamp=datetime.fromisoformat(data["timestamp"])
+            if data.get("timestamp")
+            else None,
         )

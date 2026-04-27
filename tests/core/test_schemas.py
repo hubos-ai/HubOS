@@ -1,10 +1,20 @@
+# -*- coding: utf-8 -*-
 """Tests for schema validation."""
 
 import pytest
 from uuid import uuid4
 
-from hubos.core.schemas.events import ConversationEvent, EventSource, SourceMetadata
-from hubos.core.schemas.memory import MemoryContext, MemoryEntry, MemoryNamespace, MemoryUpdate
+from hubos.core.schemas.events import (
+    ConversationEvent,
+    EventSource,
+    SourceMetadata,
+)
+from hubos.core.schemas.memory import (
+    MemoryContext,
+    MemoryEntry,
+    MemoryNamespace,
+    MemoryUpdate,
+)
 from hubos.core.schemas.planning import ExecutionPlan, PlanStep, PlanStepType
 from hubos.core.schemas.tasks import TaskResult, TaskStatus, TaskUnit
 from hubos.core.schemas.responses import FinalResponse, MergeResult
@@ -104,12 +114,22 @@ class TestExecutionPlan:
     def test_plan_requires_task_id(self) -> None:
         """Test plan requires task_id."""
         with pytest.raises(ValueError, match="task_id"):
-            ExecutionPlan(task_id="", trace_id="trace", session_id="session", steps=[])
+            ExecutionPlan(
+                task_id="",
+                trace_id="trace",
+                session_id="session",
+                steps=[],
+            )
 
     def test_plan_requires_steps(self) -> None:
         """Test plan requires at least one step."""
         with pytest.raises(ValueError, match="at least one step"):
-            ExecutionPlan(task_id="task-123", trace_id="trace", session_id="session", steps=[])
+            ExecutionPlan(
+                task_id="task-123",
+                trace_id="trace",
+                session_id="session",
+                steps=[],
+            )
 
 
 class TestMemoryEntry:

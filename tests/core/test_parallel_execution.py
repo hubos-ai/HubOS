@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for parallel execution engine."""
 
 import asyncio
@@ -62,9 +63,24 @@ class TestParallelExecutor:
 
         # C depends on B, B depends on A
         unit_defs = [
-            {"step_id": str(unit_a), "name": "A", "required": True, "depends_on": []},
-            {"step_id": str(unit_b), "name": "B", "required": True, "depends_on": [str(unit_a)]},
-            {"step_id": str(unit_c), "name": "C", "required": True, "depends_on": [str(unit_b)]},
+            {
+                "step_id": str(unit_a),
+                "name": "A",
+                "required": True,
+                "depends_on": [],
+            },
+            {
+                "step_id": str(unit_b),
+                "name": "B",
+                "required": True,
+                "depends_on": [str(unit_a)],
+            },
+            {
+                "step_id": str(unit_c),
+                "name": "C",
+                "required": True,
+                "depends_on": [str(unit_b)],
+            },
         ]
 
         await executor.execute_all(unit_defs, trace_id="trace-123")
@@ -96,9 +112,24 @@ class TestParallelExecutor:
 
         # A and B are independent, C depends on both
         unit_defs = [
-            {"step_id": str(unit_a), "name": "A", "required": True, "depends_on": []},
-            {"step_id": str(unit_b), "name": "B", "required": True, "depends_on": []},
-            {"step_id": str(unit_c), "name": "C", "required": True, "depends_on": [str(unit_a), str(unit_b)]},
+            {
+                "step_id": str(unit_a),
+                "name": "A",
+                "required": True,
+                "depends_on": [],
+            },
+            {
+                "step_id": str(unit_b),
+                "name": "B",
+                "required": True,
+                "depends_on": [],
+            },
+            {
+                "step_id": str(unit_c),
+                "name": "C",
+                "required": True,
+                "depends_on": [str(unit_a), str(unit_b)],
+            },
         ]
 
         await executor.execute_all(unit_defs, trace_id="trace-123")
@@ -113,6 +144,7 @@ class TestParallelExecutor:
     @pytest.mark.asyncio
     async def test_non_required_failure_isolation(self) -> None:
         """Test that non-required unit failures don't block execution."""
+
         async def mock_executor(unit_id, input_data):
             if "fail" in input_data.get("name", ""):
                 raise RuntimeError("Simulated failure")
@@ -126,9 +158,24 @@ class TestParallelExecutor:
         unit_c = uuid4()
 
         unit_defs = [
-            {"step_id": str(unit_a), "input_data": {"name": "success"}, "required": True, "depends_on": []},
-            {"step_id": str(unit_b), "input_data": {"name": "fail"}, "required": False, "depends_on": []},
-            {"step_id": str(unit_c), "input_data": {"name": "also_success"}, "required": True, "depends_on": []},
+            {
+                "step_id": str(unit_a),
+                "input_data": {"name": "success"},
+                "required": True,
+                "depends_on": [],
+            },
+            {
+                "step_id": str(unit_b),
+                "input_data": {"name": "fail"},
+                "required": False,
+                "depends_on": [],
+            },
+            {
+                "step_id": str(unit_c),
+                "input_data": {"name": "also_success"},
+                "required": True,
+                "depends_on": [],
+            },
         ]
 
         await executor.execute_all(unit_defs, trace_id="trace-123")
@@ -146,6 +193,7 @@ class TestParallelExecutor:
     @pytest.mark.asyncio
     async def test_required_failure_blocks(self) -> None:
         """Test that required unit failures are tracked."""
+
         async def mock_executor(unit_id, input_data):
             if "fail" in input_data.get("name", ""):
                 raise RuntimeError("Simulated failure")
@@ -158,8 +206,18 @@ class TestParallelExecutor:
         unit_b = uuid4()
 
         unit_defs = [
-            {"step_id": str(unit_a), "input_data": {"name": "success"}, "required": True, "depends_on": []},
-            {"step_id": str(unit_b), "input_data": {"name": "fail"}, "required": True, "depends_on": []},
+            {
+                "step_id": str(unit_a),
+                "input_data": {"name": "success"},
+                "required": True,
+                "depends_on": [],
+            },
+            {
+                "step_id": str(unit_b),
+                "input_data": {"name": "fail"},
+                "required": True,
+                "depends_on": [],
+            },
         ]
 
         await executor.execute_all(unit_defs, trace_id="trace-123")

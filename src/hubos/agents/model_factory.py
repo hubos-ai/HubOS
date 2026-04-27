@@ -17,9 +17,15 @@ from typing import List, Sequence, Tuple, Type, Any, Union, Optional
 from urllib.parse import urlparse
 
 # Token-optimization constants
-_CACHE_MAX_CHECKPOINTS = 4  # Anthropic allows up to 4 ephemeral cache breakpoints
-_TOOL_RESULT_MAX_CHARS = 3_000  # Truncate old tool-result text beyond this length
-_TOOL_RESULT_KEEP_RECENT = 6   # Keep last N formatted messages intact (≈3 turns)
+_CACHE_MAX_CHECKPOINTS = (
+    4  # Anthropic allows up to 4 ephemeral cache breakpoints
+)
+_TOOL_RESULT_MAX_CHARS = (
+    3_000  # Truncate old tool-result text beyond this length
+)
+_TOOL_RESULT_KEEP_RECENT = (
+    6  # Keep last N formatted messages intact (≈3 turns)
+)
 
 from agentscope.formatter import FormatterBase, OpenAIChatFormatter
 from agentscope.model import ChatModelBase, OpenAIChatModel
@@ -489,7 +495,7 @@ def _inject_prompt_cache_control(messages: list) -> None:
     # last message which varies with every request.
     non_system = [m for m in messages if m.get("role") != "system"]
     stable = non_system[:-1] if len(non_system) > 1 else []
-    for msg in stable[-(_CACHE_MAX_CHECKPOINTS - placed):]:
+    for msg in stable[-(_CACHE_MAX_CHECKPOINTS - placed) :]:
         if placed >= _CACHE_MAX_CHECKPOINTS:
             break
         if _mark_last_block(msg):
@@ -542,10 +548,7 @@ def _truncate_tool_results(
                     new_rc = []
                     block_changed = False
                     for rb in result_content:
-                        if (
-                            isinstance(rb, dict)
-                            and rb.get("type") == "text"
-                        ):
+                        if isinstance(rb, dict) and rb.get("type") == "text":
                             orig = rb.get("text", "")
                             truncated = _trunc(orig)
                             if truncated != orig:
@@ -724,8 +727,12 @@ def _create_file_block_support_formatter(
 
             # Phase-1 token optimization: truncate old tool results
             # (OpenAI / Gemini path; Anthropic handles this above)
-            is_anthropic_fmt = AnthropicChatFormatter is not None and issubclass(
-                base_formatter_class, AnthropicChatFormatter,
+            is_anthropic_fmt = (
+                AnthropicChatFormatter is not None
+                and issubclass(
+                    base_formatter_class,
+                    AnthropicChatFormatter,
+                )
             )
             if not is_anthropic_fmt:
                 messages = _truncate_tool_results(messages, is_anthropic=False)

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Conversation event schemas for ingress."""
 
 from dataclasses import dataclass, field

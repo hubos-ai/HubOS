@@ -119,7 +119,11 @@ async def spawn_subagents(
     parent_session = ctx.get("session_id") or ""
     parent_user = ctx.get("user_id") or ""
 
-    async def _run_one(agent_id: str, prompt: str, label: str) -> dict[str, Any]:
+    async def _run_one(
+        agent_id: str,
+        prompt: str,
+        label: str,
+    ) -> dict[str, Any]:
         worker = HostAgentWorker(agent_id=agent_id, runner=runner)
         unit_id = uuid4()
         sub_ctx = {
@@ -163,7 +167,10 @@ async def spawn_subagents(
     start = time.time()
     logger.info(
         "spawn_subagents: dispatching %d sub-agents (concurrency=%d, timeout=%ds, parent_session=%s)",
-        len(cleaned), max_concurrency, timeout_seconds, parent_session,
+        len(cleaned),
+        max_concurrency,
+        timeout_seconds,
+        parent_session,
     )
 
     results = await asyncio.gather(
@@ -274,7 +281,10 @@ def _render_step_summary(step: _WorkflowStep) -> dict[str, Any]:
     }
 
 
-def _render_workflow_snapshot(exec_: _WorkflowExecution, include_results: bool) -> dict[str, Any]:
+def _render_workflow_snapshot(
+    exec_: _WorkflowExecution,
+    include_results: bool,
+) -> dict[str, Any]:
     steps = []
     for sid in exec_.steps:
         step = exec_.steps[sid]
@@ -315,7 +325,9 @@ def _expand_prompt(prompt: str, exec_: _WorkflowExecution) -> str:
     return _PLACEHOLDER_RE.sub(_sub, prompt)
 
 
-def _validate_plan(steps_input: list[dict[str, Any]]) -> tuple[dict[str, _WorkflowStep], str | None]:
+def _validate_plan(
+    steps_input: list[dict[str, Any]],
+) -> tuple[dict[str, _WorkflowStep], str | None]:
     """Build the step dict + validate: unique ids, deps exist, no cycles, ≤limit."""
     if not isinstance(steps_input, list) or not steps_input:
         return {}, "'steps' must be a non-empty list"
@@ -336,7 +348,9 @@ def _validate_plan(steps_input: list[dict[str, Any]]) -> tuple[dict[str, _Workfl
             return {}, f"step[{i}].id {sid!r} must match [A-Za-z0-9_-]+"
         if sid in steps:
             return {}, f"duplicate step id: {sid!r}"
-        if not isinstance(deps, list) or not all(isinstance(d, str) for d in deps):
+        if not isinstance(deps, list) or not all(
+            isinstance(d, str) for d in deps
+        ):
             return {}, f"step[{i}].depends_on must be list[str]"
         steps[sid] = _WorkflowStep(
             id=sid,
@@ -459,9 +473,12 @@ async def _run_workflow(exec_: _WorkflowExecution, runner: "Any") -> None:
 
             # Collect ready steps
             ready = [
-                s for s in exec_.steps.values()
+                s
+                for s in exec_.steps.values()
                 if s.status == "pending"
-                and all(exec_.steps[d].status != "pending" for d in s.depends_on)
+                and all(
+                    exec_.steps[d].status != "pending" for d in s.depends_on
+                )
             ]
             if not ready:
                 # No ready steps → wait briefly for running ones
@@ -475,7 +492,9 @@ async def _run_workflow(exec_: _WorkflowExecution, runner: "Any") -> None:
             )
 
         # Finalize
-        if exec_.cancel_event.is_set() and any(s.status == "cancelled" for s in exec_.steps.values()):
+        if exec_.cancel_event.is_set() and any(
+            s.status == "cancelled" for s in exec_.steps.values()
+        ):
             exec_.status = "cancelled"
         elif any(s.status == "failed" for s in exec_.steps.values()):
             exec_.status = "failed"
@@ -549,7 +568,9 @@ async def coordinate_workflow(
         return _err(f"coordinate_workflow: {err}")
 
     if summary_step_id is not None and summary_step_id not in step_map:
-        return _err(f"coordinate_workflow: summary_step_id {summary_step_id!r} not in steps")
+        return _err(
+            f"coordinate_workflow: summary_step_id {summary_step_id!r} not in steps",
+        )
 
     ctx = _current_runtime_ctx()
     wf_id = _new_workflow_id()
@@ -580,23 +601,31 @@ async def coordinate_workflow(
 
     logger.info(
         "coordinate_workflow started: id=%s steps=%d session=%s wait=%s",
-        wf_id, len(step_map), exec_.session_id, wait,
+        wf_id,
+        len(step_map),
+        exec_.session_id,
+        wait,
     )
 
     if not wait:
-        return _ok(json.dumps(
-            {
-                "workflow_id": wf_id,
-                "status": "running",
-                "steps_total": len(step_map),
-                "tip": f'Use track_workflow("{wf_id}") to check progress.',
-            },
-            ensure_ascii=False,
-            indent=2,
-        ))
+        return _ok(
+            json.dumps(
+                {
+                    "workflow_id": wf_id,
+                    "status": "running",
+                    "steps_total": len(step_map),
+                    "tip": f'Use track_workflow("{wf_id}") to check progress.',
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+        )
 
     try:
-        await asyncio.wait_for(asyncio.shield(run_task), timeout=timeout_seconds)
+        await asyncio.wait_for(
+            asyncio.shield(run_task),
+            timeout=timeout_seconds,
+        )
     except asyncio.TimeoutError:
         snap = _render_workflow_snapshot(exec_, include_results=False)
         snap["note"] = (
@@ -605,10 +634,13 @@ async def coordinate_workflow(
         )
         return _ok(json.dumps(snap, ensure_ascii=False, indent=2))
 
-    return _ok(json.dumps(
-        _render_workflow_snapshot(exec_, include_results=True),
-        ensure_ascii=False, indent=2,
-    ))
+    return _ok(
+        json.dumps(
+            _render_workflow_snapshot(exec_, include_results=True),
+            ensure_ascii=False,
+            indent=2,
+        ),
+    )
 
 
 async def track_workflow(
@@ -640,14 +672,23 @@ async def track_workflow(
 
     # Owner check
     ctx = _current_runtime_ctx()
-    if exec_.user_id and ctx.get("user_id") and ctx["user_id"] != exec_.user_id:
-        return _err(f"❌ workflow {workflow_id} belongs to a different user; access denied")
+    if (
+        exec_.user_id
+        and ctx.get("user_id")
+        and ctx["user_id"] != exec_.user_id
+    ):
+        return _err(
+            f"❌ workflow {workflow_id} belongs to a different user; access denied",
+        )
 
     if exec_.status in _WF_TERMINAL or not follow:
-        return _ok(json.dumps(
-            _render_workflow_snapshot(exec_, include_results),
-            ensure_ascii=False, indent=2,
-        ))
+        return _ok(
+            json.dumps(
+                _render_workflow_snapshot(exec_, include_results),
+                ensure_ascii=False,
+                indent=2,
+            ),
+        )
 
     run_task = getattr(exec_, "_run_task", None)
     if run_task is None:
@@ -657,22 +698,33 @@ async def track_workflow(
             await asyncio.sleep(0.05)
             if exec_.status in _WF_TERMINAL:
                 break
-        return _ok(json.dumps(
-            _render_workflow_snapshot(exec_, include_results),
-            ensure_ascii=False, indent=2,
-        ))
+        return _ok(
+            json.dumps(
+                _render_workflow_snapshot(exec_, include_results),
+                ensure_ascii=False,
+                indent=2,
+            ),
+        )
 
     try:
-        await asyncio.wait_for(asyncio.shield(run_task), timeout=timeout_seconds)
+        await asyncio.wait_for(
+            asyncio.shield(run_task),
+            timeout=timeout_seconds,
+        )
     except asyncio.TimeoutError:
         snap = _render_workflow_snapshot(exec_, include_results)
-        snap["note"] = f"⏰ follow timed out after {timeout_seconds}s; still running."
+        snap[
+            "note"
+        ] = f"⏰ follow timed out after {timeout_seconds}s; still running."
         return _ok(json.dumps(snap, ensure_ascii=False, indent=2))
 
-    return _ok(json.dumps(
-        _render_workflow_snapshot(exec_, include_results),
-        ensure_ascii=False, indent=2,
-    ))
+    return _ok(
+        json.dumps(
+            _render_workflow_snapshot(exec_, include_results),
+            ensure_ascii=False,
+            indent=2,
+        ),
+    )
 
 
 async def cancel_workflow(workflow_id: str) -> ToolResponse:
@@ -697,19 +749,31 @@ async def cancel_workflow(workflow_id: str) -> ToolResponse:
         return _err(f"❌ workflow not found: {workflow_id}")
 
     ctx = _current_runtime_ctx()
-    if exec_.user_id and ctx.get("user_id") and ctx["user_id"] != exec_.user_id:
-        return _err(f"❌ workflow {workflow_id} belongs to a different user; access denied")
+    if (
+        exec_.user_id
+        and ctx.get("user_id")
+        and ctx["user_id"] != exec_.user_id
+    ):
+        return _err(
+            f"❌ workflow {workflow_id} belongs to a different user; access denied",
+        )
 
     if exec_.status in _WF_TERMINAL:
-        return _ok(json.dumps(
-            {
-                "workflow_id": workflow_id,
-                "status": exec_.status,
-                "note": "already terminal; nothing to cancel.",
-                "snapshot": _render_workflow_snapshot(exec_, include_results=False),
-            },
-            ensure_ascii=False, indent=2,
-        ))
+        return _ok(
+            json.dumps(
+                {
+                    "workflow_id": workflow_id,
+                    "status": exec_.status,
+                    "note": "already terminal; nothing to cancel.",
+                    "snapshot": _render_workflow_snapshot(
+                        exec_,
+                        include_results=False,
+                    ),
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+        )
 
     exec_.cancel_event.set()
     run_task = getattr(exec_, "_run_task", None)
@@ -718,19 +782,28 @@ async def cancel_workflow(workflow_id: str) -> ToolResponse:
 
     # Give the runner a tick to propagate the cancel into step state.
     try:
-        await asyncio.wait_for(asyncio.shield(run_task) if run_task else asyncio.sleep(0.05), timeout=2)
+        await asyncio.wait_for(
+            asyncio.shield(run_task) if run_task else asyncio.sleep(0.05),
+            timeout=2,
+        )
     except (asyncio.TimeoutError, asyncio.CancelledError):
         pass
 
-    return _ok(json.dumps(
-        {
-            "workflow_id": workflow_id,
-            "status": exec_.status,
-            "note": "cancel signalled",
-            "snapshot": _render_workflow_snapshot(exec_, include_results=False),
-        },
-        ensure_ascii=False, indent=2,
-    ))
+    return _ok(
+        json.dumps(
+            {
+                "workflow_id": workflow_id,
+                "status": exec_.status,
+                "note": "cancel signalled",
+                "snapshot": _render_workflow_snapshot(
+                    exec_,
+                    include_results=False,
+                ),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+    )
 
 
 __all__ = [

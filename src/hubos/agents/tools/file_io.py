@@ -99,10 +99,17 @@ def _resolve_write_path(file_path: str) -> str:
         )
 
     # Check 2: protect identity/config files from being overwritten
-    _PROTECTED_FILES = frozenset({
-        "AGENTS.md", "SOUL.md", "PROFILE.md", "BOOTSTRAP.md",
-        "agent.json", "skill.json", "skills.json",
-    })
+    _PROTECTED_FILES = frozenset(
+        {
+            "AGENTS.md",
+            "SOUL.md",
+            "PROFILE.md",
+            "BOOTSTRAP.md",
+            "agent.json",
+            "skill.json",
+            "skills.json",
+        },
+    )
     if candidate.name in _PROTECTED_FILES:
         raise SubAgentWriteDenied(
             f"sub-agent write denied: {candidate.name!r} is a protected "

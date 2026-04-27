@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Role-based access control (RBAC) primitives.
 
 Role checks resolve against the current :class:`~.tenant_context.TenantContext`.

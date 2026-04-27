@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Unit tests for the Work Experience Layer (Phase 0-3)."""
 
 import json
@@ -17,12 +18,17 @@ from hubos.core.work_experience import (
     WorkExperienceExtractor,
     WorkExperienceRetriever,
 )
-from hubos.core.work_experience.schemas import WorkExperience, WorkExperienceScope, WorkExperienceStatus
+from hubos.core.work_experience.schemas import (
+    WorkExperience,
+    WorkExperienceScope,
+    WorkExperienceStatus,
+)
 
 
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def tmp_root(tmp_path: Path) -> Path:
@@ -106,7 +112,12 @@ def failure_context() -> TaskContext:
             "url": "https://example.com/page",
         },
         execution_trace=[
-            {"step": 1, "tool": "web_crawl", "success": False, "error": "timeout"},
+            {
+                "step": 1,
+                "tool": "web_crawl",
+                "success": False,
+                "error": "timeout",
+            },
         ],
         task_result=TaskResult(
             unit_id="unit-002",
@@ -149,6 +160,7 @@ def failure_report() -> ReflectionReport:
 # Store Tests
 # =============================================================================
 
+
 class TestLocalWorkExperienceStore:
     """Tests for LocalWorkExperienceStore."""
 
@@ -181,7 +193,10 @@ class TestLocalWorkExperienceStore:
         assert retrieved.trigger_hint == "type:csv"
         assert retrieved.what_worked == ["pandas read_csv with encoding param"]
 
-    def test_save_updates_existing(self, store: LocalWorkExperienceStore) -> None:
+    def test_save_updates_existing(
+        self,
+        store: LocalWorkExperienceStore,
+    ) -> None:
         """Saving with the same ID updates the card."""
         card = WorkExperience(
             scope=WorkExperienceScope.GLOBAL,
@@ -303,7 +318,9 @@ class TestLocalWorkExperienceStore:
 
         # Should not appear in list_all
         assert store.count_all() == 0
-        assert store.get(card.experience_id) is not None  # Still findable by ID
+        assert (
+            store.get(card.experience_id) is not None
+        )  # Still findable by ID
 
     def test_disable_not_found(self, store: LocalWorkExperienceStore) -> None:
         """disable returns False for unknown ID."""
@@ -346,7 +363,10 @@ class TestLocalWorkExperienceStore:
         """get returns None for unknown ID."""
         assert store.get(uuid4()) is None
 
-    def test_count_all_and_by_scope(self, store: LocalWorkExperienceStore) -> None:
+    def test_count_all_and_by_scope(
+        self,
+        store: LocalWorkExperienceStore,
+    ) -> None:
         """count helpers return correct counts."""
         for i, scope in enumerate(WorkExperienceScope):
             for _ in range(i + 1):
@@ -372,7 +392,10 @@ class TestLocalWorkExperienceStore:
         assert store.count_by_scope(WorkExperienceScope.GLOBAL) == 1
         assert store.count_by_scope(WorkExperienceScope.USER) == 2
 
-    def test_index_jsonl_created(self, store: LocalWorkExperienceStore) -> None:
+    def test_index_jsonl_created(
+        self,
+        store: LocalWorkExperienceStore,
+    ) -> None:
         """Saving a card appends an entry to index.jsonl."""
         card = WorkExperience(
             scope=WorkExperienceScope.GLOBAL,
@@ -404,6 +427,7 @@ class TestLocalWorkExperienceStore:
 # Extractor Tests
 # =============================================================================
 
+
 class TestWorkExperienceExtractor:
     """Tests for WorkExperienceExtractor."""
 
@@ -420,8 +444,12 @@ class TestWorkExperienceExtractor:
         assert card is not None
         assert card.scope == WorkExperienceScope.SESSION  # default scope
         assert len(card.trigger_keywords) > 0
-        assert "csv" in card.trigger_keywords or "file" in card.trigger_keywords
-        assert card.trigger_hint == "type:file_proce"  # first key="type", val="file_process"[:10]
+        assert (
+            "csv" in card.trigger_keywords or "file" in card.trigger_keywords
+        )
+        assert (
+            card.trigger_hint == "type:file_proce"
+        )  # first key="type", val="file_process"[:10]
         assert "CSV" in card.title or "CSV encoding" in card.title
         assert len(card.what_happened) > 0
         assert len(card.what_worked) == 2
@@ -505,7 +533,10 @@ class TestWorkExperienceExtractor:
         card = extractor.extract(sample_report, sample_context)
 
         assert card is not None
-        assert "chardet" in card.guidance.lower() or "encoding" in card.guidance.lower()
+        assert (
+            "chardet" in card.guidance.lower()
+            or "encoding" in card.guidance.lower()
+        )
 
     def test_avoidance_from_what_failed(
         self,
@@ -531,7 +562,10 @@ class TestWorkExperienceExtractor:
         card = extractor.extract(sample_report, sample_context)
 
         assert card is not None
-        assert "file_reader" in card.applicability_tags or "csv_parser" in card.applicability_tags
+        assert (
+            "file_reader" in card.applicability_tags
+            or "csv_parser" in card.applicability_tags
+        )
 
     def test_failure_task_produces_card(
         self,
@@ -608,6 +642,7 @@ class TestWorkExperienceExtractor:
 # Retriever Tests
 # =============================================================================
 
+
 class TestWorkExperienceRetriever:
     """Tests for WorkExperienceRetriever."""
 
@@ -618,15 +653,48 @@ class TestWorkExperienceRetriever:
         Creates its own tempfile.TemporaryDirectory for guaranteed test isolation.
         """
         import tempfile as _tempfile
+
         _tmp = _tempfile.TemporaryDirectory()
-        store = LocalWorkExperienceStore(root=Path(_tmp.name) / "work_experience")
+        store = LocalWorkExperienceStore(
+            root=Path(_tmp.name) / "work_experience",
+        )
         cards_data = [
-            (WorkExperienceScope.GLOBAL, ["python", "file", "csv"], "hint:csv", "Global CSV handling"),
-            (WorkExperienceScope.USER, ["python", "web", "api"], "hint:web", "User API handling"),
-            (WorkExperienceScope.PROJECT, ["python", "database", "sql"], "hint:sql", "Project SQL query"),
-            (WorkExperienceScope.SESSION, ["javascript", "web"], "hint:js", "Session JS task"),
-            (WorkExperienceScope.GLOBAL, ["python", "encoding"], "hint:encoding", "Global encoding fix"),
-            (WorkExperienceScope.USER, ["python", "file"], "hint:file", "User file task"),
+            (
+                WorkExperienceScope.GLOBAL,
+                ["python", "file", "csv"],
+                "hint:csv",
+                "Global CSV handling",
+            ),
+            (
+                WorkExperienceScope.USER,
+                ["python", "web", "api"],
+                "hint:web",
+                "User API handling",
+            ),
+            (
+                WorkExperienceScope.PROJECT,
+                ["python", "database", "sql"],
+                "hint:sql",
+                "Project SQL query",
+            ),
+            (
+                WorkExperienceScope.SESSION,
+                ["javascript", "web"],
+                "hint:js",
+                "Session JS task",
+            ),
+            (
+                WorkExperienceScope.GLOBAL,
+                ["python", "encoding"],
+                "hint:encoding",
+                "Global encoding fix",
+            ),
+            (
+                WorkExperienceScope.USER,
+                ["python", "file"],
+                "hint:file",
+                "User file task",
+            ),
         ]
         for scope, keywords, hint, title in cards_data:
             card = WorkExperience(
@@ -670,7 +738,9 @@ class TestWorkExperienceRetriever:
 
         global_results = retriever.retrieve(scope=WorkExperienceScope.GLOBAL)
         assert len(global_results) == 2
-        assert all(c.scope == WorkExperienceScope.GLOBAL for c in global_results)
+        assert all(
+            c.scope == WorkExperienceScope.GLOBAL for c in global_results
+        )
 
         user_results = retriever.retrieve(scope=WorkExperienceScope.USER)
         assert len(user_results) == 2
@@ -690,7 +760,9 @@ class TestWorkExperienceRetriever:
         assert len(results) == 5
         # All returned cards should have python or csv
         for card in results:
-            has_match = any(k in ["python", "csv"] for k in card.trigger_keywords)
+            has_match = any(
+                k in ["python", "csv"] for k in card.trigger_keywords
+            )
             assert has_match
 
     def test_retrieve_keyword_scoring(
@@ -781,14 +853,32 @@ class TestWorkExperienceRetriever:
         results = retriever.retrieve(keywords=["python"])  # All have python
 
         # GLOBAL cards first
-        global_cards = [c for c in results if c.scope == WorkExperienceScope.GLOBAL]
-        user_cards = [c for c in results if c.scope == WorkExperienceScope.USER]
-        project_cards = [c for c in results if c.scope == WorkExperienceScope.PROJECT]
+        global_cards = [
+            c for c in results if c.scope == WorkExperienceScope.GLOBAL
+        ]
+        user_cards = [
+            c for c in results if c.scope == WorkExperienceScope.USER
+        ]
+        project_cards = [
+            c for c in results if c.scope == WorkExperienceScope.PROJECT
+        ]
 
         # Verify ordering: global cards appear before user, user before project
-        first_global_idx = next(i for i, c in enumerate(results) if c.scope == WorkExperienceScope.GLOBAL)
-        first_user_idx = next(i for i, c in enumerate(results) if c.scope == WorkExperienceScope.USER)
-        first_project_idx = next(i for i, c in enumerate(results) if c.scope == WorkExperienceScope.PROJECT)
+        first_global_idx = next(
+            i
+            for i, c in enumerate(results)
+            if c.scope == WorkExperienceScope.GLOBAL
+        )
+        first_user_idx = next(
+            i
+            for i, c in enumerate(results)
+            if c.scope == WorkExperienceScope.USER
+        )
+        first_project_idx = next(
+            i
+            for i, c in enumerate(results)
+            if c.scope == WorkExperienceScope.PROJECT
+        )
 
         assert first_global_idx < first_user_idx < first_project_idx
 
@@ -818,7 +908,10 @@ class TestWorkExperienceRetriever:
         # Should match cards with file or python or csv keywords
         assert len(results) > 0
 
-    def test_retrieve_empty_result(self, store: LocalWorkExperienceStore) -> None:
+    def test_retrieve_empty_result(
+        self,
+        store: LocalWorkExperienceStore,
+    ) -> None:
         """retrieve returns empty list when nothing matches."""
         retriever = WorkExperienceRetriever(store, max_results=5)
         results = retriever.retrieve(keywords=["nonexistentkeywordxyz"])
@@ -916,15 +1009,17 @@ class TestWorkExperienceRetriever:
         # Test 1: exact 10-char prefix match (card hint == task hint)
         task_input1 = {"input_text": "send a discord notification"}
         results1 = retriever.retrieve_for_task(task_input1)
-        assert any(c.trigger_hint == "input_text:send_a_di" for c in results1), \
-            f"Expected card1 via prefix match, got {[c.trigger_hint for c in results1]}"
+        assert any(
+            c.trigger_hint == "input_text:send_a_di" for c in results1
+        ), f"Expected card1 via prefix match, got {[c.trigger_hint for c in results1]}"
 
         # Test 2: prefix match where card hint is longer than task hint
         # task_hint = "input_data:error_in", card hint = "input_data:error_in" (same)
         task_input2 = {"input_data": "error in the system crash"}
         results2 = retriever.retrieve_for_task(task_input2)
-        assert any(c.trigger_hint == "input_data:error_in" for c in results2), \
-            f"Expected card2 via prefix match, got {[c.trigger_hint for c in results2]}"
+        assert any(
+            c.trigger_hint == "input_data:error_in" for c in results2
+        ), f"Expected card2 via prefix match, got {[c.trigger_hint for c in results2]}"
 
         # Test 3: no prefix match → falls back to keyword-only
         # task_hint = "output:render_th", no card starts with this
@@ -932,24 +1027,37 @@ class TestWorkExperienceRetriever:
         # card3 has ["format","output"] → overlap with "output"=1 → card3 returned
         task_input3 = {"output": "render the formatted table output"}
         results3 = retriever.retrieve_for_task(task_input3)
-        assert len(results3) >= 1, \
-            f"Expected keyword-only fallback to return something, got {results3}"
+        assert (
+            len(results3) >= 1
+        ), f"Expected keyword-only fallback to return something, got {results3}"
 
         # Test 4: verify startswith mechanics — CARD.startswith(TASK_HINT)
-        assert "input_text:send_a_di".startswith("input_text:send_a_di")  # exact
-        assert "input_text:send_a_discord".startswith("input_text:send_a_di")  # card longer
-        assert not "input_text:send_a_di".startswith("input_text:send_a_discord")  # task longer
-        assert not "output:format".startswith("input_text:send_a_di")  # different prefix
+        assert "input_text:send_a_di".startswith(
+            "input_text:send_a_di",
+        )  # exact
+        assert "input_text:send_a_discord".startswith(
+            "input_text:send_a_di",
+        )  # card longer
+        assert not "input_text:send_a_di".startswith(
+            "input_text:send_a_discord",
+        )  # task longer
+        assert not "output:format".startswith(
+            "input_text:send_a_di",
+        )  # different prefix
 
 
 # =============================================================================
 # Governance Observability Tests
 # =============================================================================
 
+
 class TestWorkExperienceGovernance:
     """Tests for governance observability methods on LocalWorkExperienceStore."""
 
-    def test_get_all_stats_empty(self, store: LocalWorkExperienceStore) -> None:
+    def test_get_all_stats_empty(
+        self,
+        store: LocalWorkExperienceStore,
+    ) -> None:
         """stats returns zeros when no cards exist."""
         stats = store.get_all_stats()
         assert stats["total_cards"] == 0
@@ -1072,15 +1180,18 @@ class TestWorkExperienceGovernance:
         for _ in range(4):
             store.record_effective_use(card_b.experience_id)
 
-        alerts = store.get_high_hit_low_effective_cards(min_hits=5, effective_ratio_threshold=0.3)
+        alerts = store.get_high_hit_low_effective_cards(
+            min_hits=5,
+            effective_ratio_threshold=0.3,
+        )
         assert len(alerts) == 1
         assert alerts[0].title == "Card A"
-
 
 
 # =============================================================================
 # Integration: Extractor + Store + Retriever
 # =============================================================================
+
 
 class TestWorkExperienceIntegration:
     """End-to-end integration: extract -> save -> retrieve."""

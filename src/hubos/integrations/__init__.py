@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Host-side adapters that bridge this application to embedded libraries.
 
 Currently exposes a ``hubos.core.workers.providers.host_agent.HostAgentRunner``

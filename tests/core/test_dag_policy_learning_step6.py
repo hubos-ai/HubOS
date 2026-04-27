@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Tests for DAG Policy Learning - Parallel Core V1.5 Step 6."""
 
 import pytest

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Stage C (subset) — tenant_context + RBAC + middleware e2e.
 
 Covers the three new pieces introduced on top of the sb-4 main line:
@@ -90,7 +91,8 @@ check("TenantContext is frozen", mutable_ok)
 ctx2 = ctx.merged(roles=["user", "admin"], extra={"src": "test"})
 check(
     "merged() normalises roles to frozenset",
-    isinstance(ctx2.roles, frozenset) and ctx2.roles == frozenset({"user", "admin"}),
+    isinstance(ctx2.roles, frozenset)
+    and ctx2.roles == frozenset({"user", "admin"}),
 )
 check(
     "merged() shallow-merges extra",
@@ -117,12 +119,16 @@ check(
 print("\n[T2] ContextVar defaults + set/reset")
 check(
     "default context is empty",
-    get_tenant_context().user_id is None
-    and current_roles() == frozenset(),
+    get_tenant_context().user_id is None and current_roles() == frozenset(),
 )
 
-token = set_tenant_context(TenantContext(user_id="u2", roles=frozenset({"admin"})))
-check("set_tenant_context binds", current_user_id() == "u2" and has_role("admin"))
+token = set_tenant_context(
+    TenantContext(user_id="u2", roles=frozenset({"admin"})),
+)
+check(
+    "set_tenant_context binds",
+    current_user_id() == "u2" and has_role("admin"),
+)
 reset_tenant_context(token)
 check(
     "reset_tenant_context restores empty",
@@ -134,14 +140,19 @@ check(
 # T3. bind_tenant_context context manager — exception-safe restore.
 # ======================================================================
 print("\n[T3] bind_tenant_context restores even on exception")
-with bind_tenant_context(TenantContext(user_id="outer", roles=frozenset({"user"}))):
+with bind_tenant_context(
+    TenantContext(user_id="outer", roles=frozenset({"user"})),
+):
     check("outer bound", current_user_id() == "outer")
 
     try:
         with bind_tenant_context(
-            TenantContext(user_id="inner", roles=frozenset({"admin"}))
+            TenantContext(user_id="inner", roles=frozenset({"admin"})),
         ):
-            check("inner bound", current_user_id() == "inner" and has_role("admin"))
+            check(
+                "inner bound",
+                current_user_id() == "inner" and has_role("admin"),
+            )
             raise RuntimeError("downstream boom")
     except RuntimeError:
         pass
@@ -174,7 +185,7 @@ async def _worker(user_id: str, hops: int) -> tuple[str, bool]:
             session_id=f"s-{user_id}",
             channel="web",
             roles=frozenset({"user"}),
-        )
+        ),
     ):
         ok = True
         for _ in range(hops):
@@ -190,7 +201,7 @@ async def _worker(user_id: str, hops: int) -> tuple[str, bool]:
 
 async def _parallel_isolation() -> list[tuple[str, bool]]:
     return await asyncio.gather(
-        *[_worker(f"u{i}", hops=20) for i in range(8)]
+        *[_worker(f"u{i}", hops=20) for i in range(8)],
     )
 
 
@@ -220,7 +231,7 @@ async def async_admin_only() -> str:
 
 async def _exercise_decorator() -> None:
     with bind_tenant_context(
-        TenantContext(user_id="u", roles=frozenset({"user"}))
+        TenantContext(user_id="u", roles=frozenset({"user"})),
     ):
         try:
             sync_admin_only()
@@ -237,7 +248,7 @@ async def _exercise_decorator() -> None:
             check("async gate without role raises ForbiddenError", True)
 
     with bind_tenant_context(
-        TenantContext(user_id="a", roles=frozenset({"admin"}))
+        TenantContext(user_id="a", roles=frozenset({"admin"})),
     ):
         check("sync gate with admin passes", sync_admin_only() == "ok")
         check("async gate with admin passes", await async_admin_only() == "ok")
@@ -251,7 +262,7 @@ asyncio.run(_exercise_decorator())
 # ======================================================================
 print("\n[T6] ensure_roles mode='any' / mode='all'")
 with bind_tenant_context(
-    TenantContext(user_id="u", roles=frozenset({"audit-reader"}))
+    TenantContext(user_id="u", roles=frozenset({"audit-reader"})),
 ):
     ok = True
     try:
@@ -276,7 +287,7 @@ with bind_tenant_context(
 # ======================================================================
 print("\n[T7] has_role / has_any_role / has_all_roles")
 with bind_tenant_context(
-    TenantContext(user_id="u", roles=frozenset({"a", "b"}))
+    TenantContext(user_id="u", roles=frozenset({"a", "b"})),
 ):
     check("has_role('a')", has_role("a"))
     check("not has_role('c')", not has_role("c"))
@@ -313,9 +324,11 @@ check("require_roles rejects mode='xor'", bad_mode_ok)
 print("\n[T9] require_roles refuses generator functions")
 gen_ok = False
 try:
+
     @require_roles("admin")
     def _gen():
         yield 1
+
 except TypeError:
     gen_ok = True
 check("decorating a generator raises TypeError", gen_ok)
@@ -334,6 +347,7 @@ try:
         TenantContextMiddleware,
         build_tenant_context,
     )
+
     # S4c added a second role source (hubos.app.auth.resolve_user_roles)
     # that the middleware merges into the final role set. These tests
     # target the X-Roles gating logic in isolation, so we stub the
@@ -346,6 +360,7 @@ except Exception as e:  # noqa: BLE001
     _MW_OK = False
 
 if _MW_OK:
+
     class _FakeState:
         def __init__(self, user=None):
             self.user = user

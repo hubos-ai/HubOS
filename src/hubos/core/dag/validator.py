@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """DAG validator for Parallel Core V1.5 Step 5.
 
 Validates DAG plans for structural correctness before execution.
@@ -13,7 +14,8 @@ from .models import DagPlan, DagNode, DagEdge
 @dataclass
 class ValidationError:
     """A single validation error."""
-    error_type: str              # e.g., "cycle", "orphan", "unreachable"
+
+    error_type: str  # e.g., "cycle", "orphan", "unreachable"
     node_id: Optional[str]
     message: str
     details: dict[str, Any] = field(default_factory=dict)
@@ -22,12 +24,21 @@ class ValidationError:
 @dataclass
 class ValidationResult:
     """Result of DAG validation."""
+
     valid: bool
     errors: list[ValidationError] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
-    def add_error(self, error_type: str, node_id: Optional[str], message: str, **kwargs: Any) -> None:
-        self.errors.append(ValidationError(error_type, node_id, message, kwargs))
+    def add_error(
+        self,
+        error_type: str,
+        node_id: Optional[str],
+        message: str,
+        **kwargs: Any,
+    ) -> None:
+        self.errors.append(
+            ValidationError(error_type, node_id, message, kwargs),
+        )
         self.valid = False
 
     def add_warning(self, message: str) -> None:
@@ -69,7 +80,11 @@ class DagValidator:
                     continue
                 if color[neighbor] == GRAY:
                     # Back edge found - cycle detected
-                    cycle_nodes = self._reconstruct_cycle(neighbor, node_id, parent)
+                    cycle_nodes = self._reconstruct_cycle(
+                        neighbor,
+                        node_id,
+                        parent,
+                    )
                     self._result.add_error(
                         "cycle",
                         node_id,
@@ -89,7 +104,12 @@ class DagValidator:
                 if dfs(node_id):
                     break
 
-    def _reconstruct_cycle(self, start: str, end: str, parent: dict[str, Optional[str]]) -> list[str]:
+    def _reconstruct_cycle(
+        self,
+        start: str,
+        end: str,
+        parent: dict[str, Optional[str]],
+    ) -> list[str]:
         """Reconstruct the cycle path from end back to start."""
         path = [end]
         current = end
@@ -106,13 +126,21 @@ class DagValidator:
         """Detect orphan nodes (not reachable from any entry node)."""
         if not self.plan.entry_nodes:
             for node in self.plan.nodes:
-                self._result.add_error("orphan", node.node_id, f"Node '{node.node_id}' has no incoming edges and no entry_nodes defined")
+                self._result.add_error(
+                    "orphan",
+                    node.node_id,
+                    f"Node '{node.node_id}' has no incoming edges and no entry_nodes defined",
+                )
             return
 
         reachable = self._compute_reachable_from_entries()
         unreachable = self._node_ids - reachable
         for node_id in unreachable:
-            self._result.add_error("orphan", node_id, f"Node '{node_id}' is not reachable from any entry node")
+            self._result.add_error(
+                "orphan",
+                node_id,
+                f"Node '{node_id}' is not reachable from any entry node",
+            )
 
     def _compute_reachable_from_entries(self) -> set[str]:
         """Compute all nodes reachable from entry nodes via BFS."""
@@ -138,7 +166,7 @@ class DagValidator:
                 self._result.add_error(
                     "unreachable_required",
                     node.node_id,
-                    f"Required node '{node.node_id}' is not reachable from entry nodes"
+                    f"Required node '{node.node_id}' is not reachable from entry nodes",
                 )
 
     def _check_merge_node_integrity(self) -> None:
@@ -152,49 +180,70 @@ class DagValidator:
             self._result.add_error(
                 "missing_merge_node",
                 merge_id,
-                f"merge_node_id '{merge_id}' references a non-existent node"
+                f"merge_node_id '{merge_id}' references a non-existent node",
             )
             return
 
         # Check that merge node has incoming edges from required nodes
         incoming = self.plan.get_incoming_edges(merge_id)
         required_predecessors = [
-            e.from_node for e in incoming
+            e.from_node
+            for e in incoming
             if self.plan.get_node(e.from_node) and self.plan.get_node(e.from_node).required  # type: ignore
         ]
 
         # A merge should have at least one required predecessor
         if not required_predecessors:
-            self._result.add_warning(f"Merge node '{merge_id}' has no required predecessor nodes")
+            self._result.add_warning(
+                f"Merge node '{merge_id}' has no required predecessor nodes",
+            )
 
     def _check_entry_exit_consistency(self) -> None:
         """Validate entry_nodes and exit_nodes match actual graph structure."""
         # Entry nodes should have no incoming edges
         for entry_id in self.plan.entry_nodes:
             if entry_id not in self._node_ids:
-                self._result.add_error("invalid_entry", entry_id, f"entry_nodes contains unknown node '{entry_id}'")
+                self._result.add_error(
+                    "invalid_entry",
+                    entry_id,
+                    f"entry_nodes contains unknown node '{entry_id}'",
+                )
                 continue
             incoming = self.plan.get_incoming_edges(entry_id)
             if incoming:
-                self._result.add_warning(f"Entry node '{entry_id}' has {len(incoming)} incoming edges")
+                self._result.add_warning(
+                    f"Entry node '{entry_id}' has {len(incoming)} incoming edges",
+                )
 
         # Exit nodes should have no outgoing edges (unless they lead to merge)
         for exit_id in self.plan.exit_nodes:
             if exit_id not in self._node_ids:
-                self._result.add_error("invalid_exit", exit_id, f"exit_nodes contains unknown node '{exit_id}'")
+                self._result.add_error(
+                    "invalid_exit",
+                    exit_id,
+                    f"exit_nodes contains unknown node '{exit_id}'",
+                )
                 continue
             outgoing = self.plan.get_outgoing_edges(exit_id)
             # Filter out edges that go to merge node
-            non_merge_outgoing = [e for e in outgoing if e.to_node != self.plan.merge_node_id]
+            non_merge_outgoing = [
+                e for e in outgoing if e.to_node != self.plan.merge_node_id
+            ]
             if non_merge_outgoing:
-                self._result.add_warning(f"Exit node '{exit_id}' has {len(non_merge_outgoing)} outgoing edges (non-merge)")
+                self._result.add_warning(
+                    f"Exit node '{exit_id}' has {len(non_merge_outgoing)} outgoing edges (non-merge)",
+                )
 
     def _check_node_id_uniqueness(self) -> None:
         """Ensure all node IDs are unique."""
         seen: set[str] = set()
         for node in self.plan.nodes:
             if node.node_id in seen:
-                self._result.add_error("duplicate_node_id", node.node_id, f"Duplicate node ID '{node.node_id}'")
+                self._result.add_error(
+                    "duplicate_node_id",
+                    node.node_id,
+                    f"Duplicate node ID '{node.node_id}'",
+                )
             seen.add(node.node_id)
 
     @staticmethod

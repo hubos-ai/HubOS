@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """S4a — admin sessions API e2e.
 
 Spins up a minimal FastAPI app that mounts:
@@ -147,7 +148,7 @@ def _build_app() -> FastAPI:
     #     Auth → Tenant → route
     # i.e. Auth runs first so state.user is populated before Tenant reads it.
     app.add_middleware(TenantContextMiddleware)  # inner
-    app.add_middleware(_FakeAuthMiddleware)      # outer
+    app.add_middleware(_FakeAuthMiddleware)  # outer
     app.include_router(admin_router, prefix="/api")
     return app
 
@@ -232,7 +233,11 @@ client = TestClient(app)
 print("\n[T1] 403 without admin role")
 
 r = client.get("/api/admin/sessions")
-check("anonymous → 403", r.status_code == 403, detail=f"{r.status_code} {r.text[:100]}")
+check(
+    "anonymous → 403",
+    r.status_code == 403,
+    detail=f"{r.status_code} {r.text[:100]}",
+)
 
 r = client.get(
     "/api/admin/sessions",
@@ -297,8 +302,11 @@ check(
     detail=f"total={body.get('total')}",
 )
 ids = {s["session_id"] for s in body["sessions"]}
-check("ids are {a1,a2,b1}", ids == {"sess-a1", "sess-a2", "sess-b1"},
-      detail=str(ids))
+check(
+    "ids are {a1,a2,b1}",
+    ids == {"sess-a1", "sess-a2", "sess-b1"},
+    detail=str(ids),
+)
 # Most-recent first: sess-b1 started at -10 min, sess-a2 at -20, sess-a1 at -30.
 first_id = body["sessions"][0]["session_id"]
 check(
@@ -501,10 +509,16 @@ for t in threads:
 for t in threads:
     t.join()
 
-check("concurrent admin1 → 200", results.get("admin1") == 200,
-      detail=str(results.get("admin1")))
-check("concurrent user1 → 403", results.get("user1") == 403,
-      detail=str(results.get("user1")))
+check(
+    "concurrent admin1 → 200",
+    results.get("admin1") == 200,
+    detail=str(results.get("admin1")),
+)
+check(
+    "concurrent user1 → 403",
+    results.get("user1") == 403,
+    detail=str(results.get("user1")),
+)
 check("concurrent admin2 → 200", results.get("admin2") == 200)
 check("concurrent user2 → 403", results.get("user2") == 403)
 

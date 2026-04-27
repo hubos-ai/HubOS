@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for Agent Registry V1."""
 
 import tempfile
@@ -38,9 +39,10 @@ class TestAgentRegistryInit:
         """Test that init creates database schema."""
         registry = AgentRegistry(db_path=temp_db)
         import sqlite3
+
         conn = sqlite3.connect(temp_db)
         cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='agents'"
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='agents'",
         )
         assert cursor.fetchone() is not None
         conn.close()
@@ -49,9 +51,10 @@ class TestAgentRegistryInit:
         """Test that init creates indexes."""
         registry = AgentRegistry(db_path=temp_db)
         import sqlite3
+
         conn = sqlite3.connect(temp_db)
         cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_agents_role'"
+            "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_agents_role'",
         )
         assert cursor.fetchone() is not None
         conn.close()
@@ -107,12 +110,18 @@ class TestAgentCRUD:
     def test_list_agents(self, registry):
         """Test listing all agents."""
         registry.create_agent(
-            name="Agent 1", role="dev", goal="Goal 1",
-            model_provider=ModelProvider.OPENAI, model_name="gpt-4"
+            name="Agent 1",
+            role="dev",
+            goal="Goal 1",
+            model_provider=ModelProvider.OPENAI,
+            model_name="gpt-4",
         )
         registry.create_agent(
-            name="Agent 2", role="dev", goal="Goal 2",
-            model_provider=ModelProvider.OPENAI, model_name="gpt-3.5"
+            name="Agent 2",
+            role="dev",
+            goal="Goal 2",
+            model_provider=ModelProvider.OPENAI,
+            model_name="gpt-3.5",
         )
 
         agents = registry.list_agents()
@@ -122,12 +131,18 @@ class TestAgentCRUD:
     def test_list_agents_filter_by_role(self, registry):
         """Test listing agents filtered by role."""
         registry.create_agent(
-            name="Dev Agent", role="dev", goal="Dev",
-            model_provider=ModelProvider.OPENAI, model_name="gpt-4"
+            name="Dev Agent",
+            role="dev",
+            goal="Dev",
+            model_provider=ModelProvider.OPENAI,
+            model_name="gpt-4",
         )
         registry.create_agent(
-            name="Info Agent", role="info", goal="Info",
-            model_provider=ModelProvider.OPENAI, model_name="gpt-4"
+            name="Info Agent",
+            role="info",
+            goal="Info",
+            model_provider=ModelProvider.OPENAI,
+            model_name="gpt-4",
         )
 
         dev_agents = registry.list_agents(role="dev")
@@ -141,8 +156,11 @@ class TestAgentCRUD:
     def test_list_agents_filter_by_status(self, registry):
         """Test listing agents filtered by status."""
         agent = registry.create_agent(
-            name="Test Agent", role="dev", goal="Test",
-            model_provider=ModelProvider.OPENAI, model_name="gpt-4"
+            name="Test Agent",
+            role="dev",
+            goal="Test",
+            model_provider=ModelProvider.OPENAI,
+            model_name="gpt-4",
         )
         registry.disable_agent(agent.agent_id)
 
@@ -377,7 +395,10 @@ class TestAgentToolPermission:
             allowed_tools=["tool1", "tool2"],
         )
 
-        allowed, error = registry.check_tool_permission(agent.agent_id, "tool1")
+        allowed, error = registry.check_tool_permission(
+            agent.agent_id,
+            "tool1",
+        )
 
         assert allowed is True
         assert error is None
@@ -393,7 +414,10 @@ class TestAgentToolPermission:
             allowed_tools=["tool1"],
         )
 
-        allowed, error = registry.check_tool_permission(agent.agent_id, "tool2")
+        allowed, error = registry.check_tool_permission(
+            agent.agent_id,
+            "tool2",
+        )
 
         assert allowed is False
         assert error == "TOOL_NOT_ALLOWED"
@@ -417,7 +441,10 @@ class TestAgentToolPermission:
         )
         registry.disable_agent(agent.agent_id)
 
-        allowed, error = registry.check_tool_permission(agent.agent_id, "tool1")
+        allowed, error = registry.check_tool_permission(
+            agent.agent_id,
+            "tool1",
+        )
 
         assert allowed is False
         assert error == "AGENT_DISABLED"
@@ -435,7 +462,9 @@ class TestAgentToolPermission:
         )
 
         allowed, error = registry.check_tool_permission(
-            agent.agent_id, "tool1", action="dangerous_action"
+            agent.agent_id,
+            "tool1",
+            action="dangerous_action",
         )
 
         assert allowed is False

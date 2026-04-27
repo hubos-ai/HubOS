@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Workflow State Store — persisted enabled/default state for workflow presets.
 
 This store holds the runtime state (enabled, is_default) for each workflow preset.
@@ -27,6 +28,7 @@ _DEFAULT_STATES = {
 @dataclass
 class WorkflowState:
     """Runtime state for a workflow preset."""
+
     id: str
     enabled: bool
     is_default: bool
@@ -56,15 +58,15 @@ class WorkflowStateStore:
         try:
             with open(_STATE_FILE) as f:
                 raw = json.load(f)
-            self._states = {
-                wid: WorkflowState(**v) for wid, v in raw.items()
-            }
+            self._states = {wid: WorkflowState(**v) for wid, v in raw.items()}
             # Ensure all built-in presets have a state entry
             for wid, defaults in _DEFAULT_STATES.items():
                 if wid not in self._states:
                     self._states[wid] = WorkflowState(id=wid, **defaults)
         except (json.JSONDecodeError, TypeError, ValueError) as e:
-            logger.warning(f"Failed to load workflow state: {e}. Using defaults.")
+            logger.warning(
+                f"Failed to load workflow state: {e}. Using defaults.",
+            )
             self._states = self._default_states()
             self._save()
 
@@ -74,13 +76,21 @@ class WorkflowStateStore:
         tmp = _STATE_FILE.with_suffix(".tmp")
         try:
             with open(tmp, "w") as f:
-                json.dump({wid: asdict(s) for wid, s in self._states.items()}, f, indent=2)
+                json.dump(
+                    {wid: asdict(s) for wid, s in self._states.items()},
+                    f,
+                    indent=2,
+                )
             os.replace(tmp, _STATE_FILE)
         except OSError as e:
             logger.error(f"Failed to write workflow state: {e}")
 
     def _default_states(self) -> dict[str, WorkflowState]:
-        now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+        now = (
+            __import__("datetime")
+            .datetime.now(__import__("datetime").timezone.utc)
+            .isoformat()
+        )
         return {
             wid: WorkflowState(id=wid, **defaults, updated_at=now)
             for wid, defaults in _DEFAULT_STATES.items()
@@ -104,6 +114,7 @@ class WorkflowStateStore:
             if workflow_id not in self._states:
                 raise KeyError(f"Unknown workflow: {workflow_id}")
             import datetime
+
             now = datetime.datetime.now(datetime.timezone.utc).isoformat()
             self._states[workflow_id].enabled = enabled
             self._states[workflow_id].updated_at = now
@@ -117,9 +128,10 @@ class WorkflowStateStore:
             if workflow_id not in self._states:
                 raise KeyError(f"Unknown workflow: {workflow_id}")
             import datetime
+
             now = datetime.datetime.now(datetime.timezone.utc).isoformat()
             for wid, state in self._states.items():
-                state.is_default = (wid == workflow_id)
+                state.is_default = wid == workflow_id
                 state.updated_at = now
             self._save()
             return self._states[workflow_id]

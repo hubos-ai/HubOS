@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Work Experience Layer integration with ExecutionOrchestrator.
 
 Bypass-read integration: retrieves experience cards before task execution and
@@ -71,26 +72,63 @@ logger = logging.getLogger(__name__)
 # HubOS tool names — used to detect tool mentions in response text.
 # Keep this ordered so recommended_tool_order is deterministic.
 _HUBOS_TOOL_NAMES = (
-    "execute_shell_command", "read_file", "write_file", "edit_file",
-    "grep_search", "glob_search", "browser_use", "webReader",
-    "web_search_prime", "web_crawl", "find_customer_leads",
-    "delegate_task", "spawn_subagents", "coordinate_workflow",
-    "memory_search", "recall_long_term", "recall_session",
-    "tavily_search", "desktop_screenshot", "himalaya",
-    "super_crawler", "xcrawl", "send_file_to_user", "get_current_time",
+    "execute_shell_command",
+    "read_file",
+    "write_file",
+    "edit_file",
+    "grep_search",
+    "glob_search",
+    "browser_use",
+    "webReader",
+    "web_search_prime",
+    "web_crawl",
+    "find_customer_leads",
+    "delegate_task",
+    "spawn_subagents",
+    "coordinate_workflow",
+    "memory_search",
+    "recall_long_term",
+    "recall_session",
+    "tavily_search",
+    "desktop_screenshot",
+    "himalaya",
+    "super_crawler",
+    "xcrawl",
+    "send_file_to_user",
+    "get_current_time",
 )
 
 # Chinese keywords that signal universal/always rules → scope = GLOBAL
-_GLOBAL_SCOPE_INDICATORS_ZH = frozenset({
-    "每次", "总是", "所有", "永远", "通用", "标准", "任何", "一律",
-    "方法论", "最佳实践", "核心策略", "通用方法",
-})
+_GLOBAL_SCOPE_INDICATORS_ZH = frozenset(
+    {
+        "每次",
+        "总是",
+        "所有",
+        "永远",
+        "通用",
+        "标准",
+        "任何",
+        "一律",
+        "方法论",
+        "最佳实践",
+        "核心策略",
+        "通用方法",
+    },
+)
 
 # English keywords → scope = GLOBAL
-_GLOBAL_SCOPE_INDICATORS_EN = frozenset({
-    "always", "every time", "all", "universal", "standard", "any",
-    "best practice", "methodology",
-})
+_GLOBAL_SCOPE_INDICATORS_EN = frozenset(
+    {
+        "always",
+        "every time",
+        "all",
+        "universal",
+        "standard",
+        "any",
+        "best practice",
+        "methodology",
+    },
+)
 
 
 def _truncate_lesson(text: str, max_len: int = 80) -> str:
@@ -101,7 +139,10 @@ def _truncate_lesson(text: str, max_len: int = 80) -> str:
     return text
 
 
-def _detect_scope_from_lessons(what_worked: list[str], what_failed: list[str]) -> str:
+def _detect_scope_from_lessons(
+    what_worked: list[str],
+    what_failed: list[str],
+) -> str:
     """
     Determine the appropriate scope for a card based on its lesson content.
 
@@ -210,7 +251,11 @@ def _extract_lessons_from_response(response: str) -> dict[str, list[str]]:
             if kw in lower:
                 clean = cleaned.lstrip("- •*→ ").strip()
                 # Skip if already classified as what_worked (line has both positive & negative)
-                if len(clean) >= 3 and clean not in seen_failed and clean not in seen_worked:
+                if (
+                    len(clean) >= 3
+                    and clean not in seen_failed
+                    and clean not in seen_worked
+                ):
                     what_failed.append(_truncate_lesson(clean))
                     seen_failed.add(clean)
                 break
@@ -240,10 +285,27 @@ def _extract_lessons_from_response(response: str) -> dict[str, list[str]]:
         has_rule_keyword = any(
             kw in bold_lower
             for kw in (
-                "必须", "不要", "避免", "切记", "重要", "关键", "注意",
-                "务必", "核心", "最佳", "坑", "不在",
-                "must", "avoid", "never", "important", "key", "critical",
-                "best", "pitfall", "gotcha",
+                "必须",
+                "不要",
+                "避免",
+                "切记",
+                "重要",
+                "关键",
+                "注意",
+                "务必",
+                "核心",
+                "最佳",
+                "坑",
+                "不在",
+                "must",
+                "avoid",
+                "never",
+                "important",
+                "key",
+                "critical",
+                "best",
+                "pitfall",
+                "gotcha",
             )
         )
         if not has_rule_keyword:
@@ -251,7 +313,16 @@ def _extract_lessons_from_response(response: str) -> dict[str, list[str]]:
 
         is_negative = any(
             kw in bold_lower
-            for kw in ("不要", "避免", "不可", "不能", "不在", "avoid", "don't", "never")
+            for kw in (
+                "不要",
+                "避免",
+                "不可",
+                "不能",
+                "不在",
+                "avoid",
+                "don't",
+                "never",
+            )
         )
         if is_negative:
             if bold_text not in seen_failed:
@@ -265,7 +336,11 @@ def _extract_lessons_from_response(response: str) -> dict[str, list[str]]:
     # --- Tool mention extraction ---
     tools = _extract_tools_from_response(response)
 
-    return {"what_worked": what_worked, "what_failed": what_failed, "tools": tools}
+    return {
+        "what_worked": what_worked,
+        "what_failed": what_failed,
+        "tools": tools,
+    }
 
 
 # Lazy singleton
@@ -288,19 +363,24 @@ class WorkExperienceInterceptor:
 
     # ---- Turn buffer for periodic methodology summarization ----
     _MAX_BUFFER_SIZE = 50
-    _BUFFER_SUMMARIZE_THRESHOLD = 10      # turns before LLM summary
-    _BUFFER_TIME_THRESHOLD_SEC = 1800     # 30 minutes between summaries
-    _BUFFER_KEYWORD_THRESHOLD = 3         # turns with overlapping keywords
+    _BUFFER_SUMMARIZE_THRESHOLD = 10  # turns before LLM summary
+    _BUFFER_TIME_THRESHOLD_SEC = 1800  # 30 minutes between summaries
+    _BUFFER_KEYWORD_THRESHOLD = 3  # turns with overlapping keywords
 
     def __init__(self) -> None:
         """Initialize the interceptor with a store, retriever, and reflection engine."""
         from hubos.core.work_experience.store import LocalWorkExperienceStore
-        from hubos.core.work_experience.retriever import WorkExperienceRetriever
+        from hubos.core.work_experience.retriever import (
+            WorkExperienceRetriever,
+        )
         from hubos.core.work_experience.service import WorkExperienceService
         from hubos.core.orchestrator.reflection_engine import ReflectionEngine
 
         self._store = LocalWorkExperienceStore()
-        self._retriever = WorkExperienceRetriever(store=self._store, max_results=5)
+        self._retriever = WorkExperienceRetriever(
+            store=self._store,
+            max_results=5,
+        )
         self._service = WorkExperienceService(store=self._store)
         self._reflection_engine = ReflectionEngine()
 
@@ -311,7 +391,10 @@ class WorkExperienceInterceptor:
 
         # Seed bundled methodology cards on first run (idempotent)
         try:
-            from hubos.core.work_experience.seed import seed_work_experience_cards
+            from hubos.core.work_experience.seed import (
+                seed_work_experience_cards,
+            )
+
             seed_work_experience_cards(store=self._store)
         except Exception:
             logger.debug("Seed loading skipped", exc_info=True)
@@ -361,7 +444,10 @@ class WorkExperienceInterceptor:
                             "card_id": str(card.experience_id),
                             "card_title": card.title[:80],
                             "card_scope": card.scope.value,
-                            "keyword_overlap": self._compute_overlap(task_input, card),
+                            "keyword_overlap": self._compute_overlap(
+                                task_input,
+                                card,
+                            ),
                             "sort_rank": i,
                             "total_retrieved": len(cards),
                             "retrieval_rationale": (
@@ -463,13 +549,17 @@ class WorkExperienceInterceptor:
         Args:
             cards: List of experience card dicts that were injected.
         """
-        card_ids = [c.get("experience_id") for c in cards if c.get("experience_id")]
+        card_ids = [
+            c.get("experience_id") for c in cards if c.get("experience_id")
+        ]
         logger.debug(
             "WE_EFFECTIVE_USE_BATCH",
             extra={
                 "card_count": len(card_ids),
                 "card_ids": card_ids,
-                "card_titles": [c.get("title", "")[:60] for c in cards if c.get("title")],
+                "card_titles": [
+                    c.get("title", "")[:60] for c in cards if c.get("title")
+                ],
             },
         )
         for card in cards:
@@ -549,7 +639,9 @@ class WorkExperienceInterceptor:
                 # Strip ```json ... ``` wrapper
                 lines = text.split("\n")
                 text = "\n".join(
-                    line for line in lines if not line.strip().startswith("```")
+                    line
+                    for line in lines
+                    if not line.strip().startswith("```")
                 )
 
             data = json.loads(text)
@@ -567,7 +659,8 @@ class WorkExperienceInterceptor:
             return None
         except Exception as exc:
             logger.debug(
-                "LLM methodology summarization failed: %s", exc,
+                "LLM methodology summarization failed: %s",
+                exc,
             )
             return None
 
@@ -587,7 +680,8 @@ class WorkExperienceInterceptor:
         now = time.time()
         if (
             self._last_summary_time > 0
-            and (now - self._last_summary_time) >= self._BUFFER_TIME_THRESHOLD_SEC
+            and (now - self._last_summary_time)
+            >= self._BUFFER_TIME_THRESHOLD_SEC
             and len(buf) >= 3
         ):
             return True
@@ -603,7 +697,10 @@ class WorkExperienceInterceptor:
                 from collections import Counter
 
                 top_kw = Counter(all_kw).most_common(3)
-                if any(count >= self._BUFFER_KEYWORD_THRESHOLD for _, count in top_kw):
+                if any(
+                    count >= self._BUFFER_KEYWORD_THRESHOLD
+                    for _, count in top_kw
+                ):
                     return True
 
         return False
@@ -664,7 +761,8 @@ class WorkExperienceInterceptor:
             source_task_id=f"methodology-summary-{uuid4().hex[:8]}",
             source_trace_id="periodic",
             trigger_keywords=keywords_from_turns,
-            trigger_hint="input_text:" + (summary["title"][:20].lower().replace(" ", "_")),
+            trigger_hint="input_text:"
+            + (summary["title"][:20].lower().replace(" ", "_")),
         )
 
         self._store.save(card)
@@ -730,7 +828,9 @@ class WorkExperienceInterceptor:
 
         # ---- Quick regex extraction (fast path) ----
         quick_lessons = _extract_lessons_from_response(response)
-        has_quick_lessons = bool(quick_lessons["what_worked"] or quick_lessons["what_failed"])
+        has_quick_lessons = bool(
+            quick_lessons["what_worked"] or quick_lessons["what_failed"],
+        )
 
         result = None
         if has_quick_lessons:
@@ -745,15 +845,19 @@ class WorkExperienceInterceptor:
             )
 
         # ---- Buffer turn for periodic summarization ----
-        self._turn_buffer.append({
-            "user_input": query,
-            "assistant_response": response[:1000],  # truncate to save memory
-            "channel": channel,
-            "agent_id": agent_id,
-        })
+        self._turn_buffer.append(
+            {
+                "user_input": query,
+                "assistant_response": response[
+                    :1000
+                ],  # truncate to save memory
+                "channel": channel,
+                "agent_id": agent_id,
+            },
+        )
         # Enforce max buffer size
         if len(self._turn_buffer) > self._MAX_BUFFER_SIZE:
-            self._turn_buffer = self._turn_buffer[-self._MAX_BUFFER_SIZE:]
+            self._turn_buffer = self._turn_buffer[-self._MAX_BUFFER_SIZE :]
 
         # ---- Check if periodic LLM summary should trigger ----
         summary_result = None
@@ -782,7 +886,10 @@ class WorkExperienceInterceptor:
         task_id = f"chat-turn-{uuid4()}"
 
         from hubos.core.orchestrator.reflection_engine import TaskContext
-        from hubos.core.schemas.tasks import TaskResult, TaskStatus as WorkerTaskStatus
+        from hubos.core.schemas.tasks import (
+            TaskResult,
+            TaskStatus as WorkerTaskStatus,
+        )
 
         context = TaskContext(
             task_id=task_id,
@@ -804,7 +911,7 @@ class WorkExperienceInterceptor:
                     "content": response,
                     "confidence": 0.8,
                     "error": None,
-                }
+                },
             ],
             task_result=TaskResult(
                 task_id=task_id,
@@ -836,9 +943,12 @@ class WorkExperienceInterceptor:
                 )
 
             # Scope detection
-            if report.confidence >= 0.5 and (report.what_worked or report.what_failed):
+            if report.confidence >= 0.5 and (
+                report.what_worked or report.what_failed
+            ):
                 scope_hint = _detect_scope_from_lessons(
-                    report.what_worked, report.what_failed,
+                    report.what_worked,
+                    report.what_failed,
                 )
                 context.task_input["scope"] = scope_hint
 
@@ -848,7 +958,10 @@ class WorkExperienceInterceptor:
             keywords = self._extract_keywords(context.task_input)
 
             # Try to find an existing experience to update
-            existing = self._service.find_existing_for_update(context, keywords)
+            existing = self._service.find_existing_for_update(
+                context,
+                keywords,
+            )
 
             if existing is not None:
                 updated = self._service.update_existing_experience(
@@ -874,7 +987,9 @@ class WorkExperienceInterceptor:
                 }
 
             # Create new card
-            from hubos.core.work_experience.extractor import WorkExperienceExtractor
+            from hubos.core.work_experience.extractor import (
+                WorkExperienceExtractor,
+            )
 
             extractor = WorkExperienceExtractor(store=self._store)
             card = extractor.extract(report, context)
@@ -883,17 +998,27 @@ class WorkExperienceInterceptor:
 
             # Apply compression
             card.what_worked = self._service._merge_and_compress_list(
-                [], card.what_worked, max_items=5, filter_generic=True,
+                [],
+                card.what_worked,
+                max_items=5,
+                filter_generic=True,
             )
             card.what_failed = self._service._merge_and_compress_list(
-                [], card.what_failed, max_items=3, filter_generic=False,
+                [],
+                card.what_failed,
+                max_items=3,
+                filter_generic=False,
             )
             card.guidance = self._service._distill_guidance(
-                "", report.next_time_strategy or "",
-                card.what_worked, card.what_failed,
+                "",
+                report.next_time_strategy or "",
+                card.what_worked,
+                card.what_failed,
             )
             card.avoidance = self._service._merge_avoidance(
-                "", report.root_cause or "", report.what_failed or [],
+                "",
+                report.root_cause or "",
+                report.what_failed or [],
             )
 
             self._store.save(card)
@@ -940,7 +1065,9 @@ class WorkExperienceInterceptor:
             context = self._build_reflection_context(task)
             report = self._reflection_engine.reflect(context)
 
-            from hubos.core.work_experience.extractor import WorkExperienceExtractor
+            from hubos.core.work_experience.extractor import (
+                WorkExperienceExtractor,
+            )
 
             extractor = WorkExperienceExtractor(store=self._store)
             card = extractor.extract(report, context)
@@ -1008,7 +1135,6 @@ class WorkExperienceInterceptor:
         lessons = _extract_lessons_from_response(response)
         worked = lessons["what_worked"]
         failed = lessons["what_failed"]
-        tools = lessons["tools"]
 
         # ---- Quality gate: only create cards with actionable lessons ----
         if not worked and not failed:
@@ -1026,9 +1152,13 @@ class WorkExperienceInterceptor:
         # Build concrete next_time_strategy
         strategy_parts: list[str] = []
         if worked:
-            strategy_parts.append("Do: " + "; ".join(w[:40] for w in worked[:3]))
+            strategy_parts.append(
+                "Do: " + "; ".join(w[:40] for w in worked[:3]),
+            )
         if failed:
-            strategy_parts.append("Avoid: " + "; ".join(f[:40] for f in failed[:2]))
+            strategy_parts.append(
+                "Avoid: " + "; ".join(f[:40] for f in failed[:2]),
+            )
         report.next_time_strategy = " | ".join(strategy_parts)
 
         # Boost confidence for lesson-rich responses
@@ -1041,7 +1171,10 @@ class WorkExperienceInterceptor:
     def _build_reflection_context(task: Task):
         """Build ReflectionEngine TaskContext from a terminal Task."""
         from hubos.core.orchestrator.reflection_engine import TaskContext
-        from hubos.core.schemas.tasks import TaskResult, TaskStatus as WorkerTaskStatus
+        from hubos.core.schemas.tasks import (
+            TaskResult,
+            TaskStatus as WorkerTaskStatus,
+        )
 
         execution_trace = []
         for stage_name, stage_status in task.stage_statuses.items():
@@ -1055,7 +1188,7 @@ class WorkExperienceInterceptor:
                     "content": output.get("content", ""),
                     "confidence": output.get("confidence"),
                     "error": stage_status.error,
-                }
+                },
             )
 
         task_result = TaskResult(
@@ -1075,7 +1208,7 @@ class WorkExperienceInterceptor:
         execution_time_ms = 0
         if task.started_at and task.completed_at:
             execution_time_ms = int(
-                (task.completed_at - task.started_at).total_seconds() * 1000
+                (task.completed_at - task.started_at).total_seconds() * 1000,
             )
 
         return TaskContext(

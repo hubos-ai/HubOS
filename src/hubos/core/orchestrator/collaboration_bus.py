@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Collaboration bus for worker-to-worker communication via coordinator."""
 
 import logging
@@ -23,7 +24,10 @@ class CollaborationBus:
     def __init__(self) -> None:
         """Initialize the collaboration bus."""
         self._messages: list[CollaborationMessage] = []
-        self._subscriptions: dict[str, list[Callable[[CollaborationMessage], None]]] = {}
+        self._subscriptions: dict[
+            str,
+            list[Callable[[CollaborationMessage], None]],
+        ] = {}
 
     def publish(
         self,
@@ -44,8 +48,12 @@ class CollaborationBus:
                 "session_id": message.session_id,
                 "task_id": message.task_id,
                 "message_id": str(message.message_id),
-                "from_unit_id": str(message.from_unit_id) if message.from_unit_id else None,
-                "to_unit_id": str(message.to_unit_id) if message.to_unit_id else None,
+                "from_unit_id": str(message.from_unit_id)
+                if message.from_unit_id
+                else None,
+                "to_unit_id": str(message.to_unit_id)
+                if message.to_unit_id
+                else None,
                 "broadcast": message.broadcast,
                 "message_type": message.message_type.value,
             },
@@ -175,8 +183,11 @@ class CollaborationBus:
 
         if unit_id:
             results = [
-                m for m in results
-                if m.from_unit_id == unit_id or m.to_unit_id == unit_id or m.broadcast
+                m
+                for m in results
+                if m.from_unit_id == unit_id
+                or m.to_unit_id == unit_id
+                or m.broadcast
             ]
 
         if message_type:

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Execution Loop MVP - Task Store.
 
 In-memory task storage with local store authoritative semantics.
@@ -13,6 +14,7 @@ from typing import Any, Optional
 
 class TaskStatus(str, Enum):
     """Task execution status."""
+
     RECEIVED = "received"
     PLANNED = "planned"
     RUNNING = "running"
@@ -23,6 +25,7 @@ class TaskStatus(str, Enum):
 
 class TaskStage(str, Enum):
     """Workflow stages."""
+
     CEO = "ceo"
     INFO = "info"
     DEV = "dev"
@@ -33,6 +36,7 @@ class TaskStage(str, Enum):
 @dataclass
 class StageStatus:
     """Status of a single stage."""
+
     stage: TaskStage
     status: str  # pending, running, completed, skipped, failed
     started_at: Optional[datetime] = None
@@ -45,6 +49,7 @@ class StageStatus:
 @dataclass
 class Task:
     """Task execution record."""
+
     task_id: str
     trace_id: str
     input_text: str
@@ -58,7 +63,9 @@ class Task:
     failure_reason: Optional[str] = None
     retry_count: int = 0
     max_retries: int = 3
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
     started_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
@@ -82,8 +89,12 @@ class Task:
                 k: {
                     "stage": v.stage.value,
                     "status": v.status,
-                    "started_at": v.started_at.isoformat() if v.started_at else None,
-                    "completed_at": v.completed_at.isoformat() if v.completed_at else None,
+                    "started_at": v.started_at.isoformat()
+                    if v.started_at
+                    else None,
+                    "completed_at": v.completed_at.isoformat()
+                    if v.completed_at
+                    else None,
                     "output": v.output,
                     "error": v.error,
                     "retry_count": v.retry_count,
@@ -95,9 +106,15 @@ class Task:
             "retry_count": self.retry_count,
             "max_retries": self.max_retries,
             "created_at": self.created_at.isoformat(),
-            "started_at": self.started_at.isoformat() if self.started_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "started_at": self.started_at.isoformat()
+            if self.started_at
+            else None,
+            "updated_at": self.updated_at.isoformat()
+            if self.updated_at
+            else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
             "requires_human": self.requires_human,
             "work_experience_cards": self.work_experience_cards,
         }
@@ -111,7 +128,12 @@ class DeadLetterQueue:
         self._entries: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
 
-    def add(self, task_id: str, reason: str, task_data: dict[str, Any]) -> None:
+    def add(
+        self,
+        task_id: str,
+        reason: str,
+        task_data: dict[str, Any],
+    ) -> None:
         """Add a failed task to the DLQ."""
         with self._lock:
             self._entries[task_id] = {
@@ -346,7 +368,10 @@ class TaskStore:
 
             for task in self._tasks.values():
                 status = task.current_status
-                if status == TaskStatus.RECEIVED or status == TaskStatus.PLANNED:
+                if (
+                    status == TaskStatus.RECEIVED
+                    or status == TaskStatus.PLANNED
+                ):
                     pending += 1
                 elif status == TaskStatus.RUNNING:
                     if task.requires_human:
@@ -404,7 +429,10 @@ class TaskStore:
 
             return task
 
-    def get_stuck_tasks(self, timeout_seconds: Optional[int] = None) -> list[Task]:
+    def get_stuck_tasks(
+        self,
+        timeout_seconds: Optional[int] = None,
+    ) -> list[Task]:
         """Get tasks that appear stuck (running too long)."""
         timeout = timeout_seconds or self._task_timeout_seconds
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=timeout)
@@ -422,7 +450,8 @@ class TaskStore:
         """Get all failed tasks."""
         with self._lock:
             return [
-                t for t in self._tasks.values()
+                t
+                for t in self._tasks.values()
                 if t.current_status == TaskStatus.FAILED
             ]
 
@@ -444,7 +473,11 @@ class TaskStore:
 
             return True
 
-    def set_max_retries(self, task_id: str, max_retries: int) -> Optional[Task]:
+    def set_max_retries(
+        self,
+        task_id: str,
+        max_retries: int,
+    ) -> Optional[Task]:
         """Set max retries for a specific task."""
         with self._lock:
             task = self._tasks.get(task_id)

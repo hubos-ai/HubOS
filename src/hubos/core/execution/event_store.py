@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Execution Loop MVP - Event Store.
 
 Stores time-ordered execution events for audit trails.
@@ -13,6 +14,7 @@ from typing import Any, Optional
 
 class EventType(str, Enum):
     """Event types for execution audit trail."""
+
     TASK_SUBMITTED = "task_submitted"
     STATE_TRANSITION = "state_transition"
     STAGE_DISPATCH = "stage_dispatch"
@@ -42,6 +44,7 @@ class EventType(str, Enum):
 @dataclass
 class ExecutionEvent:
     """Single execution event."""
+
     event_id: str
     task_id: str
     trace_id: str
@@ -113,7 +116,11 @@ class EventStore:
 
         return event
 
-    def get_events(self, task_id: str, limit: int = 100) -> list[ExecutionEvent]:
+    def get_events(
+        self,
+        task_id: str,
+        limit: int = 100,
+    ) -> list[ExecutionEvent]:
         """Get events for a task in chronological order."""
         with self._lock:
             events = self._events.get(task_id, [])

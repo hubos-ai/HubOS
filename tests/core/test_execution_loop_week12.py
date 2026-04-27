@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Week 12 Execution Loop MVP tests."""
 
 import pytest
@@ -176,7 +177,11 @@ class TestTaskStoreRetry:
         """Test retrying a failed task."""
         store = TaskStore()
         task = store.create_task(input_text="Test task")
-        store.update_status(task.task_id, TaskStatus.FAILED, failure_reason="Test failure")
+        store.update_status(
+            task.task_id,
+            TaskStatus.FAILED,
+            failure_reason="Test failure",
+        )
 
         retried = store.retry_task(task.task_id)
         assert retried is not None
@@ -190,7 +195,11 @@ class TestTaskStoreRetry:
         task = store.create_task(input_text="Test task")
         task.retry_count = 3
         task.max_retries = 3
-        store.update_status(task.task_id, TaskStatus.FAILED, failure_reason="Test failure")
+        store.update_status(
+            task.task_id,
+            TaskStatus.FAILED,
+            failure_reason="Test failure",
+        )
 
         retried = store.retry_task(task.task_id)
         assert retried is None
@@ -221,7 +230,11 @@ class TestTaskStoreRetry:
         store = TaskStore()
         task = store.create_task(input_text="Test task")
         store.update_status(task.task_id, TaskStatus.RUNNING)
-        store.update_stage_status(task.task_id, TaskStage.CEO, status="completed")
+        store.update_stage_status(
+            task.task_id,
+            TaskStage.CEO,
+            status="completed",
+        )
 
         reset = store.reset_task(task.task_id)
         assert reset is not None
@@ -231,6 +244,7 @@ class TestTaskStoreRetry:
     def test_get_stuck_tasks(self):
         """Test getting stuck tasks."""
         from datetime import datetime, timedelta, timezone
+
         store = TaskStore()
         task = store.create_task(input_text="Test task")
         task.current_status = TaskStatus.RUNNING
@@ -245,7 +259,11 @@ class TestTaskStoreRetry:
         store = TaskStore()
         task1 = store.create_task(input_text="Task 1")
         task2 = store.create_task(input_text="Task 2")
-        store.update_status(task1.task_id, TaskStatus.FAILED, failure_reason="Error 1")
+        store.update_status(
+            task1.task_id,
+            TaskStatus.FAILED,
+            failure_reason="Error 1",
+        )
         store.update_status(task2.task_id, TaskStatus.DONE)
 
         failed = store.get_failed_tasks()
@@ -273,8 +291,16 @@ class TestEventStore:
     def test_get_events(self):
         """Test retrieving events."""
         store = EventStore()
-        store.add_event(task_id="task-1", trace_id="trace-1", event_type=EventType.TASK_SUBMITTED)
-        store.add_event(task_id="task-1", trace_id="trace-1", event_type=EventType.STAGE_DISPATCH)
+        store.add_event(
+            task_id="task-1",
+            trace_id="trace-1",
+            event_type=EventType.TASK_SUBMITTED,
+        )
+        store.add_event(
+            task_id="task-1",
+            trace_id="trace-1",
+            event_type=EventType.STAGE_DISPATCH,
+        )
 
         events = store.get_events("task-1")
         assert len(events) == 2
@@ -291,7 +317,9 @@ class TestExecutionOrchestrator:
 
     def test_submit_task(self):
         """Test task submission."""
-        with patch('hubos.core.infra.metrics.get_metrics_service') as mock_metrics:
+        with patch(
+            "hubos.core.infra.metrics.get_metrics_service",
+        ) as mock_metrics:
             mock_metrics.return_value = MagicMock()
             orchestrator = ExecutionOrchestrator()
             task = orchestrator.submit_task(input_text="Test task")
@@ -302,14 +330,16 @@ class TestExecutionOrchestrator:
 
     def test_execute_task_not_found(self):
         """Test executing non-existent task."""
-        with patch('hubos.core.infra.metrics.get_metrics_service'):
+        with patch("hubos.core.infra.metrics.get_metrics_service"):
             orchestrator = ExecutionOrchestrator()
             with pytest.raises(ValueError, match="Task not found"):
                 orchestrator.execute_task("nonexistent")
 
     def test_execute_task_invalid_state(self):
         """Test executing task in invalid state."""
-        with patch('hubos.core.infra.metrics.get_metrics_service') as mock_metrics:
+        with patch(
+            "hubos.core.infra.metrics.get_metrics_service",
+        ) as mock_metrics:
             mock_metrics.return_value = MagicMock()
             orchestrator = ExecutionOrchestrator()
             task = orchestrator.submit_task(input_text="Test task")
@@ -326,14 +356,19 @@ class TestExecutionOrchestrator:
 
     def test_human_gate(self):
         """Test entering human gate."""
-        with patch('hubos.core.infra.metrics.get_metrics_service') as mock_metrics:
+        with patch(
+            "hubos.core.infra.metrics.get_metrics_service",
+        ) as mock_metrics:
             mock_metrics.return_value = MagicMock()
             orchestrator = ExecutionOrchestrator()
             task = orchestrator.submit_task(input_text="Test task")
             # Move task to running state manually for testing human gate
             orchestrator._transition_status(task, TaskStatus.RUNNING)
 
-            gate_task = orchestrator.enter_human_gate(task.task_id, "Needs approval")
+            gate_task = orchestrator.enter_human_gate(
+                task.task_id,
+                "Needs approval",
+            )
             assert gate_task.current_status == TaskStatus.HUMAN_GATE
 
 

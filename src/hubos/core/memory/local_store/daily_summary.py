@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Daily summary generator for the local memory store.
 
 Walks today's session metadata + messages, extracts decisions / projects /
@@ -12,7 +13,10 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from hubos.core.memory.local_store.store import LocalMemoryStore, get_memory_root
+from hubos.core.memory.local_store.store import (
+    LocalMemoryStore,
+    get_memory_root,
+)
 
 
 class DailySummaryGenerator:
@@ -108,15 +112,21 @@ class DailySummaryGenerator:
             if not metadata_path.exists():
                 continue
             try:
-                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                metadata = json.loads(
+                    metadata_path.read_text(encoding="utf-8"),
+                )
                 started = metadata.get("started_at", "")[:10]
                 if started == target_date:
                     messages: List[Dict[str, Any]] = []
                     msg_path = session_dir / "messages.jsonl"
                     if msg_path.exists():
                         with msg_path.open(encoding="utf-8") as f:
-                            messages = [json.loads(line) for line in f if line.strip()]
-                    sessions.append({"metadata": metadata, "messages": messages})
+                            messages = [
+                                json.loads(line) for line in f if line.strip()
+                            ]
+                    sessions.append(
+                        {"metadata": metadata, "messages": messages},
+                    )
             except (json.JSONDecodeError, OSError):
                 continue
         return sessions
@@ -132,7 +142,10 @@ class DailySummaryGenerator:
             m = s["metadata"]
             stats["message_count"] += m.get("message_count", 0)
             stats["tool_call_count"] += m.get("tool_call_count", 0)
-            stats["total_tokens"] += m.get("input_tokens", 0) + m.get("output_tokens", 0)
+            stats["total_tokens"] += m.get("input_tokens", 0) + m.get(
+                "output_tokens",
+                0,
+            )
         return stats
 
     def _extract_decisions(self, sessions: List[Dict[str, Any]]) -> List[str]:
@@ -145,7 +158,10 @@ class DailySummaryGenerator:
                         decisions.append(content.strip())
         return list(dict.fromkeys(decisions))[:10]
 
-    def _extract_projects(self, sessions: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    def _extract_projects(
+        self,
+        sessions: List[Dict[str, Any]],
+    ) -> List[Dict[str, str]]:
         projects: List[Dict[str, str]] = []
         for s in sessions:
             tags = s["metadata"].get("tags", [])
@@ -154,7 +170,10 @@ class DailySummaryGenerator:
                     projects.append({"name": tag, "status": "进行中"})
         return projects[:10]
 
-    def _extract_preferences(self, sessions: List[Dict[str, Any]]) -> List[str]:
+    def _extract_preferences(
+        self,
+        sessions: List[Dict[str, Any]],
+    ) -> List[str]:
         prefs: List[str] = []
         for s in sessions:
             for msg in s.get("messages", []):

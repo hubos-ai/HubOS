@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for policy routing integration."""
 
 from uuid import uuid4
@@ -22,14 +23,20 @@ class TestPolicyRouter:
     @pytest.fixture
     def router(self, mock_reflection_engine) -> PolicyRouter:
         """Create a policy router with mock engine."""
-        return PolicyRouter(reflection_engine=mock_reflection_engine, enabled=True)
+        return PolicyRouter(
+            reflection_engine=mock_reflection_engine,
+            enabled=True,
+        )
 
     def test_disabled_router_returns_unchanged(
         self,
         mock_reflection_engine,
     ) -> None:
         """Test that disabled router doesn't apply hints."""
-        router = PolicyRouter(reflection_engine=mock_reflection_engine, enabled=False)
+        router = PolicyRouter(
+            reflection_engine=mock_reflection_engine,
+            enabled=False,
+        )
 
         plan_params = {"worker_priority": ["openai"]}
         result = router.apply_route_hint({"query": "test"}, plan_params)
@@ -51,7 +58,10 @@ class TestPolicyRouter:
         )
         mock_reflection_engine.generate_route_hint.return_value = hint
 
-        router = PolicyRouter(reflection_engine=mock_reflection_engine, enabled=True)
+        router = PolicyRouter(
+            reflection_engine=mock_reflection_engine,
+            enabled=True,
+        )
 
         plan_params = {}  # No current priority
         result = router.apply_route_hint({"query": "test"}, plan_params)
@@ -71,7 +81,10 @@ class TestPolicyRouter:
         )
         mock_reflection_engine.generate_route_hint.return_value = hint
 
-        router = PolicyRouter(reflection_engine=mock_reflection_engine, enabled=True)
+        router = PolicyRouter(
+            reflection_engine=mock_reflection_engine,
+            enabled=True,
+        )
 
         plan_params = {"skip_providers": []}
         result = router.apply_route_hint({"query": "test"}, plan_params)
@@ -91,7 +104,10 @@ class TestPolicyRouter:
         )
         mock_reflection_engine.generate_route_hint.return_value = hint
 
-        router = PolicyRouter(reflection_engine=mock_reflection_engine, enabled=True)
+        router = PolicyRouter(
+            reflection_engine=mock_reflection_engine,
+            enabled=True,
+        )
 
         plan_params = {"timeout_seconds": 300}  # Default
         result = router.apply_route_hint({"query": "test"}, plan_params)
@@ -111,7 +127,10 @@ class TestPolicyRouter:
         )
         mock_reflection_engine.generate_route_hint.return_value = hint
 
-        router = PolicyRouter(reflection_engine=mock_reflection_engine, enabled=True)
+        router = PolicyRouter(
+            reflection_engine=mock_reflection_engine,
+            enabled=True,
+        )
 
         plan_params = {}
         result = router.apply_route_hint({"query": "test"}, plan_params)
@@ -131,7 +150,10 @@ class TestPolicyRouter:
         )
         mock_reflection_engine.generate_route_hint.return_value = hint
 
-        router = PolicyRouter(reflection_engine=mock_reflection_engine, enabled=True)
+        router = PolicyRouter(
+            reflection_engine=mock_reflection_engine,
+            enabled=True,
+        )
 
         plan_params = {"parallel": False}
         result = router.apply_route_hint({"query": "test"}, plan_params)
@@ -151,7 +173,10 @@ class TestPolicyRouter:
         )
         mock_reflection_engine.generate_route_hint.return_value = hint
 
-        router = PolicyRouter(reflection_engine=mock_reflection_engine, enabled=True)
+        router = PolicyRouter(
+            reflection_engine=mock_reflection_engine,
+            enabled=True,
+        )
 
         plan_params = {"worker_priority": ["openai"]}  # Already set
         result = router.apply_route_hint({"query": "test"}, plan_params)
@@ -171,7 +196,10 @@ class TestPolicyRouter:
         )
         mock_reflection_engine.generate_route_hint.return_value = hint
 
-        router = PolicyRouter(reflection_engine=mock_reflection_engine, enabled=True)
+        router = PolicyRouter(
+            reflection_engine=mock_reflection_engine,
+            enabled=True,
+        )
 
         plan_params = {}
         result = router.apply_route_hint({"query": "test"}, plan_params)
@@ -190,10 +218,17 @@ class TestPolicyRouter:
             confidence=0.8,
         )
 
-        router = PolicyRouter(reflection_engine=mock_reflection_engine, enabled=True)
+        router = PolicyRouter(
+            reflection_engine=mock_reflection_engine,
+            enabled=True,
+        )
 
         plan_params = {"_route_hint": hint}
-        router.record_execution_outcome(plan_params, was_successful=True, confidence=0.9)
+        router.record_execution_outcome(
+            plan_params,
+            was_successful=True,
+            confidence=0.9,
+        )
 
         mock_reflection_engine.record_policy_effectiveness.assert_called_once()
 
@@ -202,10 +237,17 @@ class TestPolicyRouter:
         mock_reflection_engine,
     ) -> None:
         """Test that missing route hint doesn't cause error."""
-        router = PolicyRouter(reflection_engine=mock_reflection_engine, enabled=True)
+        router = PolicyRouter(
+            reflection_engine=mock_reflection_engine,
+            enabled=True,
+        )
 
         plan_params = {}  # No _route_hint
-        router.record_execution_outcome(plan_params, was_successful=True, confidence=0.9)
+        router.record_execution_outcome(
+            plan_params,
+            was_successful=True,
+            confidence=0.9,
+        )
 
         # Should not call record_policy_effectiveness
         mock_reflection_engine.record_policy_effectiveness.assert_not_called()
@@ -223,7 +265,10 @@ class TestPolicyRouter:
         )
         mock_reflection_engine.generate_route_hint.return_value = hint
 
-        router = PolicyRouter(reflection_engine=mock_reflection_engine, enabled=True)
+        router = PolicyRouter(
+            reflection_engine=mock_reflection_engine,
+            enabled=True,
+        )
 
         # Apply some hints
         for _ in range(3):
@@ -231,7 +276,9 @@ class TestPolicyRouter:
 
         # Record some outcomes
         router.record_execution_outcome(
-            {"_route_hint": hint}, was_successful=True, confidence=0.9
+            {"_route_hint": hint},
+            was_successful=True,
+            confidence=0.9,
         )
 
         metrics = router.get_metrics()
@@ -245,7 +292,10 @@ class TestPolicyRouter:
         mock_reflection_engine,
     ) -> None:
         """Test enabling/disabling router."""
-        router = PolicyRouter(reflection_engine=mock_reflection_engine, enabled=True)
+        router = PolicyRouter(
+            reflection_engine=mock_reflection_engine,
+            enabled=True,
+        )
 
         router.set_enabled(False)
         assert router.is_enabled is False
@@ -260,7 +310,10 @@ class TestPolicyRouterIntegration:
     def test_full_policy_lifecycle(self) -> None:
         """Test complete policy hit lifecycle."""
         # Create real reflection engine
-        from hubos.core.orchestrator.reflection_engine import ReflectionEngine, TaskContext
+        from hubos.core.orchestrator.reflection_engine import (
+            ReflectionEngine,
+            TaskContext,
+        )
         from hubos.core.schemas.tasks import TaskResult, TaskStatus
 
         engine = ReflectionEngine()
@@ -298,7 +351,11 @@ class TestPolicyRouterIntegration:
 
         # Record outcome
         if "_route_hint" in result:
-            router.record_execution_outcome(result, was_successful=True, confidence=0.9)
+            router.record_execution_outcome(
+                result,
+                was_successful=True,
+                confidence=0.9,
+            )
 
         # Get metrics
         metrics = router.get_metrics()

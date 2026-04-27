@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Test one_person_default real reply - Step 9.
 
 Tests that the one_person_default workflow returns natural language
@@ -17,8 +18,11 @@ class TestOnePersonDefaultRealReply:
         from hubos.core.execution.task_store import Task, TaskStage
         from hubos.core.execution.event_store import EventStore
 
-        with patch('hubos.core.infra.feature_flags.get_feature_flags') as mock_ff, \
-             patch('hubos.core.llm.runtime.get_llm_runtime') as mock_runtime:
+        with patch(
+            "hubos.core.infra.feature_flags.get_feature_flags",
+        ) as mock_ff, patch(
+            "hubos.core.llm.runtime.get_llm_runtime",
+        ) as mock_runtime:
             mock_flags = MagicMock()
             mock_flags.enable_real_model_execution = True
             mock_ff.return_value = mock_flags
@@ -50,7 +54,10 @@ class TestOnePersonDefaultRealReply:
             available_roles = {"review": True}
 
             result = orchestrator._execute_stage(
-                task, TaskStage.REVIEW, stage_def, available_roles
+                task,
+                TaskStage.REVIEW,
+                stage_def,
+                available_roles,
             )
 
             # Verify stage output is natural language

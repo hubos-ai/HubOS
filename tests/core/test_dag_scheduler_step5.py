@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Tests for DAG scheduler - Parallel Core V1.5 Step 5."""
 
 import pytest
@@ -69,7 +70,11 @@ class TestDagScheduler:
         assert "ceo" in ready
 
         # Dispatch ceo
-        success = scheduler._runtime.dispatch_node("ceo", "native", "test-dispatcher")
+        success = scheduler._runtime.dispatch_node(
+            "ceo",
+            "native",
+            "test-dispatcher",
+        )
         assert success
 
         # ceo should no longer be ready (dispatched)
@@ -179,16 +184,23 @@ class TestDagScheduler:
         scheduler._runtime.dispatch_node("hg-node", "native", "test")
         result1 = scheduler._runtime.fail_node("hg-node", "Error 1")
         assert result1
-        assert scheduler._runtime.run_state.nodes["hg-node"].status == NodeStatus.RETRYING
+        assert (
+            scheduler._runtime.run_state.nodes["hg-node"].status
+            == NodeStatus.RETRYING
+        )
 
         # Wait for retry delay to pass
         import time
+
         time.sleep(0.1)
 
         # Retry should be available after retry_node call
         success = scheduler.retry_node("hg-node")
         assert success
-        assert scheduler._runtime.run_state.nodes["hg-node"].status == NodeStatus.READY
+        assert (
+            scheduler._runtime.run_state.nodes["hg-node"].status
+            == NodeStatus.READY
+        )
 
         # Dispatch second time
         scheduler._runtime.dispatch_node("hg-node", "native", "test")
@@ -220,7 +232,11 @@ class TestDagScheduler:
         scheduler._runtime.run_state.nodes["hg"].status = NodeStatus.HUMAN_GATE
 
         # Resolve with approval
-        success = scheduler.resolve_human_gate("hg", approved=True, result={"approved": True})
+        success = scheduler.resolve_human_gate(
+            "hg",
+            approved=True,
+            result={"approved": True},
+        )
         assert success
 
         state = scheduler._runtime.run_state.get_node_state("hg")
@@ -255,8 +271,18 @@ class TestDagScheduler:
     def test_executor_selection_by_hint(self):
         """Test executor is selected by node hint."""
         nodes = [
-            DagNode(node_id="camel-node", role="dev", executor_hint="camel", required=True),
-            DagNode(node_id="native-node", role="dev", executor_hint="native", required=True),
+            DagNode(
+                node_id="camel-node",
+                role="dev",
+                executor_hint="camel",
+                required=True,
+            ),
+            DagNode(
+                node_id="native-node",
+                role="dev",
+                executor_hint="native",
+                required=True,
+            ),
             DagNode(node_id="default-node", role="dev", required=True),
         ]
         edges = []
@@ -272,9 +298,16 @@ class TestDagScheduler:
         config = SchedulerConfig(default_executor="native")
         scheduler = DagScheduler(plan, "test-task", config)
 
-        assert scheduler._runtime.get_executor_for_node("camel-node") == "camel"
-        assert scheduler._runtime.get_executor_for_node("native-node") == "native"
-        assert scheduler._runtime.get_executor_for_node("default-node") == "native"
+        assert (
+            scheduler._runtime.get_executor_for_node("camel-node") == "camel"
+        )
+        assert (
+            scheduler._runtime.get_executor_for_node("native-node") == "native"
+        )
+        assert (
+            scheduler._runtime.get_executor_for_node("default-node")
+            == "native"
+        )
 
     def test_runtime_state_serialization(self):
         """Test runtime state can be serialized and restored."""

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """DAG core data models for Parallel Core V1.5 Step 5.
 
 Defines the fundamental DAG structures: DagPlan, DagNode, DagEdge, and DagRunState.
@@ -10,42 +11,48 @@ from typing import Any, Optional
 
 class NodeStatus(str, Enum):
     """Lifecycle status of a DAG node."""
-    PENDING = "pending"          # Not yet schedulable
-    READY = "ready"             # Dependencies satisfied, waiting to dispatch
-    DISPATCHED = "dispatched"    # Sent to executor
-    RUNNING = "running"          # Actively executing
-    DONE = "done"               # Completed successfully
-    FAILED = "failed"           # Completed with failure
-    RETRYING = "retrying"       # Scheduled for retry
-    HUMAN_GATE = "human_gate"    # Waiting for human intervention
+
+    PENDING = "pending"  # Not yet schedulable
+    READY = "ready"  # Dependencies satisfied, waiting to dispatch
+    DISPATCHED = "dispatched"  # Sent to executor
+    RUNNING = "running"  # Actively executing
+    DONE = "done"  # Completed successfully
+    FAILED = "failed"  # Completed with failure
+    RETRYING = "retrying"  # Scheduled for retry
+    HUMAN_GATE = "human_gate"  # Waiting for human intervention
 
 
 class RetryPolicy(str, Enum):
     """Node retry policy on failure."""
-    NONE = "none"                # No retry
-    LIMITED = "limited"          # Retry up to max_attempts
+
+    NONE = "none"  # No retry
+    LIMITED = "limited"  # Retry up to max_attempts
     EXPONENTIAL = "exponential"  # Exponential backoff
-    HUMAN_GATE = "human_gate"    # Go to human gate on failure
+    HUMAN_GATE = "human_gate"  # Go to human gate on failure
 
 
 @dataclass
 class Condition:
     """Edge condition for conditional DAG routing."""
-    type: str = "always"         # "always", "success", "failure"
+
+    type: str = "always"  # "always", "success", "failure"
     expression: Optional[str] = None  # For future expression-based conditions
 
 
 @dataclass
 class DagNode:
     """A node in the DAG representing a unit of work."""
+
     node_id: str
-    role: str                    # e.g., "ceo", "info", "dev", "review"
-    required: bool = True        # Whether this node is required for merge
-    timeout_ms: int = 300000     # 5 minutes default
+    role: str  # e.g., "ceo", "info", "dev", "review"
+    required: bool = True  # Whether this node is required for merge
+    timeout_ms: int = 300000  # 5 minutes default
     retry_policy: RetryPolicy = RetryPolicy.LIMITED
     max_attempts: int = 3
-    executor_hint: Optional[str] = None  # "camel", "native", or None for default
-    retry_delay_ms: int = 1000    # Initial retry delay
+    executor_hint: Optional[
+        str
+    ] = None  # "camel", "native", or None for default
+    retry_delay_ms: int = 1000  # Initial retry delay
     input_template: str = "{input}"  # How to construct node input
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -56,6 +63,7 @@ class DagNode:
 @dataclass
 class DagEdge:
     """A directed edge between nodes in the DAG."""
+
     from_node: str
     to_node: str
     condition: Condition = field(default_factory=Condition)
@@ -78,13 +86,18 @@ class DagPlan:
     The plan has entry nodes (no incoming edges) and exit nodes (no outgoing edges).
     The merge_node_id is a special node that aggregates results from required paths.
     """
+
     plan_id: str
     name: str
     nodes: list[DagNode] = field(default_factory=list)
     edges: list[DagEdge] = field(default_factory=list)
-    entry_nodes: list[str] = field(default_factory=list)   # Nodes with no incoming edges
-    exit_nodes: list[str] = field(default_factory=list)    # Nodes with no outgoing edges
-    merge_node_id: Optional[str] = None                    # Special merge aggregation node
+    entry_nodes: list[str] = field(
+        default_factory=list,
+    )  # Nodes with no incoming edges
+    exit_nodes: list[str] = field(
+        default_factory=list,
+    )  # Nodes with no outgoing edges
+    merge_node_id: Optional[str] = None  # Special merge aggregation node
 
     # DAG metadata
     description: str = ""
@@ -126,7 +139,10 @@ class DagPlan:
 @dataclass
 class MergeState:
     """State of the merge node."""
-    status: str = "waiting"      # waiting, ready, started, completed, failed, timeout
+
+    status: str = (
+        "waiting"  # waiting, ready, started, completed, failed, timeout
+    )
     required_nodes_complete: int = 0
     total_required_nodes: int = 0
     inputs: dict[str, Any] = field(default_factory=dict)  # node_id -> result
@@ -138,6 +154,7 @@ class MergeState:
 @dataclass
 class NodeRunState:
     """Runtime state for a single node execution."""
+
     node_id: str
     status: NodeStatus = NodeStatus.PENDING
     attempt: int = 0
@@ -161,10 +178,13 @@ class DagRunState:
     Tracks the status of all nodes and the overall DAG execution.
     This state is persisted to enable recovery after restart.
     """
+
     run_id: str
     plan_id: str
-    task_id: str                 # External task reference
-    status: str = "initialized"  # initialized, running, completed, failed, cancelled
+    task_id: str  # External task reference
+    status: str = (
+        "initialized"  # initialized, running, completed, failed, cancelled
+    )
     nodes: dict[str, NodeRunState] = field(default_factory=dict)
     merge_state: MergeState = field(default_factory=MergeState)
     created_at: float = 0.0
@@ -199,4 +219,4 @@ class DagRunState:
 
     # Use object.__setattr__ to handle _plan_nodes as a regular attribute
     def __post_init__(self) -> None:
-        object.__setattr__(self, '_plan_nodes', {})
+        object.__setattr__(self, "_plan_nodes", {})

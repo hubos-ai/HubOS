@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Work Experience Layer — post-task experience card storage and retrieval.
 
 Phase 0-3 provides:
@@ -22,7 +23,9 @@ All capabilities require ENABLE_WORK_EXPERIENCE_LAYER=true to be active.
 """
 
 from hubos.core.work_experience.extractor import WorkExperienceExtractor
-from hubos.core.work_experience.integration import get_work_experience_interceptor
+from hubos.core.work_experience.integration import (
+    get_work_experience_interceptor,
+)
 from hubos.core.work_experience.prompt_injector import (
     build_experience_injection,
     compress_experience_card,

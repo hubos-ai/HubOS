@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Policy Learning Engine for DAG-native Step 6.
 
 Learns optimal execution policies from historical node run data.
@@ -13,11 +14,16 @@ import statistics
 @dataclass
 class PolicyBucket:
     """A bucket of similar node runs for learning."""
+
     bucket_key: str  # e.g., "role=dev,task_type=code"
     retry_count_samples: list[int] = field(default_factory=list)
     timeout_ms_samples: list[int] = field(default_factory=list)
-    executor_success: dict[str, int] = field(default_factory=dict)  # executor -> success count
-    executor_total: dict[str, int] = field(default_factory=dict)  # executor -> total count
+    executor_success: dict[str, int] = field(
+        default_factory=dict,
+    )  # executor -> success count
+    executor_total: dict[str, int] = field(
+        default_factory=dict,
+    )  # executor -> total count
     parallelism_samples: list[int] = field(default_factory=list)
     total_runs: int = 0
     total_failures: int = 0
@@ -27,13 +33,16 @@ class PolicyBucket:
 @dataclass
 class LearnedPolicy:
     """A learned execution policy recommendation."""
+
     bucket_key: str
     recommended_retry_count: int = 3
     recommended_timeout_ms: int = 300000
     recommended_executor: str = "native"
     recommended_parallelism: int = 10
     confidence: float = 0.0  # 0.0 to 1.0
-    applicability: dict[str, Any] = field(default_factory=dict)  # When this policy applies
+    applicability: dict[str, Any] = field(
+        default_factory=dict,
+    )  # When this policy applies
     based_on_samples: int = 0
     success_rate: float = 0.0
     rollout_mode: str = "off"  # off, shadow, canary, full
@@ -100,13 +109,17 @@ class PolicyLearningEngine:
 
         # Calculate recommended retry count (median)
         if bucket.retry_count_samples:
-            recommended_retry = int(statistics.median(bucket.retry_count_samples))
+            recommended_retry = int(
+                statistics.median(bucket.retry_count_samples),
+            )
         else:
             recommended_retry = 3
 
         # Calculate recommended timeout (median + buffer)
         if bucket.timeout_ms_samples:
-            recommended_timeout = int(statistics.median(bucket.timeout_ms_samples) * 1.2)
+            recommended_timeout = int(
+                statistics.median(bucket.timeout_ms_samples) * 1.2,
+            )
         else:
             recommended_timeout = 300000
 
@@ -122,7 +135,9 @@ class PolicyLearningEngine:
 
         # Calculate recommended parallelism
         if bucket.parallelism_samples:
-            recommended_parallelism = int(statistics.median(bucket.parallelism_samples))
+            recommended_parallelism = int(
+                statistics.median(bucket.parallelism_samples),
+            )
         else:
             recommended_parallelism = 10
 
@@ -130,7 +145,11 @@ class PolicyLearningEngine:
         confidence = min(1.0, bucket.total_runs / 50.0)
 
         # Calculate overall success rate
-        success_rate = 1.0 - (bucket.total_failures / bucket.total_runs) if bucket.total_runs > 0 else 0.0
+        success_rate = (
+            1.0 - (bucket.total_failures / bucket.total_runs)
+            if bucket.total_runs > 0
+            else 0.0
+        )
 
         self._policies[bucket_key] = LearnedPolicy(
             bucket_key=bucket_key,
@@ -139,14 +158,20 @@ class PolicyLearningEngine:
             recommended_executor=best_executor,
             recommended_parallelism=recommended_parallelism,
             confidence=confidence,
-            applicability={"role": bucket_key.split(",")[0].split("=")[1],
-                          "task_type": bucket_key.split(",")[1].split("=")[1]},
+            applicability={
+                "role": bucket_key.split(",")[0].split("=")[1],
+                "task_type": bucket_key.split(",")[1].split("=")[1],
+            },
             based_on_samples=bucket.total_runs,
             success_rate=success_rate,
             rollout_mode=self._rollout_status.get(bucket_key, "off"),
         )
 
-    def get_policy_suggestion(self, role: str, task_type: str) -> Optional[LearnedPolicy]:
+    def get_policy_suggestion(
+        self,
+        role: str,
+        task_type: str,
+    ) -> Optional[LearnedPolicy]:
         """Get a policy suggestion for a role/task_type combination."""
         bucket_key = self._make_bucket_key(role, task_type)
         return self._policies.get(bucket_key)
@@ -206,14 +231,29 @@ class PolicyLearningEngine:
         bucket_key = policy_data["bucket_key"]
         self._policies[bucket_key] = LearnedPolicy(
             bucket_key=policy_data["bucket_key"],
-            recommended_retry_count=policy_data.get("recommended_retry_count", 3),
-            recommended_timeout_ms=policy_data.get("recommended_timeout_ms", 300000),
-            recommended_executor=policy_data.get("recommended_executor", "native"),
-            recommended_parallelism=policy_data.get("recommended_parallelism", 10),
+            recommended_retry_count=policy_data.get(
+                "recommended_retry_count",
+                3,
+            ),
+            recommended_timeout_ms=policy_data.get(
+                "recommended_timeout_ms",
+                300000,
+            ),
+            recommended_executor=policy_data.get(
+                "recommended_executor",
+                "native",
+            ),
+            recommended_parallelism=policy_data.get(
+                "recommended_parallelism",
+                10,
+            ),
             confidence=policy_data.get("confidence", 0.0),
             applicability=policy_data.get("applicability", {}),
             based_on_samples=policy_data.get("based_on_samples", 0),
             success_rate=policy_data.get("success_rate", 0.0),
             rollout_mode=policy_data.get("rollout_mode", "off"),
         )
-        self._rollout_status[bucket_key] = policy_data.get("rollout_mode", "off")
+        self._rollout_status[bucket_key] = policy_data.get(
+            "rollout_mode",
+            "off",
+        )

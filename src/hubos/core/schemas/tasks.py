@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Task unit and result schemas."""
 
 from dataclasses import dataclass, field

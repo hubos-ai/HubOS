@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Stage B step 3: end-to-end wiring test.
 
 Verifies that:
@@ -37,7 +38,11 @@ sys.path.insert(0, str(SRC))
 # Stub agentscope + agentscope_runtime so downstream imports don't explode.
 # ---------------------------------------------------------------------------
 class _StubTextBlock:
-    def __init__(self, type: str = "text", text: str = "") -> None:  # noqa: A002
+    def __init__(
+        self,
+        type: str = "text",
+        text: str = "",
+    ) -> None:  # noqa: A002
         self.type = type
         self.text = text
 
@@ -114,7 +119,9 @@ FAIL = 0
 
 def check(label: str, cond: bool, detail: str = "") -> None:
     global FAIL
-    print(f"  [{'OK' if cond else 'FAIL'}] {label}{(' — ' + detail) if detail else ''}")
+    print(
+        f"  [{'OK' if cond else 'FAIL'}] {label}{(' — ' + detail) if detail else ''}",
+    )
     if not cond:
         FAIL += 1
 
@@ -153,15 +160,21 @@ for sibling in [
     mod = types.ModuleType(sibling)
     # Provide common names the __init__ tries to star-import.
     for attr in (
-        "read_file", "write_file", "edit_file", "append_file",
-        "grep_search", "glob_search",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "append_file",
+        "grep_search",
+        "glob_search",
         "execute_shell_command",
         "send_file_to_user",
         "browser_use",
         "desktop_screenshot",
-        "view_image", "view_video",
+        "view_image",
+        "view_video",
         "create_memory_search_tool",
-        "get_current_time", "set_user_timezone",
+        "get_current_time",
+        "set_user_timezone",
         "get_token_usage",
     ):
         setattr(mod, attr, lambda *a, **k: None)
@@ -327,7 +340,9 @@ check("registry empty after clear", get_host_agent_runner() is None)
 print("\n[T5] naming hygiene on modified files")
 
 _app_src = (SRC / "hubos/app/_app.py").read_text(encoding="utf-8")
-tools_init_src = (SRC / "hubos/agents/tools/__init__.py").read_text(encoding="utf-8")
+tools_init_src = (SRC / "hubos/agents/tools/__init__.py").read_text(
+    encoding="utf-8",
+)
 
 FORBIDDEN = ("openclaw", "hermes", "xclaw")
 for blob_name, blob in [

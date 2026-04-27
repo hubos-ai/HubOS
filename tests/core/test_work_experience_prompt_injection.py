@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Phase 5-A tests: WorkExperience prompt injection into generate_for_stage().
 
 Tests:
@@ -21,6 +22,7 @@ from hubos.core.llm.runtime import LLMRuntime, STAGE_PROMPTS
 # Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def mock_provider() -> MagicMock:
     """A mock LLM provider that records the prompt it received."""
@@ -29,7 +31,11 @@ def mock_provider() -> MagicMock:
     response = MagicMock()
     response.text = "Executed successfully"
     response.finish_reason = "stop"
-    response.usage = {"prompt_tokens": 50, "completion_tokens": 20, "total_tokens": 70}
+    response.usage = {
+        "prompt_tokens": 50,
+        "completion_tokens": 20,
+        "total_tokens": 70,
+    }
     response.model = "test-model"
     provider.generate.return_value = response
     return provider
@@ -48,7 +54,9 @@ def sample_cards() -> list[dict]:
         {
             "experience_id": "abc123",
             "title": "CSV File Processing",
-            "what_worked": ["CSV parsed successfully with pandas using encoding detection"],
+            "what_worked": [
+                "CSV parsed successfully with pandas using encoding detection",
+            ],
             "what_failed": [],
             "guidance": "Use encoding detection before parsing CSV files",
             "avoidance": [],
@@ -94,11 +102,13 @@ def long_card() -> list[dict]:
             "experience_id": "long-card",
             "title": "Very Long Title That Exceeds Forty Characters Limit",
             "what_worked": [
-                "This is an extremely long worked item that definitely exceeds sixty characters and keeps going and going"
+                "This is an extremely long worked item that definitely exceeds sixty characters and keeps going and going",
             ],
             "what_failed": [],
             "guidance": "This is an extremely long guidance that exceeds eighty characters and just keeps going on and on",
-            "avoidance": ["Another extremely long avoidance text that goes well beyond eighty characters here too"],
+            "avoidance": [
+                "Another extremely long avoidance text that goes well beyond eighty characters here too",
+            ],
             "trigger_hint": "type:long",
             "trigger_keywords": ["long", "test"],
             "scope": "global",
@@ -118,12 +128,15 @@ def long_card() -> list[dict]:
 # Prompt Injector Unit Tests
 # =============================================================================
 
+
 class TestWorkExperiencePromptInjector:
     """Unit tests for the prompt injector logic."""
 
     def test_compress_short_card(self, sample_cards: list[dict]) -> None:
         """Short cards are compressed correctly."""
-        from hubos.core.work_experience.prompt_injector import compress_experience_card
+        from hubos.core.work_experience.prompt_injector import (
+            compress_experience_card,
+        )
 
         card = sample_cards[0]
         hint = compress_experience_card(card, max_chars=200)
@@ -134,7 +147,9 @@ class TestWorkExperiencePromptInjector:
 
     def test_compress_long_card_truncated(self, long_card: list[dict]) -> None:
         """Overlong cards are truncated to max_chars."""
-        from hubos.core.work_experience.prompt_injector import compress_experience_card
+        from hubos.core.work_experience.prompt_injector import (
+            compress_experience_card,
+        )
 
         # The long_card fields individually fit within per-field limits but
         # the total compressed string exceeds 200 chars.
@@ -148,7 +163,9 @@ class TestWorkExperiencePromptInjector:
 
     def test_build_injection_empty_cards(self) -> None:
         """Empty card list returns empty string."""
-        from hubos.core.work_experience.prompt_injector import build_experience_injection
+        from hubos.core.work_experience.prompt_injector import (
+            build_experience_injection,
+        )
 
         result = build_experience_injection([])
         assert result == ""
@@ -158,7 +175,9 @@ class TestWorkExperiencePromptInjector:
         sample_cards: list[dict],
     ) -> None:
         """Single card produces injection with header and footer markers."""
-        from hubos.core.work_experience.prompt_injector import build_experience_injection
+        from hubos.core.work_experience.prompt_injector import (
+            build_experience_injection,
+        )
 
         result = build_experience_injection(sample_cards[:1])
 
@@ -166,9 +185,14 @@ class TestWorkExperiencePromptInjector:
         assert "[/Work Guidance]" in result
         assert "CSV File Processing" in result
 
-    def test_build_injection_top_k_respected(self, sample_cards: list[dict]) -> None:
+    def test_build_injection_top_k_respected(
+        self,
+        sample_cards: list[dict],
+    ) -> None:
         """Only top-k cards are injected."""
-        from hubos.core.work_experience.prompt_injector import build_experience_injection
+        from hubos.core.work_experience.prompt_injector import (
+            build_experience_injection,
+        )
 
         result = build_experience_injection(sample_cards, max_k=1)
 
@@ -180,15 +204,23 @@ class TestWorkExperiencePromptInjector:
         sample_cards: list[dict],
     ) -> None:
         """Total injection length is capped by max_total_chars."""
-        from hubos.core.work_experience.prompt_injector import build_experience_injection
+        from hubos.core.work_experience.prompt_injector import (
+            build_experience_injection,
+        )
 
         # With max_total_chars=500 (large enough for both cards), result fits
         # With max_total_chars=250 (tight), some hints may be trimmed
-        result_500 = build_experience_injection(sample_cards, max_total_chars=500)
+        result_500 = build_experience_injection(
+            sample_cards,
+            max_total_chars=500,
+        )
         assert "[Work Guidance]" in result_500
         assert len(result_500) <= 500
 
-        result_250 = build_experience_injection(sample_cards, max_total_chars=250)
+        result_250 = build_experience_injection(
+            sample_cards,
+            max_total_chars=250,
+        )
         assert "[Work Guidance]" in result_250
         assert len(result_250) <= 250
 
@@ -197,7 +229,9 @@ class TestWorkExperiencePromptInjector:
         sample_cards: list[dict],
     ) -> None:
         """Injection is prepended to the user prompt (before main content)."""
-        from hubos.core.work_experience.prompt_injector import inject_experience_into_prompt
+        from hubos.core.work_experience.prompt_injector import (
+            inject_experience_into_prompt,
+        )
 
         prompt = "Process this file: data.csv"
         result = inject_experience_into_prompt(prompt, sample_cards)
@@ -212,7 +246,9 @@ class TestWorkExperiencePromptInjector:
         sample_cards: list[dict],
     ) -> None:
         """Empty cards → prompt returned unchanged."""
-        from hubos.core.work_experience.prompt_injector import inject_experience_into_prompt
+        from hubos.core.work_experience.prompt_injector import (
+            inject_experience_into_prompt,
+        )
 
         prompt = "Process this file: data.csv"
         result = inject_experience_into_prompt(prompt, [])
@@ -225,6 +261,7 @@ class TestWorkExperiencePromptInjector:
 # generate_for_stage Injection Tests
 # =============================================================================
 
+
 class TestGenerateForStagePromptInjection:
     """Tests for experience injection in generate_for_stage()."""
 
@@ -235,8 +272,12 @@ class TestGenerateForStagePromptInjection:
         sample_cards: list[dict],
     ) -> None:
         """Flag OFF: user_prompt passed to provider unchanged."""
-        with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "false"}):
+        with patch.dict(
+            os.environ,
+            {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "false"},
+        ):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             user_template = STAGE_PROMPTS["dev"]["user_template"]
@@ -251,7 +292,9 @@ class TestGenerateForStagePromptInjection:
             # Provider received the ORIGINAL prompt (no injection)
             call_kwargs = mock_provider.generate.call_args
             assert call_kwargs is not None
-            actual_prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[1].get("prompt")
+            actual_prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[
+                1
+            ].get("prompt")
             assert actual_prompt == expected_prompt
             assert "[Work Guidance]" not in actual_prompt
 
@@ -262,8 +305,12 @@ class TestGenerateForStagePromptInjection:
         sample_cards: list[dict],
     ) -> None:
         """Flag ON: compressed experience hint prepended to user prompt."""
-        with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "true"}):
+        with patch.dict(
+            os.environ,
+            {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "true"},
+        ):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             result = runtime.generate_for_stage(
@@ -273,7 +320,9 @@ class TestGenerateForStagePromptInjection:
             )
 
             call_kwargs = mock_provider.generate.call_args
-            actual_prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[1].get("prompt")
+            actual_prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[
+                1
+            ].get("prompt")
 
             # Injection block is prepended (starts with \n\n then markers)
             assert actual_prompt.lstrip().startswith("[Work Guidance]")
@@ -288,8 +337,12 @@ class TestGenerateForStagePromptInjection:
         mock_provider: MagicMock,
     ) -> None:
         """Flag ON but empty cards: prompt unchanged (no injection markers)."""
-        with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "true"}):
+        with patch.dict(
+            os.environ,
+            {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "true"},
+        ):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             user_template = STAGE_PROMPTS["dev"]["user_template"]
@@ -302,7 +355,9 @@ class TestGenerateForStagePromptInjection:
             )
 
             call_kwargs = mock_provider.generate.call_args
-            actual_prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[1].get("prompt")
+            actual_prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[
+                1
+            ].get("prompt")
 
             assert actual_prompt == expected_prompt
             assert "[Work Guidance]" not in actual_prompt
@@ -313,8 +368,12 @@ class TestGenerateForStagePromptInjection:
         mock_provider: MagicMock,
     ) -> None:
         """Flag ON but no context: prompt unchanged."""
-        with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "true"}):
+        with patch.dict(
+            os.environ,
+            {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "true"},
+        ):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             user_template = STAGE_PROMPTS["dev"]["user_template"]
@@ -327,7 +386,9 @@ class TestGenerateForStagePromptInjection:
             )
 
             call_kwargs = mock_provider.generate.call_args
-            actual_prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[1].get("prompt")
+            actual_prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[
+                1
+            ].get("prompt")
 
             assert actual_prompt == expected_prompt
 
@@ -338,8 +399,12 @@ class TestGenerateForStagePromptInjection:
         long_card: list[dict],
     ) -> None:
         """Flag ON: overlong cards are trimmed to budget."""
-        with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "true"}):
+        with patch.dict(
+            os.environ,
+            {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "true"},
+        ):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             result = runtime.generate_for_stage(
@@ -349,12 +414,17 @@ class TestGenerateForStagePromptInjection:
             )
 
             call_kwargs = mock_provider.generate.call_args
-            actual_prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[1].get("prompt")
+            actual_prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[
+                1
+            ].get("prompt")
 
             # Card compressed and truncated
             injection_start = actual_prompt.find("[Work Guidance]")
             injection_end = actual_prompt.find("[/Relevant Past Experience]")
-            injection = actual_prompt[injection_start:injection_end + len("[/Relevant Past Experience]")]
+            injection = actual_prompt[
+                injection_start : injection_end
+                + len("[/Relevant Past Experience]")
+            ]
 
             # Per-card limit is 200 chars, so full long title+content must be truncated
             # The title alone is 50+ chars, so full compression must fit in 200
@@ -366,8 +436,12 @@ class TestGenerateForStagePromptInjection:
         mock_provider: MagicMock,
     ) -> None:
         """Flag ON: only top 2 cards are injected (DEFAULT_MAX_K=2)."""
-        with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "true"}):
+        with patch.dict(
+            os.environ,
+            {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "true"},
+        ):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             many_cards = [
@@ -400,7 +474,9 @@ class TestGenerateForStagePromptInjection:
             )
 
             call_kwargs = mock_provider.generate.call_args
-            actual_prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[1].get("prompt")
+            actual_prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[
+                1
+            ].get("prompt")
 
             # Only 2 cards should appear (DEFAULT_MAX_K=2)
             assert "Experience 0" in actual_prompt
@@ -417,8 +493,12 @@ class TestGenerateForStagePromptInjection:
         sample_cards: list[dict],
     ) -> None:
         """Flag ON: execution result (text, success, usage) is returned correctly."""
-        with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "true"}):
+        with patch.dict(
+            os.environ,
+            {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "true"},
+        ):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             result = runtime.generate_for_stage(
@@ -439,8 +519,12 @@ class TestGenerateForStagePromptInjection:
         sample_cards: list[dict],
     ) -> None:
         """Flag ON: system prompt is NOT modified by experience injection."""
-        with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "true"}):
+        with patch.dict(
+            os.environ,
+            {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "true"},
+        ):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             result = runtime.generate_for_stage(
@@ -450,7 +534,9 @@ class TestGenerateForStagePromptInjection:
             )
 
             call_kwargs = mock_provider.generate.call_args
-            system_prompt = call_kwargs.kwargs.get("system_prompt") or call_kwargs[1].get("system_prompt")
+            system_prompt = call_kwargs.kwargs.get(
+                "system_prompt",
+            ) or call_kwargs[1].get("system_prompt")
 
             # System prompt should be the stage system prompt, unchanged
             assert system_prompt == STAGE_PROMPTS["dev"]["system"]

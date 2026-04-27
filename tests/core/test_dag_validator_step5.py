@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Tests for DAG validator - Parallel Core V1.5 Step 5."""
 
 import pytest
@@ -136,7 +137,11 @@ class TestDagValidator:
         nodes = [
             DagNode(node_id="a", role="ceo", required=True),
             DagNode(node_id="b", role="dev", required=True),
-            DagNode(node_id="unreachable", role="review", required=True),  # Unreachable!
+            DagNode(
+                node_id="unreachable",
+                role="review",
+                required=True,
+            ),  # Unreachable!
         ]
         edges = [
             DagEdge(from_node="a", to_node="b"),
@@ -152,7 +157,9 @@ class TestDagValidator:
 
         result = DagValidator.validate_plan(plan)
         assert not result.valid
-        assert any(e.error_type == "unreachable_required" for e in result.errors)
+        assert any(
+            e.error_type == "unreachable_required" for e in result.errors
+        )
 
     def test_valid_dag_with_merge(self):
         """Test a valid DAG with merge node."""
@@ -176,7 +183,9 @@ class TestDagValidator:
         )
 
         result = DagValidator.validate_plan(plan)
-        assert result.valid, f"Valid DAG with merge should pass: {result.errors}"
+        assert (
+            result.valid
+        ), f"Valid DAG with merge should pass: {result.errors}"
 
     def test_duplicate_node_ids(self):
         """Test that duplicate node IDs are detected."""
@@ -223,7 +232,11 @@ class TestDagValidator:
         ]
         edges = [
             DagEdge(from_node="a", to_node="b"),
-            DagEdge(from_node="b", to_node="c", condition=Condition(type="success")),
+            DagEdge(
+                from_node="b",
+                to_node="c",
+                condition=Condition(type="success"),
+            ),
         ]
         plan = DagPlan(
             plan_id="conditional",

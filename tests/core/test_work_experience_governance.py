@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Phase 6 tests: Work Experience governance — state machine, deduplication, quality ranking.
 
 Tests:
@@ -32,6 +33,7 @@ from hubos.core.work_experience.schemas import (
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def tmp_root(tmp_path) -> "Path":
@@ -117,31 +119,50 @@ def deprecated_card(store: LocalWorkExperienceStore) -> WorkExperience:
 # State Machine Tests
 # =============================================================================
 
+
 class TestWorkExperienceStatus:
     """Tests for WorkExperienceStatus enum and transitions."""
 
     def test_candidate_can_transition_to_approved(self) -> None:
-        assert WorkExperienceStatus.CANDIDATE.can_transition_to(WorkExperienceStatus.APPROVED)
+        assert WorkExperienceStatus.CANDIDATE.can_transition_to(
+            WorkExperienceStatus.APPROVED,
+        )
 
     def test_candidate_can_transition_to_rejected(self) -> None:
-        assert WorkExperienceStatus.CANDIDATE.can_transition_to(WorkExperienceStatus.REJECTED)
+        assert WorkExperienceStatus.CANDIDATE.can_transition_to(
+            WorkExperienceStatus.REJECTED,
+        )
 
     def test_candidate_can_transition_to_archived(self) -> None:
-        assert WorkExperienceStatus.CANDIDATE.can_transition_to(WorkExperienceStatus.ARCHIVED)
+        assert WorkExperienceStatus.CANDIDATE.can_transition_to(
+            WorkExperienceStatus.ARCHIVED,
+        )
 
     def test_approved_cannot_transition_to_candidate(self) -> None:
-        assert not WorkExperienceStatus.APPROVED.can_transition_to(WorkExperienceStatus.CANDIDATE)
+        assert not WorkExperienceStatus.APPROVED.can_transition_to(
+            WorkExperienceStatus.CANDIDATE,
+        )
 
     def test_approved_can_transition_to_rejected(self) -> None:
-        assert WorkExperienceStatus.APPROVED.can_transition_to(WorkExperienceStatus.REJECTED)
+        assert WorkExperienceStatus.APPROVED.can_transition_to(
+            WorkExperienceStatus.REJECTED,
+        )
 
     def test_rejected_can_transition_back_to_candidate(self) -> None:
-        assert WorkExperienceStatus.REJECTED.can_transition_to(WorkExperienceStatus.CANDIDATE)
+        assert WorkExperienceStatus.REJECTED.can_transition_to(
+            WorkExperienceStatus.CANDIDATE,
+        )
 
     def test_archived_is_terminal(self) -> None:
-        assert not WorkExperienceStatus.ARCHIVED.can_transition_to(WorkExperienceStatus.CANDIDATE)
-        assert not WorkExperienceStatus.ARCHIVED.can_transition_to(WorkExperienceStatus.APPROVED)
-        assert not WorkExperienceStatus.ARCHIVED.can_transition_to(WorkExperienceStatus.REJECTED)
+        assert not WorkExperienceStatus.ARCHIVED.can_transition_to(
+            WorkExperienceStatus.CANDIDATE,
+        )
+        assert not WorkExperienceStatus.ARCHIVED.can_transition_to(
+            WorkExperienceStatus.APPROVED,
+        )
+        assert not WorkExperienceStatus.ARCHIVED.can_transition_to(
+            WorkExperienceStatus.REJECTED,
+        )
 
     def test_status_default_is_candidate(self) -> None:
         card = WorkExperience(
@@ -167,45 +188,82 @@ class TestWorkExperienceStatus:
 # Store Status Transition Tests
 # =============================================================================
 
+
 class TestStoreStatusTransitions:
     """Tests for store status transition methods."""
 
-    def test_approve_new(self, store: LocalWorkExperienceStore, new_card: WorkExperience) -> None:
-        result = store.update_status(new_card.experience_id, WorkExperienceStatus.APPROVED)
+    def test_approve_new(
+        self,
+        store: LocalWorkExperienceStore,
+        new_card: WorkExperience,
+    ) -> None:
+        result = store.update_status(
+            new_card.experience_id,
+            WorkExperienceStatus.APPROVED,
+        )
         assert result is True
         retrieved = store.get(new_card.experience_id)
         assert retrieved is not None
         assert retrieved.status == WorkExperienceStatus.APPROVED
 
-    def test_reject_new(self, store: LocalWorkExperienceStore, new_card: WorkExperience) -> None:
-        result = store.update_status(new_card.experience_id, WorkExperienceStatus.REJECTED)
+    def test_reject_new(
+        self,
+        store: LocalWorkExperienceStore,
+        new_card: WorkExperience,
+    ) -> None:
+        result = store.update_status(
+            new_card.experience_id,
+            WorkExperienceStatus.REJECTED,
+        )
         assert result is True
         retrieved = store.get(new_card.experience_id)
         assert retrieved is not None
         assert retrieved.status == WorkExperienceStatus.REJECTED
 
-    def test_archive_mature(self, store: LocalWorkExperienceStore, mature_card: WorkExperience) -> None:
-        result = store.update_status(mature_card.experience_id, WorkExperienceStatus.ARCHIVED)
+    def test_archive_mature(
+        self,
+        store: LocalWorkExperienceStore,
+        mature_card: WorkExperience,
+    ) -> None:
+        result = store.update_status(
+            mature_card.experience_id,
+            WorkExperienceStatus.ARCHIVED,
+        )
         assert result is True
         retrieved = store.get(mature_card.experience_id)
         assert retrieved is not None
         assert retrieved.status == WorkExperienceStatus.ARCHIVED
 
-    def test_invalid_transition_returns_false(self, store: LocalWorkExperienceStore, mature_card: WorkExperience) -> None:
+    def test_invalid_transition_returns_false(
+        self,
+        store: LocalWorkExperienceStore,
+        mature_card: WorkExperience,
+    ) -> None:
         # Can't go from CANDIDATE back to CANDIDATE (no-op is not allowed via update_status)
-        result = store.update_status(mature_card.experience_id, WorkExperienceStatus.CANDIDATE)
+        result = store.update_status(
+            mature_card.experience_id,
+            WorkExperienceStatus.CANDIDATE,
+        )
         assert result is False
         # Status unchanged (still CANDIDATE)
         retrieved = store.get(mature_card.experience_id)
         assert retrieved is not None
         assert retrieved.status == WorkExperienceStatus.CANDIDATE
 
-    def test_archive_not_found_returns_false(self, store: LocalWorkExperienceStore) -> None:
+    def test_archive_not_found_returns_false(
+        self,
+        store: LocalWorkExperienceStore,
+    ) -> None:
         from uuid import uuid4
+
         result = store.update_status(uuid4(), WorkExperienceStatus.ARCHIVED)
         assert result is False
 
-    def test_record_effective_use(self, store: LocalWorkExperienceStore, mature_card: WorkExperience) -> None:
+    def test_record_effective_use(
+        self,
+        store: LocalWorkExperienceStore,
+        mature_card: WorkExperience,
+    ) -> None:
         assert mature_card.effective_count == 2  # Set in fixture
         store.record_effective_use(mature_card.experience_id)
         retrieved = store.get(mature_card.experience_id)
@@ -217,6 +275,7 @@ class TestStoreStatusTransitions:
 # =============================================================================
 # Service Tests
 # =============================================================================
+
 
 class TestWorkExperienceService:
     """Tests for WorkExperienceService governance methods."""
@@ -411,11 +470,17 @@ class TestWorkExperienceService:
         store.save(dupe)
 
         service = WorkExperienceService(store)
-        result = service.merge_into(dupe.experience_id, mature_card.experience_id)
+        result = service.merge_into(
+            dupe.experience_id,
+            mature_card.experience_id,
+        )
         assert result is True
 
         # Source should be archived (status=ARCHIVED)
-        assert store.get(dupe.experience_id).status == WorkExperienceStatus.ARCHIVED
+        assert (
+            store.get(dupe.experience_id).status
+            == WorkExperienceStatus.ARCHIVED
+        )
 
         # Target should have merged fields
         merged = store.get(mature_card.experience_id)
@@ -426,12 +491,16 @@ class TestWorkExperienceService:
         # Longer guidance wins ("Detect encoding first" > "Use chardet")
         assert merged.guidance == "Detect encoding first"
         assert merged.hit_count == mature_card.hit_count + dupe.hit_count
-        assert merged.effective_count == mature_card.effective_count + dupe.effective_count
+        assert (
+            merged.effective_count
+            == mature_card.effective_count + dupe.effective_count
+        )
 
 
 # =============================================================================
 # Retriever: Non-Approved Not Returned Tests
 # =============================================================================
+
 
 class TestRetrieverGovernanceFiltering:
     """Tests: non-deprecated cards participate in retrieval by maturity level."""
@@ -487,7 +556,10 @@ class TestRetrieverGovernanceFiltering:
         assert len(results) == 1
 
         # Promote to OBSERVED
-        store.update_experience_level(new_card.experience_id, ExperienceLevel.OBSERVED)
+        store.update_experience_level(
+            new_card.experience_id,
+            ExperienceLevel.OBSERVED,
+        )
         results = retriever.retrieve()
         assert len(results) == 1
 
@@ -495,6 +567,7 @@ class TestRetrieverGovernanceFiltering:
 # =============================================================================
 # Integration: Effective Use Tracking
 # =============================================================================
+
 
 class TestEffectiveUseTracking:
     """Tests for effective use tracking in prompt injection."""
@@ -516,6 +589,7 @@ class TestEffectiveUseTracking:
         store: LocalWorkExperienceStore,
     ) -> None:
         from uuid import uuid4
+
         # Should not raise
         store.record_effective_use(uuid4())
 
@@ -523,6 +597,7 @@ class TestEffectiveUseTracking:
 # =============================================================================
 # Integration: Prompt Injection with Status
 # =============================================================================
+
 
 class TestPromptInjectionWithGovernance:
     """Tests: deprecated cards do not reach the prompt injection stage."""
@@ -532,8 +607,12 @@ class TestPromptInjectionWithGovernance:
         tmp_root,
     ) -> None:
         """Flag off: retriever still returns non-deprecated cards (existing behavior)."""
-        with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "false"}):
+        with patch.dict(
+            os.environ,
+            {"ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION": "false"},
+        ):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             store = LocalWorkExperienceStore(root=tmp_root / "we_flag")

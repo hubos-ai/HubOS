@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Workers module for solo-hub."""
 
 from hubos.core.workers.providers.base import (
@@ -8,7 +9,10 @@ from hubos.core.workers.providers.base import (
     WorkerTimeoutError,
 )
 from hubos.core.workers.providers.executable import ExecutableWorkerProvider
-from hubos.core.workers.providers.host_agent import HostAgentRunner, HostAgentWorker
+from hubos.core.workers.providers.host_agent import (
+    HostAgentRunner,
+    HostAgentWorker,
+)
 from hubos.core.workers.providers.stub import StubWorkerProvider
 from hubos.core.workers.registry import (
     clear_host_agent_runner,

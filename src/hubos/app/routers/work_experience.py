@@ -43,6 +43,7 @@ router = APIRouter(prefix="/work-experience", tags=["work-experience"])
 # Store / Service factory
 # =============================================================================
 
+
 def _get_service() -> WorkExperienceService:
     """Create a WorkExperienceService backed by LocalWorkExperienceStore."""
     store = LocalWorkExperienceStore()
@@ -52,6 +53,7 @@ def _get_service() -> WorkExperienceService:
 # =============================================================================
 # Response Models
 # =============================================================================
+
 
 class WorkExperienceCard(BaseModel):
     """Full work experience card with computed governance fields."""
@@ -89,7 +91,9 @@ class WorkExperienceCard(BaseModel):
     # New maturity model fields
     experience_level: str
     maturity_score: float = 0.0
-    quality_score: float = Field(description="Legacy quality score (for compatibility)")
+    quality_score: float = Field(
+        description="Legacy quality score (for compatibility)",
+    )
     created_at: str
     updated_at: str
 
@@ -115,7 +119,8 @@ class WorkExperienceCard(BaseModel):
             success_rate_estimate=card.success_rate_estimate,
             supersedes_experience_id=(
                 str(card.supersedes_experience_id)
-                if card.supersedes_experience_id else None
+                if card.supersedes_experience_id
+                else None
             ),
             # Metadata
             confidence=card.confidence,
@@ -125,15 +130,20 @@ class WorkExperienceCard(BaseModel):
             applicability_tags=card.applicability_tags,
             hit_count=card.hit_count,
             effective_count=card.effective_count,
-            last_retrieved_at=card.last_retrieved_at.isoformat() if card.last_retrieved_at else None,
-            last_used_at=card.last_used_at.isoformat() if card.last_used_at else None,
+            last_retrieved_at=card.last_retrieved_at.isoformat()
+            if card.last_retrieved_at
+            else None,
+            last_used_at=card.last_used_at.isoformat()
+            if card.last_used_at
+            else None,
             disabled=card.disabled,
             # Legacy
             status=card.status.value,
             # New maturity model
             experience_level=card.experience_level.value,
             maturity_score=card.maturity_score,
-            quality_score=card.confidence * (1.0 + card.hit_count / 10.0 + card.effective_count / 5.0),
+            quality_score=card.confidence
+            * (1.0 + card.hit_count / 10.0 + card.effective_count / 5.0),
             created_at=card.created_at.isoformat(),
             updated_at=card.updated_at.isoformat(),
         )
@@ -141,12 +151,14 @@ class WorkExperienceCard(BaseModel):
 
 class CardListResponse(BaseModel):
     """Response for listing work experience cards."""
+
     cards: list[WorkExperienceCard]
     total: int
 
 
 class CardSummary(BaseModel):
     """Lightweight card summary for duplicate listings."""
+
     experience_id: str
     title: str
     scope: str
@@ -171,13 +183,15 @@ class CardSummary(BaseModel):
             hit_count=card.hit_count,
             effective_count=card.effective_count,
             maturity_score=card.maturity_score,
-            quality_score=card.confidence * (1.0 + card.hit_count / 10.0 + card.effective_count / 5.0),
+            quality_score=card.confidence
+            * (1.0 + card.hit_count / 10.0 + card.effective_count / 5.0),
             trigger_hint=card.trigger_hint,
         )
 
 
 class DuplicateDetectionResponse(BaseModel):
     """Response for duplicate detection."""
+
     reference_card_id: str
     duplicates: list[CardSummary]
     count: int
@@ -185,12 +199,17 @@ class DuplicateDetectionResponse(BaseModel):
 
 class MergeRequest(BaseModel):
     """Request to merge source card into target card."""
-    source_id: str = Field(..., description="ID of the card to merge FROM (will be archived)")
+
+    source_id: str = Field(
+        ...,
+        description="ID of the card to merge FROM (will be archived)",
+    )
     target_id: str = Field(..., description="ID of the card to merge INTO")
 
 
 class MergeResponse(BaseModel):
     """Response from a merge operation."""
+
     success: bool
     merged_into: str
     archived: str
@@ -199,11 +218,16 @@ class MergeResponse(BaseModel):
 
 class StatusTransitionRequest(BaseModel):
     """Request to transition a card's governance status."""
-    status: str = Field(..., description="Target status: approved, rejected, archived, candidate")
+
+    status: str = Field(
+        ...,
+        description="Target status: approved, rejected, archived, candidate",
+    )
 
 
 class StatusTransitionResponse(BaseModel):
     """Response from a status transition."""
+
     success: bool
     card_id: str
     new_status: str
@@ -211,11 +235,16 @@ class StatusTransitionResponse(BaseModel):
 
 class LevelTransitionRequest(BaseModel):
     """Request to transition a card's experience level."""
-    level: str = Field(..., description="Target level: new, observed, mature, deprecated")
+
+    level: str = Field(
+        ...,
+        description="Target level: new, observed, mature, deprecated",
+    )
 
 
 class LevelTransitionResponse(BaseModel):
     """Response from an experience level transition."""
+
     success: bool
     card_id: str
     new_level: str
@@ -223,6 +252,7 @@ class LevelTransitionResponse(BaseModel):
 
 class WorkExperienceStats(BaseModel):
     """Summary statistics for work experience cards."""
+
     total_cards: int
     by_status: dict[str, int]
     by_level: dict[str, int]
@@ -238,6 +268,7 @@ class WorkExperienceStats(BaseModel):
 # =============================================================================
 # Helpers
 # =============================================================================
+
 
 def _uuid(s: str) -> UUID:
     """Parse a string to UUID or raise HTTP 400."""
@@ -275,6 +306,7 @@ def _level(s: str) -> ExperienceLevel:
 # Card Endpoints
 # =============================================================================
 
+
 @router.get(
     "/cards",
     summary="List work experience cards",
@@ -293,7 +325,10 @@ async def list_cards(
         None,
         description="Filter by scope: global, user, project, session",
     ),
-    include_disabled: bool = Query(False, description="Include disabled cards"),
+    include_disabled: bool = Query(
+        False,
+        description="Include disabled cards",
+    ),
     limit: int = Query(50, ge=1, le=200, description="Max cards to return"),
     offset: int = Query(0, ge=0, description="Skip first N cards"),
 ) -> CardListResponse:
@@ -329,7 +364,10 @@ async def list_cards(
 
     # Primary filter: level (new maturity model), then additionally by status
     if filter_level:
-        all_cards = service.list_by_level(filter_level, include_disabled=include_disabled)
+        all_cards = service.list_by_level(
+            filter_level,
+            include_disabled=include_disabled,
+        )
     else:
         all_cards = service._store.list_all(include_disabled=include_disabled)
 
@@ -361,7 +399,10 @@ async def get_card(
     service = _get_service()
     card = service._store.get(_uuid(card_id))
     if not card:
-        raise HTTPException(status_code=404, detail=f"Card not found: {card_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Card not found: {card_id}",
+        )
     return WorkExperienceCard.from_card(card)
 
 
@@ -376,7 +417,10 @@ async def get_quality_score(
     service = _get_service()
     card = service._store.get(_uuid(card_id))
     if not card:
-        raise HTTPException(status_code=404, detail=f"Card not found: {card_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Card not found: {card_id}",
+        )
 
     score = service.quality_score(card)
     return {
@@ -400,7 +444,10 @@ async def get_maturity(
     service = _get_service()
     card = service._store.get(_uuid(card_id))
     if not card:
-        raise HTTPException(status_code=404, detail=f"Card not found: {card_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Card not found: {card_id}",
+        )
 
     return {
         "experience_id": str(card.experience_id),
@@ -437,7 +484,10 @@ async def transition_status(
 
     card = service._store.get(_uuid(card_id))
     if not card:
-        raise HTTPException(status_code=404, detail=f"Card not found: {card_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Card not found: {card_id}",
+        )
 
     ok = service._store.update_status(card.experience_id, target_status)
     if not ok:
@@ -477,9 +527,15 @@ async def transition_level(
 
     card = service._store.get(_uuid(card_id))
     if not card:
-        raise HTTPException(status_code=404, detail=f"Card not found: {card_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Card not found: {card_id}",
+        )
 
-    ok = service._store.update_experience_level(card.experience_id, target_level)
+    ok = service._store.update_experience_level(
+        card.experience_id,
+        target_level,
+    )
     if not ok:
         current = card.experience_level.value
         raise HTTPException(
@@ -496,6 +552,7 @@ async def transition_level(
 
 # ---- Legacy status transition shortcuts ----
 
+
 @router.post(
     "/cards/{card_id}/approve",
     summary="Approve a card",
@@ -508,7 +565,10 @@ async def approve_card(
     service = _get_service()
     card = service._store.get(_uuid(card_id))
     if not card:
-        raise HTTPException(status_code=404, detail=f"Card not found: {card_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Card not found: {card_id}",
+        )
 
     ok = service.approve(card.experience_id)
     if not ok:
@@ -517,7 +577,11 @@ async def approve_card(
             detail=f"Cannot approve card in status '{card.status.value}'",
         )
 
-    return StatusTransitionResponse(success=True, card_id=card_id, new_status="approved")
+    return StatusTransitionResponse(
+        success=True,
+        card_id=card_id,
+        new_status="approved",
+    )
 
 
 @router.post(
@@ -532,7 +596,10 @@ async def reject_card(
     service = _get_service()
     card = service._store.get(_uuid(card_id))
     if not card:
-        raise HTTPException(status_code=404, detail=f"Card not found: {card_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Card not found: {card_id}",
+        )
 
     ok = service.reject(card.experience_id)
     if not ok:
@@ -541,7 +608,11 @@ async def reject_card(
             detail=f"Cannot reject card in status '{card.status.value}'",
         )
 
-    return StatusTransitionResponse(success=True, card_id=card_id, new_status="rejected")
+    return StatusTransitionResponse(
+        success=True,
+        card_id=card_id,
+        new_status="rejected",
+    )
 
 
 @router.post(
@@ -556,7 +627,10 @@ async def archive_card(
     service = _get_service()
     card = service._store.get(_uuid(card_id))
     if not card:
-        raise HTTPException(status_code=404, detail=f"Card not found: {card_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Card not found: {card_id}",
+        )
 
     ok = service.archive(card.experience_id)
     if not ok:
@@ -565,7 +639,11 @@ async def archive_card(
             detail=f"Cannot archive card in status '{card.status.value}'",
         )
 
-    return StatusTransitionResponse(success=True, card_id=card_id, new_status="archived")
+    return StatusTransitionResponse(
+        success=True,
+        card_id=card_id,
+        new_status="archived",
+    )
 
 
 @router.post(
@@ -580,7 +658,10 @@ async def reactivate_card(
     service = _get_service()
     card = service._store.get(_uuid(card_id))
     if not card:
-        raise HTTPException(status_code=404, detail=f"Card not found: {card_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Card not found: {card_id}",
+        )
 
     ok = service.reactivate(card.experience_id)
     if not ok:
@@ -589,10 +670,15 @@ async def reactivate_card(
             detail=f"Cannot reactivate card in status '{card.status.value}'",
         )
 
-    return StatusTransitionResponse(success=True, card_id=card_id, new_status="candidate")
+    return StatusTransitionResponse(
+        success=True,
+        card_id=card_id,
+        new_status="candidate",
+    )
 
 
 # ---- New maturity level shortcuts ----
+
 
 @router.post(
     "/cards/{card_id}/promote",
@@ -606,7 +692,10 @@ async def promote_card(
     service = _get_service()
     card = service._store.get(_uuid(card_id))
     if not card:
-        raise HTTPException(status_code=404, detail=f"Card not found: {card_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Card not found: {card_id}",
+        )
 
     if card.experience_level == ExperienceLevel.NEW:
         ok = service.promote_to_observed(card.experience_id)
@@ -623,7 +712,11 @@ async def promote_card(
     if not ok:
         raise HTTPException(status_code=409, detail="Promotion failed")
 
-    return LevelTransitionResponse(success=True, card_id=card_id, new_level=new_level.value)
+    return LevelTransitionResponse(
+        success=True,
+        card_id=card_id,
+        new_level=new_level.value,
+    )
 
 
 @router.post(
@@ -638,7 +731,10 @@ async def demote_card(
     service = _get_service()
     card = service._store.get(_uuid(card_id))
     if not card:
-        raise HTTPException(status_code=404, detail=f"Card not found: {card_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Card not found: {card_id}",
+        )
 
     if card.experience_level == ExperienceLevel.MATURE:
         ok = service.demote_to_observed(card.experience_id)
@@ -655,7 +751,11 @@ async def demote_card(
     if not ok:
         raise HTTPException(status_code=409, detail="Demotion failed")
 
-    return LevelTransitionResponse(success=True, card_id=card_id, new_level=new_level.value)
+    return LevelTransitionResponse(
+        success=True,
+        card_id=card_id,
+        new_level=new_level.value,
+    )
 
 
 @router.post(
@@ -670,7 +770,10 @@ async def deprecate_card(
     service = _get_service()
     card = service._store.get(_uuid(card_id))
     if not card:
-        raise HTTPException(status_code=404, detail=f"Card not found: {card_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Card not found: {card_id}",
+        )
 
     ok = service.mark_deprecated(card.experience_id)
     if not ok:
@@ -679,12 +782,17 @@ async def deprecate_card(
             detail=f"Cannot deprecate card at level '{card.experience_level.value}'",
         )
 
-    return LevelTransitionResponse(success=True, card_id=card_id, new_level="deprecated")
+    return LevelTransitionResponse(
+        success=True,
+        card_id=card_id,
+        new_level="deprecated",
+    )
 
 
 # =============================================================================
 # Duplicate Detection & Merge
 # =============================================================================
+
 
 @router.get(
     "/cards/{card_id}/duplicates",
@@ -710,7 +818,10 @@ async def find_duplicates(
     service = _get_service()
     card = service._store.get(_uuid(card_id))
     if not card:
-        raise HTTPException(status_code=404, detail=f"Card not found: {card_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Card not found: {card_id}",
+        )
 
     dups = service.find_duplicates(card, similarity_threshold=threshold)
     summaries = [CardSummary.from_card(d) for d in dups]
@@ -745,9 +856,15 @@ async def merge_cards(
     target = service._store.get(target_uuid)
 
     if not source:
-        raise HTTPException(status_code=404, detail=f"Source card not found: {body.source_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Source card not found: {body.source_id}",
+        )
     if not target:
-        raise HTTPException(status_code=404, detail=f"Target card not found: {body.target_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Target card not found: {body.target_id}",
+        )
 
     ok = service.merge_into(source_uuid, target_uuid)
     if not ok:
@@ -767,6 +884,7 @@ async def merge_cards(
 # =============================================================================
 # Quality & Maturity Stats
 # =============================================================================
+
 
 @router.get(
     "/stats",
@@ -834,7 +952,9 @@ async def get_stats(
     # Count by level
     by_level: dict[str, int] = {}
     for c in all_cards:
-        by_level[c.experience_level.value] = by_level.get(c.experience_level.value, 0) + 1
+        by_level[c.experience_level.value] = (
+            by_level.get(c.experience_level.value, 0) + 1
+        )
 
     # Count by scope
     by_scope: dict[str, int] = {}
@@ -901,7 +1021,12 @@ async def list_top_cards(
         None,
         description="Filter by experience level",
     ),
-    top_k: int = Query(10, ge=1, le=50, description="Number of cards to return"),
+    top_k: int = Query(
+        10,
+        ge=1,
+        le=50,
+        description="Number of cards to return",
+    ),
     scope: Optional[str] = Query(None, description="Filter by scope"),
 ) -> CardListResponse:
     """List the top-k highest quality cards, sorted by quality score."""
@@ -920,7 +1045,10 @@ async def list_top_cards(
         try:
             filter_scope = WorkExperienceScope(scope.lower())
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid scope '{scope}'")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid scope '{scope}'",
+            )
 
     # Get cards filtered by level (primary) and/or status
     if filter_level:
@@ -929,7 +1057,9 @@ async def list_top_cards(
         cards = service._store.list_all()
 
     if filter_status:
-        card_ids = {c.experience_id for c in service.list_by_status(filter_status)}
+        card_ids = {
+            c.experience_id for c in service.list_by_status(filter_status)
+        }
         cards = [c for c in cards if c.experience_id in card_ids]
 
     # Scope filter

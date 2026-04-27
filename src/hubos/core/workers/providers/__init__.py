@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Worker provider interface layer."""
 
 from hubos.core.workers.providers.base import (
@@ -8,7 +9,10 @@ from hubos.core.workers.providers.base import (
     WorkerTimeoutError,
 )
 from hubos.core.workers.providers.executable import ExecutableWorkerProvider
-from hubos.core.workers.providers.host_agent import HostAgentRunner, HostAgentWorker
+from hubos.core.workers.providers.host_agent import (
+    HostAgentRunner,
+    HostAgentWorker,
+)
 from hubos.core.workers.providers.stub import StubWorkerProvider
 
 __all__ = [

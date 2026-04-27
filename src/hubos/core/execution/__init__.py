@@ -1,11 +1,22 @@
+# -*- coding: utf-8 -*-
 """Execution Loop MVP - Task Execution Services.
 
 This module provides task execution capabilities for the platform.
 """
 
 # Import components directly
-from hubos.core.execution.task_store import TaskStore, Task, TaskStatus, TaskStage, StageStatus
-from hubos.core.execution.event_store import EventStore, ExecutionEvent, EventType
+from hubos.core.execution.task_store import (
+    TaskStore,
+    Task,
+    TaskStatus,
+    TaskStage,
+    StageStatus,
+)
+from hubos.core.execution.event_store import (
+    EventStore,
+    ExecutionEvent,
+    EventType,
+)
 from hubos.core.execution.orchestrator import ExecutionOrchestrator
 
 __all__ = [

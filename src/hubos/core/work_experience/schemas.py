@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Work Experience Layer schemas."""
 
 from dataclasses import dataclass, field
@@ -15,8 +16,8 @@ def _utcnow() -> datetime:
 class WorkExperienceScope(str, Enum):
     """Scope / granularity of a work experience card."""
 
-    GLOBAL = "global"   # System-wide lesson
-    USER = "user"       # Per-user lesson
+    GLOBAL = "global"  # System-wide lesson
+    USER = "user"  # Per-user lesson
     PROJECT = "project"  # Per-project lesson
     SESSION = "session"  # Per-session lesson
 
@@ -41,10 +42,13 @@ class ExperienceLevel(str, Enum):
     Lifecycle: NEW -> OBSERVED -> MATURE -> DEPRECATED
                 |-> DEPRECATED (direct, from any level)
     """
-    NEW = "new"         # Just created, low weight in retrieval
+
+    NEW = "new"  # Just created, low weight in retrieval
     OBSERVED = "observed"  # Seen in a few tasks, medium weight
-    MATURE = "mature"   # Proven over multiple tasks, high weight,优先注入
-    DEPRECATED = "deprecated"  # Outdated or superseded, excluded from retrieval
+    MATURE = "mature"  # Proven over multiple tasks, high weight,优先注入
+    DEPRECATED = (
+        "deprecated"  # Outdated or superseded, excluded from retrieval
+    )
 
     def retrieval_weight(self) -> float:
         """Relative weight for retrieval scoring."""
@@ -63,20 +67,26 @@ _LEVEL_WEIGHTS = {
 }
 
 _LEVEL_TRANSITIONS: dict[ExperienceLevel, frozenset[ExperienceLevel]] = {
-    ExperienceLevel.NEW: frozenset({
-        ExperienceLevel.OBSERVED,
-        ExperienceLevel.MATURE,
-        ExperienceLevel.DEPRECATED,
-    }),
-    ExperienceLevel.OBSERVED: frozenset({
-        ExperienceLevel.MATURE,
-        ExperienceLevel.DEPRECATED,
-        ExperienceLevel.NEW,  # Can regress if proven wrong
-    }),
-    ExperienceLevel.MATURE: frozenset({
-        ExperienceLevel.DEPRECATED,
-        ExperienceLevel.OBSERVED,  # Can regress
-    }),
+    ExperienceLevel.NEW: frozenset(
+        {
+            ExperienceLevel.OBSERVED,
+            ExperienceLevel.MATURE,
+            ExperienceLevel.DEPRECATED,
+        },
+    ),
+    ExperienceLevel.OBSERVED: frozenset(
+        {
+            ExperienceLevel.MATURE,
+            ExperienceLevel.DEPRECATED,
+            ExperienceLevel.NEW,  # Can regress if proven wrong
+        },
+    ),
+    ExperienceLevel.MATURE: frozenset(
+        {
+            ExperienceLevel.DEPRECATED,
+            ExperienceLevel.OBSERVED,  # Can regress
+        },
+    ),
     ExperienceLevel.DEPRECATED: frozenset(),  # Terminal
 }
 
@@ -88,30 +98,42 @@ class WorkExperienceStatus(str, Enum):
     For new cards, use ExperienceLevel instead.
     Status transitions still work but are secondary to experience_level.
     """
-    CANDIDATE = "candidate"   # Newly extracted, not yet reviewed
-    APPROVED = "approved"     # Reviewed and approved for injection
-    REJECTED = "rejected"     # Reviewed and rejected
-    ARCHIVED = "archived"     # Superseded or manual archive; retained but not used
+
+    CANDIDATE = "candidate"  # Newly extracted, not yet reviewed
+    APPROVED = "approved"  # Reviewed and approved for injection
+    REJECTED = "rejected"  # Reviewed and rejected
+    ARCHIVED = (
+        "archived"  # Superseded or manual archive; retained but not used
+    )
 
     def can_transition_to(self, target: "WorkExperienceStatus") -> bool:
         """Check if a transition from self to target is valid."""
         return target in _STATUS_TRANSITIONS.get(self, frozenset())
 
 
-_STATUS_TRANSITIONS: dict[WorkExperienceStatus, frozenset[WorkExperienceStatus]] = {
-    WorkExperienceStatus.CANDIDATE: frozenset({
-        WorkExperienceStatus.APPROVED,
-        WorkExperienceStatus.REJECTED,
-        WorkExperienceStatus.ARCHIVED,
-    }),
-    WorkExperienceStatus.APPROVED: frozenset({
-        WorkExperienceStatus.REJECTED,
-        WorkExperienceStatus.ARCHIVED,
-    }),
-    WorkExperienceStatus.REJECTED: frozenset({
-        WorkExperienceStatus.CANDIDATE,   # Re-review
-        WorkExperienceStatus.ARCHIVED,
-    }),
+_STATUS_TRANSITIONS: dict[
+    WorkExperienceStatus,
+    frozenset[WorkExperienceStatus],
+] = {
+    WorkExperienceStatus.CANDIDATE: frozenset(
+        {
+            WorkExperienceStatus.APPROVED,
+            WorkExperienceStatus.REJECTED,
+            WorkExperienceStatus.ARCHIVED,
+        },
+    ),
+    WorkExperienceStatus.APPROVED: frozenset(
+        {
+            WorkExperienceStatus.REJECTED,
+            WorkExperienceStatus.ARCHIVED,
+        },
+    ),
+    WorkExperienceStatus.REJECTED: frozenset(
+        {
+            WorkExperienceStatus.CANDIDATE,  # Re-review
+            WorkExperienceStatus.ARCHIVED,
+        },
+    ),
     WorkExperienceStatus.ARCHIVED: frozenset(),  # Terminal state
 }
 
@@ -131,15 +153,15 @@ class WorkExperience:
 
     # Retrieval fields
     trigger_keywords: list[str] = field(default_factory=list)
-    trigger_hint: str = ""          # e.g. "file:python:csv"
+    trigger_hint: str = ""  # e.g. "file:python:csv"
 
     # Content fields
-    title: str = ""                # One-line lesson title
-    what_happened: str = ""       # Narrative description
+    title: str = ""  # One-line lesson title
+    what_happened: str = ""  # Narrative description
     what_worked: list[str] = field(default_factory=list)
     what_failed: list[str] = field(default_factory=list)
-    guidance: str = ""             # Actionable guidance for next time
-    avoidance: str = ""            # What to avoid
+    guidance: str = ""  # Actionable guidance for next time
+    avoidance: str = ""  # What to avoid
 
     # ---- New fields for work guidance model ----
     # Pattern summary: concise description of the task type this experience applies to
@@ -156,17 +178,19 @@ class WorkExperience:
     supersedes_experience_id: Optional[UUID] = None
 
     # Metadata
-    confidence: float = 0.5        # 0.0–1.0
+    confidence: float = 0.5  # 0.0–1.0
     source_task_id: str = ""
     source_session_id: str = ""
     source_trace_id: str = ""
     applicability_tags: list[str] = field(default_factory=list)
 
     # Usage tracking
-    hit_count: int = 0                   # Times retrieved for a task
-    effective_count: int = 0             # Times successfully used in a prompt
+    hit_count: int = 0  # Times retrieved for a task
+    effective_count: int = 0  # Times successfully used in a prompt
     last_retrieved_at: Optional[datetime] = None
-    last_used_at: Optional[datetime] = None   # Last time used in a prompt (approved + injected)
+    last_used_at: Optional[
+        datetime
+    ] = None  # Last time used in a prompt (approved + injected)
     disabled: bool = False
 
     # Legacy governance state — kept for backward compatibility
@@ -219,7 +243,11 @@ class WorkExperienceStore(Protocol):
         """List cards. Pass include_disabled=True to include disabled cards."""
         ...
 
-    def list_by_scope(self, scope: WorkExperienceScope, include_disabled: bool = False) -> list[WorkExperience]:
+    def list_by_scope(
+        self,
+        scope: WorkExperienceScope,
+        include_disabled: bool = False,
+    ) -> list[WorkExperience]:
         """List cards for a given scope. Pass include_disabled=True to include disabled cards."""
         ...
 
@@ -231,7 +259,11 @@ class WorkExperienceStore(Protocol):
         """Increment hit_count and update last_retrieved_at."""
         ...
 
-    def update_status(self, experience_id: UUID, status: "WorkExperienceStatus") -> bool:
+    def update_status(
+        self,
+        experience_id: UUID,
+        status: "WorkExperienceStatus",
+    ) -> bool:
         """Update a card's governance status. Returns True if found and updated."""
         ...
 
@@ -240,7 +272,9 @@ class WorkExperienceStore(Protocol):
         ...
 
     def update_experience_level(
-        self, experience_id: UUID, level: "ExperienceLevel"
+        self,
+        experience_id: UUID,
+        level: "ExperienceLevel",
     ) -> bool:
         """Update a card's experience level. Returns True if found and updated."""
         ...

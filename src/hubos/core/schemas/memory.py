@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Memory context and update schemas."""
 
 from dataclasses import dataclass, field
@@ -72,10 +73,18 @@ class RolloutConfig:
     enabled: bool = True
     auto_rollback_enabled: bool = True
     evaluation_window_size: int = 20  # Number of hits to evaluate
-    degrade_threshold: float = 0.3  # effective_rate below this triggers degradation
-    failure_delta_threshold: float = 0.2  # failure increase above this triggers degradation
-    latency_delta_threshold_ms: float = 500.0  # Latency increase above this triggers
-    consecutive_degrade_limit: int = 3  # Consecutive degrades before auto-rollback
+    degrade_threshold: float = (
+        0.3  # effective_rate below this triggers degradation
+    )
+    failure_delta_threshold: float = (
+        0.2  # failure increase above this triggers degradation
+    )
+    latency_delta_threshold_ms: float = (
+        500.0  # Latency increase above this triggers
+    )
+    consecutive_degrade_limit: int = (
+        3  # Consecutive degrades before auto-rollback
+    )
 
 
 @dataclass
@@ -171,14 +180,16 @@ class EpisodicMemory:
 @dataclass
 class LearnedPolicy:
     """
-    Learned policy - experience layer.
+     Learned policy - experience layer.
 
-   反思后形成的策略/反模式/模板.
-    Trigger-based, has success_rate tracking.
+    反思后形成的策略/反模式/模板.
+     Trigger-based, has success_rate tracking.
     """
 
     policy_id: UUID = field(default_factory=uuid4)
-    trigger: str = ""  # What triggers this policy (query pattern, task type, etc.)
+    trigger: str = (
+        ""  # What triggers this policy (query pattern, task type, etc.)
+    )
     action: dict[str, Any] = field(default_factory=dict)  # What action to take
     # Action fields may include:
     # - worker_priority: list[str]
@@ -201,7 +212,9 @@ class LearnedPolicy:
     rollout_stats: RolloutStats = field(default_factory=RolloutStats)
     last_rollout_change_at: Optional[datetime] = None
     last_rollback_reason: Optional[str] = None
-    consecutive_degrade_count: int = 0  # Consecutive evaluations below threshold
+    consecutive_degrade_count: int = (
+        0  # Consecutive evaluations below threshold
+    )
     created_at: datetime = field(default_factory=_utcnow)
     updated_at: datetime = field(default_factory=_utcnow)
 
@@ -219,6 +232,7 @@ class LearnedPolicy:
             return True
         if self.rollout_mode == RolloutMode.CANARY:
             import random
+
             return random.randint(1, 100) <= self.rollout_ratio
         # SHADOW mode: policy evaluates but doesn't affect routing
         return False  # Override in policy router to allow shadow evaluation
@@ -234,11 +248,15 @@ class RouteHint:
 
     trigger_task_id: str = ""  # Task that generated this hint
     policy_id: Optional[UUID] = None  # Associated learned policy
-    worker_priority: list[str] = field(default_factory=list)  # Preferred providers
+    worker_priority: list[str] = field(
+        default_factory=list,
+    )  # Preferred providers
     parallel: bool = False  # Run units in parallel
     timeout_seconds: int = 300  # Adjusted timeout
     retry_count: int = 3  # Adjusted retry
-    skip_providers: list[str] = field(default_factory=list)  # Providers to avoid
+    skip_providers: list[str] = field(
+        default_factory=list,
+    )  # Providers to avoid
     confidence: float = 0.5  # How confident we are in this hint
     created_at: datetime = field(default_factory=_utcnow)
 

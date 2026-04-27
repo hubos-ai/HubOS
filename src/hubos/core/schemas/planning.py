@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Execution plan schemas for coordinator output."""
 
 from dataclasses import dataclass, field

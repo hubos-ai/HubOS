@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 phase1_generate_terms.py v4 (HubOS)
 基于 keyword_rules 动态生成精准产品搜索词：
@@ -15,7 +16,7 @@ from pathlib import Path
 
 
 def load_config(config_path):
-    with open(config_path, 'r', encoding='utf-8') as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -33,27 +34,36 @@ def dedupe_keep_order(items):
 
 def build_country_terms(country_code, country, rules):
     """Generate precise search terms using product keywords × roles × geo patterns."""
-    country_name_en = country.get('english_name', country.get('name', country_code))
-    cities = country.get('cities', [])
-    procurement = country.get('procurement_agencies', [])
-    local_terms = country.get('local_search_terms', [])
+    country_name_en = country.get(
+        "english_name",
+        country.get("name", country_code),
+    )
+    cities = country.get("cities", [])
+    procurement = country.get("procurement_agencies", [])
+    local_terms = country.get("local_search_terms", [])
 
     # Load rules
-    product_lines = rules.get('product_lines', {})
-    role_modifiers = rules.get('role_modifiers', ['supplier', 'distributor', 'importer'])
-    geo_patterns = rules.get('geo_patterns', [
-        '{product} {role} {country}',
-    ])
-    gen_rules = rules.get('generation_rules', {})
-    max_terms = gen_rules.get('max_terms_per_country', 15)
-    products_per_line = gen_rules.get('products_per_line', 3)
-    must_include_cities = gen_rules.get('must_include_cities', True)
+    product_lines = rules.get("product_lines", {})
+    role_modifiers = rules.get(
+        "role_modifiers",
+        ["supplier", "distributor", "importer"],
+    )
+    geo_patterns = rules.get(
+        "geo_patterns",
+        [
+            "{product} {role} {country}",
+        ],
+    )
+    gen_rules = rules.get("generation_rules", {})
+    max_terms = gen_rules.get("max_terms_per_country", 15)
+    products_per_line = gen_rules.get("products_per_line", 3)
+    must_include_cities = gen_rules.get("must_include_cities", True)
 
     # Collect all products with their line-specific modifiers
     all_products = []  # (product, modifiers)
     for line_name, line_cfg in product_lines.items():
-        line_products = line_cfg.get('products', [])
-        line_modifiers = line_cfg.get('modifiers', role_modifiers)
+        line_products = line_cfg.get("products", [])
+        line_modifiers = line_cfg.get("modifiers", role_modifiers)
         # Pick top N products from each line (most specific first)
         for p in line_products[:products_per_line]:
             all_products.append((p, line_modifiers))
@@ -120,36 +130,45 @@ def build_country_terms(country_code, country, rules):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', required=True)
-    parser.add_argument('--countries', required=True, help='Comma-separated country codes, e.g. BR,MX,US')
-    parser.add_argument('--output', required=True)
+    parser.add_argument("--config", required=True)
+    parser.add_argument(
+        "--countries",
+        required=True,
+        help="Comma-separated country codes, e.g. BR,MX,US",
+    )
+    parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
     config = load_config(args.config)
-    rules = config.get('keyword_rules', {})
-    countries_cfg = config.get('countries', {})
+    rules = config.get("keyword_rules", {})
+    countries_cfg = config.get("countries", {})
 
     # Fallback if keyword_rules not found (v3 compat)
-    if not rules or 'product_lines' not in rules:
+    if not rules or "product_lines" not in rules:
         rules = {
-            'product_lines': {
-                'general': {
-                    'products': config.get('products', ['educational equipment']),
-                    'modifiers': ['supplier', 'distributor'],
-                }
+            "product_lines": {
+                "general": {
+                    "products": config.get(
+                        "products",
+                        ["educational equipment"],
+                    ),
+                    "modifiers": ["supplier", "distributor"],
+                },
             },
-            'role_modifiers': ['supplier', 'distributor', 'importer'],
-            'geo_patterns': ['{product} {role} {country}'],
-            'generation_rules': {'max_terms_per_country': 15},
+            "role_modifiers": ["supplier", "distributor", "importer"],
+            "geo_patterns": ["{product} {role} {country}"],
+            "generation_rules": {"max_terms_per_country": 15},
         }
 
-    country_codes = [c.strip().upper() for c in args.countries.split(',') if c.strip()]
+    country_codes = [
+        c.strip().upper() for c in args.countries.split(",") if c.strip()
+    ]
 
     result = {
-        'generated_by': 'hubos-keyword-rules-v4',
-        'total_countries': 0,
-        'total_terms': 0,
-        'countries': {}
+        "generated_by": "hubos-keyword-rules-v4",
+        "total_countries": 0,
+        "total_terms": 0,
+        "countries": {},
     }
 
     for code in country_codes:
@@ -157,32 +176,39 @@ def main():
             country = countries_cfg[code]
         else:
             country = {
-                'name': code,
-                'english_name': code,
-                'language': 'en',
-                'country_code': code,
-                'cities': [],
-                'procurement_agencies': [],
-                'local_search_terms': [],
+                "name": code,
+                "english_name": code,
+                "language": "en",
+                "country_code": code,
+                "cities": [],
+                "procurement_agencies": [],
+                "local_search_terms": [],
             }
         terms = build_country_terms(code, country, rules)
-        result['countries'][code] = {
-            'name': country.get('english_name', code),
-            'name_local': country.get('name', code),
-            'language': country.get('language', 'en'),
-            'terms': terms,
-            'count': len(terms),
+        result["countries"][code] = {
+            "name": country.get("english_name", code),
+            "name_local": country.get("name", code),
+            "language": country.get("language", "en"),
+            "terms": terms,
+            "count": len(terms),
         }
 
-    result['total_countries'] = len(result['countries'])
-    result['total_terms'] = sum(v['count'] for v in result['countries'].values())
+    result["total_countries"] = len(result["countries"])
+    result["total_terms"] = sum(
+        v["count"] for v in result["countries"].values()
+    )
 
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
+    out.write_text(
+        json.dumps(result, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
-    print(f"✅ 已生成 {result['total_countries']} 个国家，共 {result['total_terms']} 个搜索词")
+    print(
+        f"✅ 已生成 {result['total_countries']} 个国家，共 {result['total_terms']} 个搜索词",
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

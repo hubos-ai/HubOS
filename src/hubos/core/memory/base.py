@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """MemoryStore contract (L4 long-term memory backends).
 
 Three structural protocols, smallest-surface-first:
@@ -47,11 +48,20 @@ class MemoryStore(Protocol):
         """Create a new session. Returns the session_id (echo)."""
         ...
 
-    def end_session(self, session_id: str, ended_at: str, end_reason: str) -> None:
+    def end_session(
+        self,
+        session_id: str,
+        ended_at: str,
+        end_reason: str,
+    ) -> None:
         """Mark a session ended. ``ended_at`` is ISO-8601."""
         ...
 
-    def update_metadata(self, session_id: str, metadata: Dict[str, Any]) -> None:
+    def update_metadata(
+        self,
+        session_id: str,
+        metadata: Dict[str, Any],
+    ) -> None:
         """Replace the session's metadata blob entirely."""
         ...
 
@@ -74,7 +84,8 @@ class MemoryStore(Protocol):
 
     def load_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Return ``{"metadata": ..., "messages": [...]}`` or None if unknown.
-        Backends with archival MAY transparently fall through to cold storage."""
+        Backends with archival MAY transparently fall through to cold storage.
+        """
         ...
 
     def list_sessions(

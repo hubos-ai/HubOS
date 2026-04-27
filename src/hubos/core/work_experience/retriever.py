@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """WorkExperienceRetriever — retrieves experience cards by scope, keywords, and trigger hint.
 
 Maturity-based retrieval model:
@@ -94,10 +95,10 @@ class WorkExperienceRetriever:
 
         # Composite: weighted sum with level as primary factor
         composite = (
-            level_weight * 0.5 +           # Experience level (50%)
-            maturity_norm * 0.25 +          # Maturity score (25%)
-            effective_ratio * 0.15 +        # Effectiveness (15%)
-            recency_bonus * 0.1             # Recency (10%)
+            level_weight * 0.5
+            + maturity_norm * 0.25  # Experience level (50%)
+            + effective_ratio * 0.15  # Maturity score (25%)
+            + recency_bonus * 0.1  # Effectiveness (15%)  # Recency (10%)
         )
 
         return composite
@@ -126,9 +127,14 @@ class WorkExperienceRetriever:
         """
         # Start with scope filter (or all cards)
         if scope is not None:
-            candidates = self._store.list_by_scope(scope, include_disabled=include_disabled)
+            candidates = self._store.list_by_scope(
+                scope,
+                include_disabled=include_disabled,
+            )
         else:
-            candidates = self._store.list_all(include_disabled=include_disabled)
+            candidates = self._store.list_all(
+                include_disabled=include_disabled,
+            )
 
         # Filter out disabled cards if not included
         if not include_disabled:
@@ -137,14 +143,16 @@ class WorkExperienceRetriever:
         # Filter out deprecated experiences by default
         if not include_deprecated:
             candidates = [
-                c for c in candidates
+                c
+                for c in candidates
                 if c.experience_level != ExperienceLevel.DEPRECATED
             ]
 
         # Apply trigger_hint prefix filter
         if trigger_hint:
             candidates = [
-                c for c in candidates
+                c
+                for c in candidates
                 if c.trigger_hint.startswith(trigger_hint)
             ]
 
@@ -184,10 +192,18 @@ class WorkExperienceRetriever:
 
         return results
 
-    def _sort_by_maturity(self, cards: list[WorkExperience]) -> list[WorkExperience]:
+    def _sort_by_maturity(
+        self,
+        cards: list[WorkExperience],
+    ) -> list[WorkExperience]:
         """Sort by maturity composite score descending, then scope priority."""
+
         def sort_key(card: WorkExperience) -> tuple:
-            return (-self._maturity_composite_score(card), WorkExperienceScope.priority(card.scope))
+            return (
+                -self._maturity_composite_score(card),
+                WorkExperienceScope.priority(card.scope),
+            )
+
         return sorted(cards, key=sort_key)
 
     # ---- Legacy compatibility methods ----
@@ -279,4 +295,7 @@ class WorkExperienceRetriever:
                 keywords=keywords if keywords else None,
             )
 
-        return self.retrieve(scope=scope, keywords=keywords if keywords else None)
+        return self.retrieve(
+            scope=scope,
+            keywords=keywords if keywords else None,
+        )

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Phase 4 integration tests: WorkExperienceInterceptor + ExecutionOrchestrator.
 
 Tests:
@@ -22,8 +23,14 @@ from hubos.core.work_experience import (
     WorkExperienceExtractor,
     WorkExperienceRetriever,
 )
-from hubos.core.work_experience.schemas import WorkExperience, WorkExperienceScope, WorkExperienceStatus
-from hubos.core.work_experience.integration import get_work_experience_interceptor
+from hubos.core.work_experience.schemas import (
+    WorkExperience,
+    WorkExperienceScope,
+    WorkExperienceStatus,
+)
+from hubos.core.work_experience.integration import (
+    get_work_experience_interceptor,
+)
 from hubos.core.orchestrator.reflection_engine import TaskContext
 from hubos.core.schemas.memory import ReflectionReport
 from hubos.core.schemas.tasks import TaskResult, TaskStatus as TaskStatusEnum
@@ -32,6 +39,7 @@ from hubos.core.schemas.tasks import TaskResult, TaskStatus as TaskStatusEnum
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def we_store_with_cards(tmp_path: Path) -> LocalWorkExperienceStore:
@@ -116,14 +124,21 @@ def we_store_with_cards(tmp_path: Path) -> LocalWorkExperienceStore:
     return store
 
 
-def _make_orchestrator(task_store: TaskStore, event_store: EventStore) -> ExecutionOrchestrator:
+def _make_orchestrator(
+    task_store: TaskStore,
+    event_store: EventStore,
+) -> ExecutionOrchestrator:
     """Create an orchestrator with real stores and mocked metrics."""
-    return ExecutionOrchestrator(task_store=task_store, event_store=event_store)
+    return ExecutionOrchestrator(
+        task_store=task_store,
+        event_store=event_store,
+    )
 
 
 # =============================================================================
 # Interceptor Unit Tests
 # =============================================================================
+
 
 class TestWorkExperienceInterceptorUnit:
     """Unit tests for WorkExperienceInterceptor.pre_execute()."""
@@ -132,15 +147,20 @@ class TestWorkExperienceInterceptorUnit:
         """Flag OFF: pre_execute returns [] and does not attach cards."""
         with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_LAYER": "false"}):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             # Reset singleton
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             store = LocalWorkExperienceStore(root=tmp_path / "we")
             task_store = TaskStore()
-            task = task_store.create_task(input_text="test input", session_id="s1")
+            task = task_store.create_task(
+                input_text="test input",
+                session_id="s1",
+            )
 
             interceptor = get_work_experience_interceptor()
             result = interceptor.pre_execute(task)
@@ -156,9 +176,11 @@ class TestWorkExperienceInterceptorUnit:
         """Flag ON + matching cards: pre_execute returns cards and attaches to task."""
         with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_LAYER": "true"}):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             # Override the store used by the interceptor singleton
@@ -171,7 +193,10 @@ class TestWorkExperienceInterceptorUnit:
             interceptor = get_work_experience_interceptor()
             # Override the store with our populated one
             interceptor._store = we_store_with_cards
-            interceptor._retriever = WorkExperienceRetriever(store=we_store_with_cards, max_results=5)
+            interceptor._retriever = WorkExperienceRetriever(
+                store=we_store_with_cards,
+                max_results=5,
+            )
 
             result = interceptor.pre_execute(task)
 
@@ -183,9 +208,11 @@ class TestWorkExperienceInterceptorUnit:
         """Flag ON but no matching cards: pre_execute returns [] and attaches empty list."""
         with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_LAYER": "true"}):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             store = LocalWorkExperienceStore(root=tmp_path / "we")
@@ -197,7 +224,10 @@ class TestWorkExperienceInterceptorUnit:
 
             interceptor = get_work_experience_interceptor()
             interceptor._store = store
-            interceptor._retriever = WorkExperienceRetriever(store=store, max_results=5)
+            interceptor._retriever = WorkExperienceRetriever(
+                store=store,
+                max_results=5,
+            )
             result = interceptor.pre_execute(task)
 
             assert result == []
@@ -210,9 +240,11 @@ class TestWorkExperienceInterceptorUnit:
         """Real chat path: ordinary Q&A replies should not create low-quality cards."""
         with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_LAYER": "true"}):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             interceptor = get_work_experience_interceptor()
@@ -239,9 +271,11 @@ class TestWorkExperienceInterceptorUnit:
         """Real chat path: actionable lessons create a structured experience card."""
         with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_LAYER": "true"}):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             interceptor = get_work_experience_interceptor()
@@ -269,18 +303,23 @@ class TestWorkExperienceInterceptorUnit:
             assert cards[0].scope == WorkExperienceScope.USER
             assert cards[0].source_session_id == "chat-session-lesson"
             assert cards[0].what_worked == [
-                "Compras API 查询合同必须设置 tamanhoPagina 在 10-500 之间"
+                "Compras API 查询合同必须设置 tamanhoPagina 在 10-500 之间",
             ]
             assert "FNDE 是 Plone SPA" in " ".join(cards[0].what_failed)
-            assert cards[0].recommended_tool_order == ["browser_use", "webReader"]
+            assert cards[0].recommended_tool_order == [
+                "browser_use",
+                "webReader",
+            ]
 
     def test_chat_turn_skips_when_flag_off(self, tmp_path: Path) -> None:
         """Flag OFF: chat turn should not persist cards."""
         with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_LAYER": "false"}):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             interceptor = get_work_experience_interceptor()
@@ -303,6 +342,7 @@ class TestWorkExperienceInterceptorUnit:
 # Orchestrator Integration Tests
 # =============================================================================
 
+
 class TestOrchestratorWorkExperienceIntegration:
     """Integration tests: ExecutionOrchestrator with WorkExperienceInterceptor."""
 
@@ -312,14 +352,19 @@ class TestOrchestratorWorkExperienceIntegration:
         we_store_with_cards: LocalWorkExperienceStore,
     ) -> None:
         """Flag OFF: execution completes normally, work_experience_cards empty."""
-        with patch.dict(os.environ, {
-            "ENABLE_WORK_EXPERIENCE_LAYER": "false",
-            "ENABLE_REAL_MODEL_EXECUTION": "false",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ENABLE_WORK_EXPERIENCE_LAYER": "false",
+                "ENABLE_REAL_MODEL_EXECUTION": "false",
+            },
+        ):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             task_store = TaskStore()
@@ -329,7 +374,10 @@ class TestOrchestratorWorkExperienceIntegration:
             # Mock agent registry at the module level (property, can't patch on instance)
             mock_registry = MagicMock()
             mock_registry.list_agents.return_value = [MagicMock()]
-            with patch("hubos.core.infra.agent_registry.get_agent_registry", return_value=mock_registry):
+            with patch(
+                "hubos.core.infra.agent_registry.get_agent_registry",
+                return_value=mock_registry,
+            ):
                 task = orch.submit_task(
                     input_text="read a CSV file and summarize it",
                     session_id="session-flag-off",
@@ -346,7 +394,11 @@ class TestOrchestratorWorkExperienceIntegration:
 
         # No WORK_EXPERIENCE_RETRIEVED event emitted
         events = event_store.get_events(task.task_id)
-        we_events = [e for e in events if e.event_type == EventType.WORK_EXPERIENCE_RETRIEVED]
+        we_events = [
+            e
+            for e in events
+            if e.event_type == EventType.WORK_EXPERIENCE_RETRIEVED
+        ]
         assert len(we_events) == 0
 
     def test_flag_on_cards_attached_execution_unchanged(
@@ -355,14 +407,19 @@ class TestOrchestratorWorkExperienceIntegration:
         we_store_with_cards: LocalWorkExperienceStore,
     ) -> None:
         """Flag ON: experiences retrieved and attached, execution result unchanged."""
-        with patch.dict(os.environ, {
-            "ENABLE_WORK_EXPERIENCE_LAYER": "true",
-            "ENABLE_REAL_MODEL_EXECUTION": "false",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ENABLE_WORK_EXPERIENCE_LAYER": "true",
+                "ENABLE_REAL_MODEL_EXECUTION": "false",
+            },
+        ):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             task_store = TaskStore()
@@ -372,11 +429,17 @@ class TestOrchestratorWorkExperienceIntegration:
             # Patch agent registry and inject the populated store into the interceptor
             mock_registry = MagicMock()
             mock_registry.list_agents.return_value = [MagicMock()]
-            with patch("hubos.core.infra.agent_registry.get_agent_registry", return_value=mock_registry):
+            with patch(
+                "hubos.core.infra.agent_registry.get_agent_registry",
+                return_value=mock_registry,
+            ):
                 # Create the interceptor and inject the test store directly
                 interceptor = get_work_experience_interceptor()
                 interceptor._store = we_store_with_cards
-                interceptor._retriever = WorkExperienceRetriever(store=we_store_with_cards, max_results=5)
+                interceptor._retriever = WorkExperienceRetriever(
+                    store=we_store_with_cards,
+                    max_results=5,
+                )
 
                 task = orch.submit_task(
                     input_text="read a CSV file and summarize it",
@@ -394,7 +457,11 @@ class TestOrchestratorWorkExperienceIntegration:
 
         # WORK_EXPERIENCE_RETRIEVED event was emitted
         events = event_store.get_events(task.task_id)
-        we_events = [e for e in events if e.event_type == EventType.WORK_EXPERIENCE_RETRIEVED]
+        we_events = [
+            e
+            for e in events
+            if e.event_type == EventType.WORK_EXPERIENCE_RETRIEVED
+        ]
         assert len(we_events) == 1
         assert we_events[0].data["card_count"] >= 1
 
@@ -408,14 +475,19 @@ class TestOrchestratorWorkExperienceIntegration:
         we_store_with_cards: LocalWorkExperienceStore,
     ) -> None:
         """Flag ON but no matching cards: execution completes normally with empty cards."""
-        with patch.dict(os.environ, {
-            "ENABLE_WORK_EXPERIENCE_LAYER": "true",
-            "ENABLE_REAL_MODEL_EXECUTION": "false",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ENABLE_WORK_EXPERIENCE_LAYER": "true",
+                "ENABLE_REAL_MODEL_EXECUTION": "false",
+            },
+        ):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             task_store = TaskStore()
@@ -424,11 +496,17 @@ class TestOrchestratorWorkExperienceIntegration:
 
             mock_registry = MagicMock()
             mock_registry.list_agents.return_value = [MagicMock()]
-            with patch("hubos.core.infra.agent_registry.get_agent_registry", return_value=mock_registry):
+            with patch(
+                "hubos.core.infra.agent_registry.get_agent_registry",
+                return_value=mock_registry,
+            ):
                 # Create the interceptor and inject the populated store directly
                 interceptor = get_work_experience_interceptor()
                 interceptor._store = we_store_with_cards
-                interceptor._retriever = WorkExperienceRetriever(store=we_store_with_cards, max_results=5)
+                interceptor._retriever = WorkExperienceRetriever(
+                    store=we_store_with_cards,
+                    max_results=5,
+                )
 
                 task = orch.submit_task(
                     input_text="do something with quantum computing xyz",
@@ -447,14 +525,19 @@ class TestOrchestratorWorkExperienceIntegration:
         we_store_with_cards: LocalWorkExperienceStore,
     ) -> None:
         """Retrieval exception is caught: execution continues, task completes."""
-        with patch.dict(os.environ, {
-            "ENABLE_WORK_EXPERIENCE_LAYER": "true",
-            "ENABLE_REAL_MODEL_EXECUTION": "false",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ENABLE_WORK_EXPERIENCE_LAYER": "true",
+                "ENABLE_REAL_MODEL_EXECUTION": "false",
+            },
+        ):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             task_store = TaskStore()
@@ -465,10 +548,18 @@ class TestOrchestratorWorkExperienceIntegration:
             mock_registry.list_agents.return_value = [MagicMock()]
 
             # Simulate retrieval error by patching get_work_experience_interceptor
-            with patch("hubos.core.infra.agent_registry.get_agent_registry", return_value=mock_registry):
-                with patch.object(integ_mod, "get_work_experience_interceptor") as mock_get:
+            with patch(
+                "hubos.core.infra.agent_registry.get_agent_registry",
+                return_value=mock_registry,
+            ):
+                with patch.object(
+                    integ_mod,
+                    "get_work_experience_interceptor",
+                ) as mock_get:
                     mock_interceptor = MagicMock()
-                    mock_interceptor.pre_execute.side_effect = RuntimeError("simulated error")
+                    mock_interceptor.pre_execute.side_effect = RuntimeError(
+                        "simulated error",
+                    )
                     mock_get.return_value = mock_interceptor
 
                     task = orch.submit_task(
@@ -486,14 +577,19 @@ class TestOrchestratorWorkExperienceIntegration:
         tmp_path: Path,
     ) -> None:
         """Flag ON: completed task is reflected and saved as a candidate card."""
-        with patch.dict(os.environ, {
-            "ENABLE_WORK_EXPERIENCE_LAYER": "true",
-            "ENABLE_REAL_MODEL_EXECUTION": "false",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ENABLE_WORK_EXPERIENCE_LAYER": "true",
+                "ENABLE_REAL_MODEL_EXECUTION": "false",
+            },
+        ):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             empty_store = LocalWorkExperienceStore(root=tmp_path / "we")
@@ -503,10 +599,16 @@ class TestOrchestratorWorkExperienceIntegration:
 
             mock_registry = MagicMock()
             mock_registry.list_agents.return_value = [MagicMock()]
-            with patch("hubos.core.infra.agent_registry.get_agent_registry", return_value=mock_registry):
+            with patch(
+                "hubos.core.infra.agent_registry.get_agent_registry",
+                return_value=mock_registry,
+            ):
                 interceptor = get_work_experience_interceptor()
                 interceptor._store = empty_store
-                interceptor._retriever = WorkExperienceRetriever(store=empty_store, max_results=5)
+                interceptor._retriever = WorkExperienceRetriever(
+                    store=empty_store,
+                    max_results=5,
+                )
 
                 task = orch.submit_task(
                     input_text="write a short summary for this CSV file",
@@ -529,14 +631,19 @@ class TestOrchestratorWorkExperienceIntegration:
         tmp_path: Path,
     ) -> None:
         """Flag OFF: completed task does not save any WorkExperience card."""
-        with patch.dict(os.environ, {
-            "ENABLE_WORK_EXPERIENCE_LAYER": "false",
-            "ENABLE_REAL_MODEL_EXECUTION": "false",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ENABLE_WORK_EXPERIENCE_LAYER": "false",
+                "ENABLE_REAL_MODEL_EXECUTION": "false",
+            },
+        ):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             empty_store = LocalWorkExperienceStore(root=tmp_path / "we")
@@ -546,10 +653,16 @@ class TestOrchestratorWorkExperienceIntegration:
 
             mock_registry = MagicMock()
             mock_registry.list_agents.return_value = [MagicMock()]
-            with patch("hubos.core.infra.agent_registry.get_agent_registry", return_value=mock_registry):
+            with patch(
+                "hubos.core.infra.agent_registry.get_agent_registry",
+                return_value=mock_registry,
+            ):
                 interceptor = get_work_experience_interceptor()
                 interceptor._store = empty_store
-                interceptor._retriever = WorkExperienceRetriever(store=empty_store, max_results=5)
+                interceptor._retriever = WorkExperienceRetriever(
+                    store=empty_store,
+                    max_results=5,
+                )
 
                 task = orch.submit_task(
                     input_text="write a short summary for this CSV file",
@@ -574,6 +687,7 @@ class TestOrchestratorWorkExperienceIntegration:
 # Chat Turn Update-Instead-Of-Create Tests
 # =============================================================================
 
+
 class TestChatTurnUpdateInsteadOfCreate:
     """Tests: similar chat turns update existing cards instead of creating duplicates."""
 
@@ -584,18 +698,26 @@ class TestChatTurnUpdateInsteadOfCreate:
         """Two similar queries → same card is updated, not duplicated."""
         with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_LAYER": "true"}):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             store = LocalWorkExperienceStore(root=tmp_path / "we_chat_update")
-            from hubos.core.work_experience.service import WorkExperienceService
+            from hubos.core.work_experience.service import (
+                WorkExperienceService,
+            )
+
             service = WorkExperienceService(store=store)
             interceptor = get_work_experience_interceptor()
             interceptor._store = store
             interceptor._service = service
-            interceptor._retriever = WorkExperienceRetriever(store=store, max_results=5)
+            interceptor._retriever = WorkExperienceRetriever(
+                store=store,
+                max_results=5,
+            )
 
             query1 = "思考一下如何让别的局域网电脑使用你"
             query2 = "思考一下如何让别的电脑安装你"
@@ -613,7 +735,9 @@ class TestChatTurnUpdateInsteadOfCreate:
             card1_id = result1["experience_id"]
 
             all_cards_after_1 = store.list_all(include_disabled=True)
-            assert len(all_cards_after_1) == 1, "After first chat: exactly 1 card"
+            assert (
+                len(all_cards_after_1) == 1
+            ), "After first chat: exactly 1 card"
 
             # Second similar chat turn — should UPDATE same card
             result2 = interceptor.post_chat_turn(
@@ -628,8 +752,9 @@ class TestChatTurnUpdateInsteadOfCreate:
             card2_id = result2["experience_id"]
 
             all_cards_after_2 = store.list_all(include_disabled=True)
-            assert len(all_cards_after_2) == 1, \
-                f"After second similar chat: still 1 card (updated), got {len(all_cards_after_2)}"
+            assert (
+                len(all_cards_after_2) == 1
+            ), f"After second similar chat: still 1 card (updated), got {len(all_cards_after_2)}"
 
             # Same card was updated
             assert card1_id == card2_id, "Same card ID — update, not create"
@@ -641,18 +766,26 @@ class TestChatTurnUpdateInsteadOfCreate:
         """Consecutive similar chat turns increase maturity_score."""
         with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_LAYER": "true"}):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             store = LocalWorkExperienceStore(root=tmp_path / "we_maturity")
-            from hubos.core.work_experience.service import WorkExperienceService
+            from hubos.core.work_experience.service import (
+                WorkExperienceService,
+            )
+
             service = WorkExperienceService(store=store)
             interceptor = get_work_experience_interceptor()
             interceptor._store = store
             interceptor._service = service
-            interceptor._retriever = WorkExperienceRetriever(store=store, max_results=5)
+            interceptor._retriever = WorkExperienceRetriever(
+                store=store,
+                max_results=5,
+            )
 
             query1 = "思考一下如何让别的局域网电脑使用你"
             query2 = "思考一下如何让别的电脑安装你"
@@ -681,8 +814,9 @@ class TestChatTurnUpdateInsteadOfCreate:
             card_after_2 = store.list_all(include_disabled=True)[0]
             maturity_after_2 = card_after_2.maturity_score
 
-            assert maturity_after_2 > maturity_after_1, \
-                f"maturity_score grew: {maturity_after_1} → {maturity_after_2}"
+            assert (
+                maturity_after_2 > maturity_after_1
+            ), f"maturity_score grew: {maturity_after_1} → {maturity_after_2}"
 
     def test_experience_level_promotes_on_updates(
         self,
@@ -691,20 +825,28 @@ class TestChatTurnUpdateInsteadOfCreate:
         """Multiple similar chat turns promote level: NEW → OBSERVED → MATURE."""
         with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_LAYER": "true"}):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             from hubos.core.work_experience import ExperienceLevel
 
             store = LocalWorkExperienceStore(root=tmp_path / "we_level")
-            from hubos.core.work_experience.service import WorkExperienceService
+            from hubos.core.work_experience.service import (
+                WorkExperienceService,
+            )
+
             service = WorkExperienceService(store=store)
             interceptor = get_work_experience_interceptor()
             interceptor._store = store
             interceptor._service = service
-            interceptor._retriever = WorkExperienceRetriever(store=store, max_results=5)
+            interceptor._retriever = WorkExperienceRetriever(
+                store=store,
+                max_results=5,
+            )
 
             queries = [
                 "思考一下如何让别的局域网电脑使用你",
@@ -727,8 +869,10 @@ class TestChatTurnUpdateInsteadOfCreate:
             # maturity starts at 40 (0.8 * 50), +10 per high-confidence update
             # = 40 + 10 + 10 = 60 (OBSERVED threshold)
             # With 3 updates it should be at least OBSERVED
-            assert card.experience_level in (ExperienceLevel.OBSERVED, ExperienceLevel.MATURE), \
-                f"Expected OBSERVED or MATURE, got {card.experience_level}"
+            assert card.experience_level in (
+                ExperienceLevel.OBSERVED,
+                ExperienceLevel.MATURE,
+            ), f"Expected OBSERVED or MATURE, got {card.experience_level}"
 
     def test_different_chats_create_separate_cards(
         self,
@@ -737,18 +881,26 @@ class TestChatTurnUpdateInsteadOfCreate:
         """Dissimilar chats create separate cards (not merged)."""
         with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_LAYER": "true"}):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             store = LocalWorkExperienceStore(root=tmp_path / "we_separate")
-            from hubos.core.work_experience.service import WorkExperienceService
+            from hubos.core.work_experience.service import (
+                WorkExperienceService,
+            )
+
             service = WorkExperienceService(store=store)
             interceptor = get_work_experience_interceptor()
             interceptor._store = store
             interceptor._service = service
-            interceptor._retriever = WorkExperienceRetriever(store=store, max_results=5)
+            interceptor._retriever = WorkExperienceRetriever(
+                store=store,
+                max_results=5,
+            )
 
             interceptor.post_chat_turn(
                 session_id="chat-session-sep",
@@ -770,8 +922,9 @@ class TestChatTurnUpdateInsteadOfCreate:
 
             all_cards = store.list_all(include_disabled=True)
             # Two very different queries → two separate cards
-            assert len(all_cards) == 2, \
-                f"Different topics → separate cards: got {len(all_cards)}"
+            assert (
+                len(all_cards) == 2
+            ), f"Different topics → separate cards: got {len(all_cards)}"
 
     def test_update_preserves_and_extends_what_worked(
         self,
@@ -780,18 +933,26 @@ class TestChatTurnUpdateInsteadOfCreate:
         """Update merges what_worked lists from consecutive similar chats."""
         with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_LAYER": "true"}):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             store = LocalWorkExperienceStore(root=tmp_path / "we_worked")
-            from hubos.core.work_experience.service import WorkExperienceService
+            from hubos.core.work_experience.service import (
+                WorkExperienceService,
+            )
+
             service = WorkExperienceService(store=store)
             interceptor = get_work_experience_interceptor()
             interceptor._store = store
             interceptor._service = service
-            interceptor._retriever = WorkExperienceRetriever(store=store, max_results=5)
+            interceptor._retriever = WorkExperienceRetriever(
+                store=store,
+                max_results=5,
+            )
 
             interceptor.post_chat_turn(
                 session_id="chat-session-worked",
@@ -818,8 +979,9 @@ class TestChatTurnUpdateInsteadOfCreate:
             what_worked_2 = list(card2.what_worked)
 
             # what_worked should be merged (union), not replaced
-            assert len(what_worked_2) >= len(what_worked_1), \
-                f"what_worked extended: {what_worked_1} → {what_worked_2}"
+            assert len(what_worked_2) >= len(
+                what_worked_1,
+            ), f"what_worked extended: {what_worked_1} → {what_worked_2}"
 
     def test_new_card_applies_compression_on_first_creation(
         self,
@@ -828,18 +990,26 @@ class TestChatTurnUpdateInsteadOfCreate:
         """First card creation filters generic phrases via compression."""
         with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_LAYER": "true"}):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             store = LocalWorkExperienceStore(root=tmp_path / "we_compress_new")
-            from hubos.core.work_experience.service import WorkExperienceService
+            from hubos.core.work_experience.service import (
+                WorkExperienceService,
+            )
+
             service = WorkExperienceService(store=store)
             interceptor = get_work_experience_interceptor()
             interceptor._store = store
             interceptor._service = service
-            interceptor._retriever = WorkExperienceRetriever(store=store, max_results=5)
+            interceptor._retriever = WorkExperienceRetriever(
+                store=store,
+                max_results=5,
+            )
 
             result = interceptor.post_chat_turn(
                 session_id="chat-compress-new",
@@ -859,16 +1029,20 @@ class TestChatTurnUpdateInsteadOfCreate:
             # "Delivered a response in console via agent default"
             # Those should be stripped or the whole item removed
             for item in card.what_worked:
-                assert "handled chat request" not in item.lower(), \
-                    f"Generic phrase not stripped from what_worked: {item}"
-                assert "delivered a response" not in item.lower(), \
-                    f"Generic phrase not stripped from what_worked: {item}"
-                assert "response summary" not in item.lower(), \
-                    f"Generic phrase not stripped from what_worked: {item}"
+                assert (
+                    "handled chat request" not in item.lower()
+                ), f"Generic phrase not stripped from what_worked: {item}"
+                assert (
+                    "delivered a response" not in item.lower()
+                ), f"Generic phrase not stripped from what_worked: {item}"
+                assert (
+                    "response summary" not in item.lower()
+                ), f"Generic phrase not stripped from what_worked: {item}"
 
             # guidance should be bounded (compressed)
-            assert len(card.guidance) <= 120, \
-                f"guidance too long ({len(card.guidance)} chars): {card.guidance}"
+            assert (
+                len(card.guidance) <= 120
+            ), f"guidance too long ({len(card.guidance)} chars): {card.guidance}"
 
     def test_enrichment_failure_still_creates_compressed_card(
         self,
@@ -883,18 +1057,26 @@ class TestChatTurnUpdateInsteadOfCreate:
         """
         with patch.dict(os.environ, {"ENABLE_WORK_EXPERIENCE_LAYER": "true"}):
             from hubos.core.infra.feature_flags import reload_feature_flags
+
             reload_feature_flags()
 
             import hubos.core.work_experience.integration as integ_mod
+
             integ_mod._interceptor = None
 
             store = LocalWorkExperienceStore(root=tmp_path / "we_enrich_fail")
-            from hubos.core.work_experience.service import WorkExperienceService
+            from hubos.core.work_experience.service import (
+                WorkExperienceService,
+            )
+
             service = WorkExperienceService(store=store)
             interceptor = get_work_experience_interceptor()
             interceptor._store = store
             interceptor._service = service
-            interceptor._retriever = WorkExperienceRetriever(store=store, max_results=5)
+            interceptor._retriever = WorkExperienceRetriever(
+                store=store,
+                max_results=5,
+            )
 
             # Patch _enrich_chat_reflection_report to raise TypeError
             def raise_error(*args, **kwargs):

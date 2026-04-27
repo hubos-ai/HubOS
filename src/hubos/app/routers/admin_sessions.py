@@ -156,7 +156,9 @@ def _load_session_messages(
             state = json.load(f)
     except Exception as exc:  # pragma: no cover - corrupt file
         logger.warning(
-            "admin_sessions: failed to parse session state %s: %s", path, exc,
+            "admin_sessions: failed to parse session state %s: %s",
+            path,
+            exc,
         )
         return []
 
@@ -186,7 +188,8 @@ def _load_session_messages(
 
 
 def _infer_started(
-    chat: dict[str, Any], messages: list[dict[str, Any]],
+    chat: dict[str, Any],
+    messages: list[dict[str, Any]],
 ) -> str:
     """Pick the best 'started' timestamp for the summary row."""
     created = chat.get("created_at")
@@ -253,7 +256,9 @@ def _scan_workspaces(*, load_message_counts: bool) -> list[dict[str, Any]]:
                 continue
             rows.append(
                 _summarise_chat(
-                    agent_dir.name, chat, load_messages=load_message_counts,
+                    agent_dir.name,
+                    chat,
+                    load_messages=load_message_counts,
                 ),
             )
     return rows
@@ -412,7 +417,8 @@ async def list_sessions(
     # session_id so the workspace copy wins when both sources have the row.
     try:
         l4_rows = _get_store().list_sessions(
-            start_date=start_date, end_date=end_date,
+            start_date=start_date,
+            end_date=end_date,
         )
     except Exception as exc:  # pragma: no cover - L4 is best-effort here
         logger.debug("admin_sessions: L4 list_sessions failed: %s", exc)

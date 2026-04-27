@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Host-application agent adapter as a hubos.core WorkerProvider.
 
 This module deliberately avoids importing anything from the surrounding host
@@ -21,6 +22,7 @@ The worker handles cancellation, timeout, error normalization and packaging
 into :class:`WorkerResult`; the host runner only needs to do "given prompt,
 return assistant text".
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -42,16 +44,14 @@ logger = logging.getLogger(__name__)
 
 
 HostAgentRunner = Callable[[str, str, dict[str, Any]], Awaitable[str]]
-"""(agent_id, prompt, context) -> response_text.
-
-Implementations should:
-- treat ``prompt`` as a single self-contained natural-language request
-- treat ``context`` as best-effort hints (session_id, user_id, channel, …);
-  ignoring it is acceptable
-- return the final assistant text as a plain string
-- raise on unrecoverable errors (timeout/cancellation will be wrapped by the
-  worker into ``WorkerTimeoutError`` / ``WorkerExecutionError``)
-"""
+# (agent_id, prompt, context) -> response_text.
+#
+# Implementations should:
+# - treat ``prompt`` as a single self-contained natural-language request
+# - treat ``context`` as best-effort hints (session_id, user_id, channel, …);
+#   must not crash if keys are missing
+# - return the final assistant response as a plain string
+# - raise on failure (worker will catch and normalise)
 
 
 class HostAgentWorker(WorkerProvider):
@@ -63,15 +63,17 @@ class HostAgentWorker(WorkerProvider):
     Coordinator without forking ``hubos.core``.
     """
 
-    DEFAULT_SUPPORTED_TASKS = frozenset({
-        "general",
-        "research",
-        "analysis",
-        "summary",
-        "execution",
-        "planning",
-        "review",
-    })
+    DEFAULT_SUPPORTED_TASKS = frozenset(
+        {
+            "general",
+            "research",
+            "analysis",
+            "summary",
+            "execution",
+            "planning",
+            "review",
+        },
+    )
 
     DEFAULT_PROMPT_KEYS = ("prompt", "input_text", "goal", "query", "content")
 
@@ -95,7 +97,10 @@ class HostAgentWorker(WorkerProvider):
             if supported_tasks is not None
             else self.DEFAULT_SUPPORTED_TASKS
         )
-        self._default_confidence = max(0.0, min(1.0, float(default_confidence)))
+        self._default_confidence = max(
+            0.0,
+            min(1.0, float(default_confidence)),
+        )
 
     @property
     def name(self) -> str:
@@ -115,7 +120,7 @@ class HostAgentWorker(WorkerProvider):
         prompt = self._extract_prompt(input_data)
         if not prompt:
             raise WorkerExecutionError(
-                f"input_data must contain one of {self.DEFAULT_PROMPT_KEYS!r}"
+                f"input_data must contain one of {self.DEFAULT_PROMPT_KEYS!r}",
             )
         context = dict(input_data.get("context") or {})
 
@@ -139,7 +144,11 @@ class HostAgentWorker(WorkerProvider):
             elapsed_ms = int((time.time() - start) * 1000)
             logger.warning(
                 "HostAgentWorker timed out",
-                extra={"unit_id": str(unit_id), "agent_id": self._agent_id, "elapsed_ms": elapsed_ms},
+                extra={
+                    "unit_id": str(unit_id),
+                    "agent_id": self._agent_id,
+                    "elapsed_ms": elapsed_ms,
+                },
             )
             raise WorkerTimeoutError(
                 f"Host agent {self._agent_id!r} timed out after {timeout_seconds}s",
@@ -153,7 +162,11 @@ class HostAgentWorker(WorkerProvider):
             elapsed_ms = int((time.time() - start) * 1000)
             logger.exception(
                 "HostAgentWorker failed",
-                extra={"unit_id": str(unit_id), "agent_id": self._agent_id, "elapsed_ms": elapsed_ms},
+                extra={
+                    "unit_id": str(unit_id),
+                    "agent_id": self._agent_id,
+                    "elapsed_ms": elapsed_ms,
+                },
             )
             raise WorkerExecutionError(
                 f"Host agent {self._agent_id!r} failed: {type(e).__name__}: {e}",
@@ -165,7 +178,11 @@ class HostAgentWorker(WorkerProvider):
             raise WorkerExecutionError(
                 f"Host agent {self._agent_id!r} returned None",
             )
-        text = response_text if isinstance(response_text, str) else str(response_text)
+        text = (
+            response_text
+            if isinstance(response_text, str)
+            else str(response_text)
+        )
 
         return WorkerResult(
             provider=self.name,

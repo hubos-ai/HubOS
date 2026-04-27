@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for agent routing integration V1."""
 
 import tempfile
@@ -331,7 +332,10 @@ class TestAgentRoutingWithDisabled:
         registry.disable_agent(agent.agent_id)
 
         # Add new tag
-        registry.update_agent(agent.agent_id, routing_tags=["coding", "new-tag"])
+        registry.update_agent(
+            agent.agent_id,
+            routing_tags=["coding", "new-tag"],
+        )
 
         # Should still not be found with either tag (disabled)
         found = registry.get_agent_by_tags(["coding"])

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Execution Loop MVP - Orchestrator.
 
 Wires together workflow execution with existing agent registry and workflow presets.
@@ -30,18 +31,21 @@ logger = logging.getLogger(__name__)
 def _get_task_store() -> "TaskStore":
     """Lazy import to avoid circular import."""
     from hubos.core.execution import get_task_store as _get
+
     return _get()
 
 
 def _get_event_store() -> "EventStore":
     """Lazy import to avoid circular import."""
     from hubos.core.execution import get_event_store as _get
+
     return _get()
 
 
 def _get_feature_flags():
     """Lazy import to avoid circular import."""
     from hubos.core.infra.feature_flags import get_feature_flags as _get
+
     return _get()
 
 
@@ -72,13 +76,20 @@ class ExecutionOrchestrator:
     def camel_backend(self):
         """Lazy load CAMEL backend."""
         if self._camel_backend is None:
-            from hubos.core.execution.backends import get_camel_backend, CAMELCallbacks
+            from hubos.core.execution.backends import (
+                get_camel_backend,
+                CAMELCallbacks,
+            )
+
             callbacks = CAMELCallbacks(
                 task_id="",  # Will be set per-task
                 trace_id="",
                 event_store=self._event_store,
             )
-            self._camel_backend = get_camel_backend(use_mock=False, callbacks=callbacks)
+            self._camel_backend = get_camel_backend(
+                use_mock=False,
+                callbacks=callbacks,
+            )
         return self._camel_backend
 
     def _select_backend(self, task: Task) -> tuple[str, Optional[Any]]:
@@ -93,7 +104,10 @@ class ExecutionOrchestrator:
 
         # Check if parallel workflow is requested
         if task.requested_workflow == "parallel_dynamic_v1":
-            if flags.enable_camel_backend and flags.enable_parallel_workflow_v1:
+            if (
+                flags.enable_camel_backend
+                and flags.enable_parallel_workflow_v1
+            ):
                 # Try to use CAMEL backend
                 try:
                     return ("camel", self.camel_backend)
@@ -116,7 +130,9 @@ class ExecutionOrchestrator:
 
         Controlled by ENABLE_WORK_EXPERIENCE_LAYER feature flag.
         """
-        from hubos.core.work_experience.integration import get_work_experience_interceptor
+        from hubos.core.work_experience.integration import (
+            get_work_experience_interceptor,
+        )
 
         from hubos.core.infra.feature_flags import get_feature_flags
 
@@ -133,7 +149,9 @@ class ExecutionOrchestrator:
                     data={
                         "card_count": len(cards),
                         "card_ids": [c.get("experience_id") for c in cards],
-                        "top_titles": [c.get("title", "")[:60] for c in cards[:3]],
+                        "top_titles": [
+                            c.get("title", "")[:60] for c in cards[:3]
+                        ],
                     },
                 )
         except Exception as exc:
@@ -181,6 +199,7 @@ class ExecutionOrchestrator:
         """Lazy load agent registry."""
         if self._agent_registry is None:
             from hubos.core.infra.agent_registry import get_agent_registry
+
             self._agent_registry = get_agent_registry()
         return self._agent_registry
 
@@ -231,9 +250,12 @@ class ExecutionOrchestrator:
 
         # Record metrics
         from hubos.core.infra.metrics import get_metrics_service
+
         metrics = get_metrics_service()
         metrics.record_task_submit()
-        metrics.update_task_queue_depth(self._task_store.list_tasks().__len__())
+        metrics.update_task_queue_depth(
+            self._task_store.list_tasks().__len__(),
+        )
 
         logger.info(f"Task submitted: {task.task_id} trace_id={task.trace_id}")
         return task
@@ -249,14 +271,20 @@ class ExecutionOrchestrator:
             Updated Task object
         """
         from hubos.core.infra.metrics import get_metrics_service
+
         metrics = get_metrics_service()
 
         task = self._task_store.get_task(task_id)
         if not task:
             raise ValueError(f"Task not found: {task_id}")
 
-        if task.current_status not in (TaskStatus.RECEIVED, TaskStatus.PLANNED):
-            raise ValueError(f"Task {task_id} is not in executable state: {task.current_status}")
+        if task.current_status not in (
+            TaskStatus.RECEIVED,
+            TaskStatus.PLANNED,
+        ):
+            raise ValueError(
+                f"Task {task_id} is not in executable state: {task.current_status}",
+            )
 
         # Select backend
         backend_name, backend = self._select_backend(task)
@@ -301,7 +329,10 @@ class ExecutionOrchestrator:
             backend: CAMEL backend instance
         """
         from hubos.core.workflow import get_preset
-        from hubos.core.execution.backends import BranchDefinition, MergeDefinition
+        from hubos.core.execution.backends import (
+            BranchDefinition,
+            MergeDefinition,
+        )
 
         # Get workflow preset
         preset = get_preset(task.requested_workflow)
@@ -338,7 +369,9 @@ class ExecutionOrchestrator:
         )
 
         if not success:
-            raise Exception(f"CAMEL execution failed: {dag_result.final_output}")
+            raise Exception(
+                f"CAMEL execution failed: {dag_result.final_output}",
+            )
 
         # Update task with results
         # Map branch outputs to stage outputs
@@ -366,7 +399,10 @@ class ExecutionOrchestrator:
             event_type=EventType.TASK_COMPLETED,
             from_status="running",
             to_status="done",
-            data={"confidence": final_response.get("confidence", 0), "backend": "camel"},
+            data={
+                "confidence": final_response.get("confidence", 0),
+                "backend": "camel",
+            },
         )
 
         self._persist_work_experience_from_task(task)
@@ -376,6 +412,7 @@ class ExecutionOrchestrator:
     def _execute_workflow(self, task: Task) -> None:
         """Execute workflow stages for a task."""
         from hubos.core.infra.metrics import get_metrics_service
+
         metrics = get_metrics_service()
 
         workflow_name = task.requested_workflow
@@ -420,21 +457,39 @@ class ExecutionOrchestrator:
                     self._apply_fallback(task, stage, fallback)
                 else:
                     if stage_def.required:
-                        self._fail_stage(task, stage, f"No agent available for role: {stage_def.role}")
-                        raise ValueError(f"Required stage {stage.value} failed: no agent")
+                        self._fail_stage(
+                            task,
+                            stage,
+                            f"No agent available for role: {stage_def.role}",
+                        )
+                        raise ValueError(
+                            f"Required stage {stage.value} failed: no agent",
+                        )
                     else:
-                        self._skip_stage(task, stage, "Role not available, optional stage")
+                        self._skip_stage(
+                            task,
+                            stage,
+                            "Role not available, optional stage",
+                        )
                 continue
 
             # Execute stage
             stage_start = time.time()
             try:
-                output = self._execute_stage(task, stage, stage_def, available_roles)
+                output = self._execute_stage(
+                    task,
+                    stage,
+                    stage_def,
+                    available_roles,
+                )
                 stage_outputs[stage.value] = output
                 stage_duration_ms = (time.time() - stage_start) * 1000
 
                 # Record stage duration metric
-                metrics.record_task_stage_duration(stage.value, stage_duration_ms)
+                metrics.record_task_stage_duration(
+                    stage.value,
+                    stage_duration_ms,
+                )
 
                 # Update stage as completed
                 self._task_store.update_stage_status(
@@ -455,13 +510,18 @@ class ExecutionOrchestrator:
 
             except Exception as e:
                 stage_duration_ms = (time.time() - stage_start) * 1000
-                metrics.record_task_stage_duration(stage.value, stage_duration_ms)
+                metrics.record_task_stage_duration(
+                    stage.value,
+                    stage_duration_ms,
+                )
                 logger.exception(f"Stage {stage.value} failed: {e}")
 
                 # Check if we should retry
                 if self._should_retry_stage(task, stage):
                     retry_count = self._get_stage_retry_count(task, stage)
-                    logger.info(f"Retrying stage {stage.value} (attempt {retry_count + 1})")
+                    logger.info(
+                        f"Retrying stage {stage.value} (attempt {retry_count + 1})",
+                    )
                     self._increment_stage_retry(task, stage)
                     # Retry the stage
                     continue
@@ -469,7 +529,11 @@ class ExecutionOrchestrator:
                     self._fail_stage(task, stage, str(e))
                     raise
                 else:
-                    self._skip_stage(task, stage, f"Stage failed (optional): {str(e)}")
+                    self._skip_stage(
+                        task,
+                        stage,
+                        f"Stage failed (optional): {str(e)}",
+                    )
 
         # Generate final response
         final_response = self._generate_response(task, stage_outputs)
@@ -498,7 +562,10 @@ class ExecutionOrchestrator:
         """Check which roles have available agents."""
         available = {}
         for role in ["ceo", "info", "dev", "review"]:
-            agents = self.agent_registry.list_agents(role=role, status="enabled")
+            agents = self.agent_registry.list_agents(
+                role=role,
+                status="enabled",
+            )
             available[role] = len(agents) > 0
         return available
 
@@ -519,16 +586,28 @@ class ExecutionOrchestrator:
             self._skip_stage(task, stage, fallback.reason)
         elif action == FallbackAction.DEGRADE:
             # Use alternative role if available
-            alt_roles = getattr(fallback, 'alternative_roles', [])
+            alt_roles = getattr(fallback, "alternative_roles", [])
             if alt_roles:
                 # For now, just skip - degradation would need more complex logic
                 self._skip_stage(task, stage, f"Degraded: {fallback.reason}")
             else:
-                self._skip_stage(task, stage, f"No alternative available: {fallback.reason}")
+                self._skip_stage(
+                    task,
+                    stage,
+                    f"No alternative available: {fallback.reason}",
+                )
         elif action == FallbackAction.FAIL:
-            self._fail_stage(task, stage, f"Failed by fallback rule: {fallback.reason}")
+            self._fail_stage(
+                task,
+                stage,
+                f"Failed by fallback rule: {fallback.reason}",
+            )
         else:
-            self._skip_stage(task, stage, f"Fallback action {action}: {fallback.reason}")
+            self._skip_stage(
+                task,
+                stage,
+                f"Fallback action {action}: {fallback.reason}",
+            )
 
     def _execute_stage(
         self,
@@ -567,12 +646,19 @@ class ExecutionOrchestrator:
                 input_text=task.input_text,
                 context={
                     "task_id": task.task_id,
-                    "work_experience_cards": getattr(task, "work_experience_cards", []) or [],
+                    "work_experience_cards": getattr(
+                        task,
+                        "work_experience_cards",
+                        [],
+                    )
+                    or [],
                 },
             )
 
             if result.success:
-                logger.info(f"[{stage_name.upper()}] LLM generated {len(result.text)} chars")
+                logger.info(
+                    f"[{stage_name.upper()}] LLM generated {len(result.text)} chars",
+                )
                 # Phase 6: Record effective use for successfully injected cards
                 cards = getattr(task, "work_experience_cards", []) or []
                 if cards:
@@ -582,14 +668,23 @@ class ExecutionOrchestrator:
                             "task_id": task.task_id,
                             "stage": stage_name,
                             "injected_card_count": len(cards),
-                            "injected_card_ids": [c.get("experience_id") for c in cards],
-                            "injected_card_titles": [c.get("title", "")[:60] for c in cards],
+                            "injected_card_ids": [
+                                c.get("experience_id") for c in cards
+                            ],
+                            "injected_card_titles": [
+                                c.get("title", "")[:60] for c in cards
+                            ],
                             "response_chars": len(result.text),
                         },
                     )
                     try:
-                        from hubos.core.work_experience.integration import get_work_experience_interceptor
-                        get_work_experience_interceptor().record_effective_uses(cards)
+                        from hubos.core.work_experience.integration import (
+                            get_work_experience_interceptor,
+                        )
+
+                        get_work_experience_interceptor().record_effective_uses(
+                            cards,
+                        )
                     except Exception:
                         pass  # Never let effective-use tracking block execution
                 return {
@@ -598,7 +693,9 @@ class ExecutionOrchestrator:
                     "confidence": 0.9 if result.text else 0.5,
                 }
             else:
-                logger.warning(f"[{stage_name.upper()}] LLM failed: {result.error}, using fallback")
+                logger.warning(
+                    f"[{stage_name.upper()}] LLM failed: {result.error}, using fallback",
+                )
                 return self._execute_stage_mock(task, stage)
 
         except Exception as e:
@@ -615,6 +712,7 @@ class ExecutionOrchestrator:
         DEPRECATED: Only used when ENABLE_REAL_MODEL_EXECUTION=false.
         """
         import time
+
         time.sleep(0.01)  # Simulate minimal work
 
         return {
@@ -629,7 +727,7 @@ class ExecutionOrchestrator:
         if stage_key not in task.stage_statuses:
             return False
         stage_status = task.stage_statuses[stage_key]
-        max_retries = getattr(task, 'max_retries', 3)
+        max_retries = getattr(task, "max_retries", 3)
         return stage_status.retry_count < max_retries
 
     def _get_stage_retry_count(self, task: Task, stage: TaskStage) -> int:
@@ -650,7 +748,11 @@ class ExecutionOrchestrator:
             )
         task.stage_statuses[stage_key].retry_count += 1
 
-    def _generate_response(self, task: Task, stage_outputs: dict[str, Any]) -> dict[str, Any]:
+    def _generate_response(
+        self,
+        task: Task,
+        stage_outputs: dict[str, Any],
+    ) -> dict[str, Any]:
         """Generate final response from stage outputs.
 
         Priority for response_text:
@@ -702,7 +804,9 @@ class ExecutionOrchestrator:
         for output in stage_outputs.values():
             if output:
                 total_confidence += output.get("confidence", 0.5)
-        avg_confidence = total_confidence / len(stage_outputs) if stage_outputs else 0.0
+        avg_confidence = (
+            total_confidence / len(stage_outputs) if stage_outputs else 0.0
+        )
 
         return {
             # response_text is the user-facing response (cleaned, from review if available)
@@ -795,6 +899,7 @@ class ExecutionOrchestrator:
     def enter_human_gate(self, task_id: str, reason: str) -> Task:
         """Move task to human gate for manual intervention."""
         from hubos.core.infra.metrics import get_metrics_service
+
         metrics = get_metrics_service()
 
         task = self._task_store.get_task(task_id)
@@ -873,7 +978,10 @@ class ExecutionOrchestrator:
             self._task_store.set_requires_human(task.task_id, False)
             return task
 
-    def get_task_with_events(self, task_id: str) -> tuple[Optional[Task], list[ExecutionEvent]]:
+    def get_task_with_events(
+        self,
+        task_id: str,
+    ) -> tuple[Optional[Task], list[ExecutionEvent]]:
         """Get task with its event history."""
         task = self._task_store.get_task(task_id)
         events = self._event_store.get_events(task_id) if task else []

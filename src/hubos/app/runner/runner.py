@@ -339,7 +339,9 @@ class AgentRunner(Runner):
                     session_id=session_id,
                     channel=channel,
                 )
-                work_experience_cards = interceptor.pre_execute(experience_task)
+                work_experience_cards = interceptor.pre_execute(
+                    experience_task,
+                )
                 work_guidance = _build_chat_work_guidance(
                     work_experience_cards,
                 )
@@ -531,7 +533,7 @@ class AgentRunner(Runner):
                         channel=channel,
                         agent_id=self.agent_id,
                         execution_time_ms=int(
-                            (time.time() - chat_turn_started_at) * 1000
+                            (time.time() - chat_turn_started_at) * 1000,
                         ),
                     )
                 except Exception:

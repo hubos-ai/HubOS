@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Tests for solo-hub direct WeChat channel when disabled.
 
 When RUNTIME_WECHAT_DIRECT=false:
@@ -37,13 +38,19 @@ class TestNoDirectChannelWhenDisabled:
 
     def test_openwork_wechat_channel_disabled(self):
         """Test OPENWORK_WECHAT_CHANNEL can be disabled."""
-        with patch.dict("os.environ", {"ENABLE_OPENWORK_WECHAT_CHANNEL": "false"}):
+        with patch.dict(
+            "os.environ",
+            {"ENABLE_OPENWORK_WECHAT_CHANNEL": "false"},
+        ):
             flags = FeatureFlags.from_env()
             assert flags.enable_openwork_wechat_channel is False
 
     def test_openwork_channel_to_runtime_disabled(self):
         """Test OPENWORK_CHANNEL_TO_RUNTIME can be disabled."""
-        with patch.dict("os.environ", {"ENABLE_OPENWORK_CHANNEL_TO_RUNTIME": "false"}):
+        with patch.dict(
+            "os.environ",
+            {"ENABLE_OPENWORK_CHANNEL_TO_RUNTIME": "false"},
+        ):
             flags = FeatureFlags.from_env()
             assert flags.enable_openwork_channel_to_runtime is False
 
@@ -82,7 +89,9 @@ class TestNoDirectChannelWhenDisabled:
         flags.enable_runtime_wechat_direct = False
 
         # When direct mode is disabled, poller should NOT be started by solo-hub
-        should_start_poller = flags.enable_wechat_poller and flags.enable_runtime_wechat_direct
+        should_start_poller = (
+            flags.enable_wechat_poller and flags.enable_runtime_wechat_direct
+        )
         assert should_start_poller is False
 
     def test_poller_started_when_direct_mode_enabled(self):
@@ -92,7 +101,9 @@ class TestNoDirectChannelWhenDisabled:
         flags.enable_runtime_wechat_direct = True
 
         # When direct mode is enabled, poller CAN be started by solo-hub
-        should_start_poller = flags.enable_wechat_poller and flags.enable_runtime_wechat_direct
+        should_start_poller = (
+            flags.enable_wechat_poller and flags.enable_runtime_wechat_direct
+        )
         assert should_start_poller is True
 
 
@@ -213,7 +224,7 @@ class TestChannelMapping:
             channel_session_id: {
                 "openwork_session_id": openwork_session_id,
                 "runtime_task_id": runtime_task_id,
-            }
+            },
         }
 
         # Verify chain
@@ -249,5 +260,7 @@ class TestFlagRollbackBehavior:
         assert flags.enable_wechat_poller is True
 
         # The combination means poller SHOULD start
-        should_start = flags.enable_wechat_poller and flags.enable_runtime_wechat_direct
+        should_start = (
+            flags.enable_wechat_poller and flags.enable_runtime_wechat_direct
+        )
         assert should_start is True

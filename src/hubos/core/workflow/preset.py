@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Workflow Preset Service - Golden Workflow Definition and Execution.
 
 Provides:
@@ -19,24 +20,27 @@ logger = logging.getLogger(__name__)
 
 class WorkflowStage(str, Enum):
     """Standard workflow stages."""
-    CEO = "ceo"           # Strategic planning
-    INFO = "info"         # Information gathering
-    DEV = "dev"          # Development
-    REVIEW = "review"     # Code review
-    SUMMARY = "summary"   # Final summary
+
+    CEO = "ceo"  # Strategic planning
+    INFO = "info"  # Information gathering
+    DEV = "dev"  # Development
+    REVIEW = "review"  # Code review
+    SUMMARY = "summary"  # Final summary
 
 
 class FallbackAction(str, Enum):
     """Fallback action when a role is unavailable."""
-    SKIP = "skip"                    # Skip this stage
-    USE_NEXT_AVAILABLE = "next"      # Use next available role
-    FAIL = "fail"                    # Fail the workflow
-    DEGRADE = "degrade"             # Continue with reduced quality
+
+    SKIP = "skip"  # Skip this stage
+    USE_NEXT_AVAILABLE = "next"  # Use next available role
+    FAIL = "fail"  # Fail the workflow
+    DEGRADE = "degrade"  # Continue with reduced quality
 
 
 @dataclass
 class FallbackRule:
     """Fallback rule for a missing role."""
+
     missing_role: str
     action: FallbackAction
     alternative_roles: list[str] = field(default_factory=list)
@@ -46,6 +50,7 @@ class FallbackRule:
 @dataclass
 class StageDefinition:
     """Definition of a workflow stage."""
+
     stage: WorkflowStage
     role: str
     input_template: str
@@ -57,12 +62,15 @@ class StageDefinition:
 @dataclass
 class WorkflowPreset:
     """Workflow preset definition."""
+
     name: str
     description: str
     stages: list[StageDefinition]
     fallback_rules: list[FallbackRule]
     output_template: dict[str, Any]
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
 
 
 # Standard stages for one_person_default
@@ -143,13 +151,15 @@ def list_presets() -> list[str]:
 
 
 # Register default preset
-register_preset(WorkflowPreset(
-    name="one_person_default",
-    description="CEO -> INFO -> DEV -> REVIEW workflow for single-person development",
-    stages=ONE_PERSON_DEFAULT_STAGES,
-    fallback_rules=ONE_PERSON_DEFAULT_FALLBACKS,
-    output_template=STANDARD_OUTPUT_TEMPLATE,
-))
+register_preset(
+    WorkflowPreset(
+        name="one_person_default",
+        description="CEO -> INFO -> DEV -> REVIEW workflow for single-person development",
+        stages=ONE_PERSON_DEFAULT_STAGES,
+        fallback_rules=ONE_PERSON_DEFAULT_FALLBACKS,
+        output_template=STANDARD_OUTPUT_TEMPLATE,
+    ),
+)
 
 
 # Parallel Core V1.5 Step 1: Parallel dynamic workflow
@@ -210,18 +220,21 @@ PARALLEL_DYNAMIC_V1_FALLBACKS = [
 ]
 
 # Register parallel workflow
-register_preset(WorkflowPreset(
-    name="parallel_dynamic_v1",
-    description="Parallel CEO planning -> (INFO | DEV | REVIEW) concurrent branches -> CEO summary merge",
-    stages=PARALLEL_DYNAMIC_V1_STAGES,
-    fallback_rules=PARALLEL_DYNAMIC_V1_FALLBACKS,
-    output_template=STANDARD_OUTPUT_TEMPLATE,
-))
+register_preset(
+    WorkflowPreset(
+        name="parallel_dynamic_v1",
+        description="Parallel CEO planning -> (INFO | DEV | REVIEW) concurrent branches -> CEO summary merge",
+        stages=PARALLEL_DYNAMIC_V1_STAGES,
+        fallback_rules=PARALLEL_DYNAMIC_V1_FALLBACKS,
+        output_template=STANDARD_OUTPUT_TEMPLATE,
+    ),
+)
 
 
 @dataclass
 class WorkflowExecution:
     """Record of a workflow execution."""
+
     execution_id: str
     preset_name: str
     input_text: str
@@ -255,6 +268,7 @@ class WorkflowPresetService:
         """Get agent registry (lazy load)."""
         if self._agent_registry is None:
             from hubos.core.infra.agent_registry import get_agent_registry
+
             self._agent_registry = get_agent_registry()
         return self._agent_registry
 
@@ -289,15 +303,19 @@ class WorkflowPresetService:
             input_text=input_text,
             status="running",
             started_at=datetime.now(timezone.utc),
-            execution_log=[{
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "action": "workflow_started",
-                "preset": preset_name,
-            }],
+            execution_log=[
+                {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "action": "workflow_started",
+                    "preset": preset_name,
+                },
+            ],
         )
 
         self._executions[execution_id] = execution
-        logger.info(f"Started workflow execution {execution_id} with preset {preset_name}")
+        logger.info(
+            f"Started workflow execution {execution_id} with preset {preset_name}",
+        )
 
         try:
             # Check available agents for each role
@@ -308,29 +326,42 @@ class WorkflowPresetService:
             stage_outputs = {}
             for stage in preset.stages:
                 stage_result = self._execute_stage(
-                    stage, input_text, available_roles, execution
+                    stage,
+                    input_text,
+                    available_roles,
+                    execution,
                 )
 
                 if stage_result["status"] == "completed":
                     stage_outputs[stage.stage.value] = stage_result["output"]
                     execution.stages_completed.append(stage.stage.value)
-                    execution.execution_log.append({
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "action": "stage_completed",
-                        "stage": stage.stage.value,
-                        "role": stage.role,
-                    })
+                    execution.execution_log.append(
+                        {
+                            "timestamp": datetime.now(
+                                timezone.utc,
+                            ).isoformat(),
+                            "action": "stage_completed",
+                            "stage": stage.stage.value,
+                            "role": stage.role,
+                        },
+                    )
                 elif stage_result["status"] == "skipped":
                     execution.stages_skipped.append(stage.stage.value)
-                    execution.execution_log.append({
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "action": "stage_skipped",
-                        "stage": stage.stage.value,
-                        "reason": stage_result.get("reason", "fallback"),
-                    })
+                    execution.execution_log.append(
+                        {
+                            "timestamp": datetime.now(
+                                timezone.utc,
+                            ).isoformat(),
+                            "action": "stage_skipped",
+                            "stage": stage.stage.value,
+                            "reason": stage_result.get("reason", "fallback"),
+                        },
+                    )
                 elif stage_result["status"] == "failed":
                     if stage.required:
-                        execution.errors.append(f"Required stage {stage.stage.value} failed: {stage_result.get('error')}")
+                        execution.errors.append(
+                            f"Required stage {stage.stage.value} failed: {stage_result.get('error')}",
+                        )
                         execution.status = "failed"
                         execution.completed_at = datetime.now(timezone.utc)
                         return execution
@@ -344,24 +375,30 @@ class WorkflowPresetService:
             execution.status = "completed"
             execution.completed_at = datetime.now(timezone.utc)
 
-            execution.execution_log.append({
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "action": "workflow_completed",
-                "stages_completed": len(execution.stages_completed),
-                "confidence": execution.confidence,
-            })
+            execution.execution_log.append(
+                {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "action": "workflow_completed",
+                    "stages_completed": len(execution.stages_completed),
+                    "confidence": execution.confidence,
+                },
+            )
 
-            logger.info(f"Workflow execution {execution_id} completed with confidence {execution.confidence}")
+            logger.info(
+                f"Workflow execution {execution_id} completed with confidence {execution.confidence}",
+            )
 
         except Exception as e:
             execution.status = "failed"
             execution.errors.append(str(e))
             execution.completed_at = datetime.now(timezone.utc)
-            execution.execution_log.append({
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "action": "workflow_failed",
-                "error": str(e),
-            })
+            execution.execution_log.append(
+                {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "action": "workflow_failed",
+                    "error": str(e),
+                },
+            )
             logger.exception(f"Workflow execution {execution_id} failed")
 
         return execution
@@ -370,7 +407,10 @@ class WorkflowPresetService:
         """Check which roles have available agents."""
         available = {}
         for role in ["ceo", "info", "dev", "review"]:
-            agents = self.agent_registry.list_agents(role=role, status="enabled")
+            agents = self.agent_registry.list_agents(
+                role=role,
+                status="enabled",
+            )
             available[role] = len(agents) > 0
         return available
 
@@ -389,7 +429,10 @@ class WorkflowPresetService:
             if fallback:
                 return self._apply_fallback(stage, fallback, input_text)
             else:
-                return {"status": "failed", "error": f"No fallback available for {stage.role}"}
+                return {
+                    "status": "failed",
+                    "error": f"No fallback available for {stage.role}",
+                }
 
         # For now, just simulate execution
         return {
@@ -400,7 +443,11 @@ class WorkflowPresetService:
             },
         }
 
-    def _find_fallback(self, missing_role: str, preset_name: str) -> Optional[FallbackRule]:
+    def _find_fallback(
+        self,
+        missing_role: str,
+        preset_name: str,
+    ) -> Optional[FallbackRule]:
         """Find fallback rule for a missing role."""
         preset = get_preset(preset_name)
         if not preset:
@@ -421,7 +468,10 @@ class WorkflowPresetService:
         if fallback.action == FallbackAction.SKIP:
             return {"status": "skipped", "reason": fallback.reason}
         elif fallback.action == FallbackAction.FAIL:
-            return {"status": "failed", "error": f"Required role {stage.role} unavailable: {fallback.reason}"}
+            return {
+                "status": "failed",
+                "error": f"Required role {stage.role} unavailable: {fallback.reason}",
+            }
         elif fallback.action == FallbackAction.DEGRADE:
             if fallback.alternative_roles:
                 return {
@@ -435,7 +485,10 @@ class WorkflowPresetService:
                     "used_role": fallback.alternative_roles[0],
                 }
         elif fallback.action == FallbackAction.USE_NEXT_AVAILABLE:
-            return {"status": "skipped", "reason": "Use next available role (not yet implemented)"}
+            return {
+                "status": "skipped",
+                "reason": "Use next available role (not yet implemented)",
+            }
 
         return {"status": "skipped", "reason": "No fallback available"}
 
@@ -450,7 +503,9 @@ class WorkflowPresetService:
         summaries = []
         for stage_name, output in stage_outputs.items():
             if isinstance(output, dict) and "content" in output:
-                summaries.append(f"[{stage_name.upper()}]\n{output['content']}")
+                summaries.append(
+                    f"[{stage_name.upper()}]\n{output['content']}",
+                )
 
         # Calculate confidence based on stages completed/skipped
         total_stages = len(preset.stages)
@@ -466,7 +521,9 @@ class WorkflowPresetService:
             confidence = 0.5
 
         return {
-            "summary": "\n\n".join(summaries) if summaries else "No output generated",
+            "summary": "\n\n".join(summaries)
+            if summaries
+            else "No output generated",
             "execution_log": execution.execution_log,
             "artifacts": [],  # Would collect from stage outputs
             "confidence": confidence,
@@ -480,10 +537,17 @@ class WorkflowPresetService:
         """Get an execution by ID."""
         return self._executions.get(execution_id)
 
-    def list_executions(self, preset_name: Optional[str] = None) -> list[WorkflowExecution]:
+    def list_executions(
+        self,
+        preset_name: Optional[str] = None,
+    ) -> list[WorkflowExecution]:
         """List all executions, optionally filtered by preset."""
         if preset_name:
-            return [e for e in self._executions.values() if e.preset_name == preset_name]
+            return [
+                e
+                for e in self._executions.values()
+                if e.preset_name == preset_name
+            ]
         return list(self._executions.values())
 
 

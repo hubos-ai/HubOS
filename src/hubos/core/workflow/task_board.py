@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Task Board Service - Minimal Usable Task Tracking.
 
 Provides:
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class BoardColumn(str, Enum):
     """Task board columns."""
+
     RECEIVED = "received"
     PLANNED = "planned"
     RUNNING = "running"
@@ -30,6 +32,7 @@ class BoardColumn(str, Enum):
 @dataclass
 class TaskCard:
     """Task card for the board."""
+
     task_id: str
     column: BoardColumn
     current_stage: str
@@ -45,12 +48,15 @@ class TaskCard:
 @dataclass
 class RecoveryAction:
     """Record of a recovery action."""
+
     action_id: str
     action_type: str  # retry, requeue, resolve_human_gate
     target_task_id: str
     actor: str
     reason: str
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
     outcome: str = "pending"  # pending, success, failed
     details: dict[str, Any] = field(default_factory=dict)
 
@@ -93,7 +99,9 @@ class TaskBoardService:
             session_id=session_id,
         )
         self._tasks[task_id] = card
-        logger.info(f"Task {task_id} added to board at {BoardColumn.RECEIVED.value}")
+        logger.info(
+            f"Task {task_id} added to board at {BoardColumn.RECEIVED.value}",
+        )
         return card
 
     def move_task(
@@ -114,13 +122,17 @@ class TaskBoardService:
         if error:
             card.last_error = error
 
-        logger.info(f"Task {task_id} moved from {old_column.value} to {to_column.value}")
+        logger.info(
+            f"Task {task_id} moved from {old_column.value} to {to_column.value}",
+        )
 
         if to_column == BoardColumn.FAILED:
             logger.warning(f"Task {task_id} failed: {error}")
 
         if to_column == BoardColumn.HUMAN_GATE:
-            logger.warning(f"Task {task_id} requires human intervention: {error}")
+            logger.warning(
+                f"Task {task_id} requires human intervention: {error}",
+            )
 
         return card
 
@@ -201,7 +213,9 @@ class TaskBoardService:
             "previous_column": BoardColumn.FAILED.value,
         }
 
-        logger.info(f"Task {task_id} retried by {actor}, retry count: {card.retry_count}")
+        logger.info(
+            f"Task {task_id} retried by {actor}, retry count: {card.retry_count}",
+        )
 
         return action
 
@@ -300,14 +314,20 @@ class TaskBoardService:
 
         # Move to done or running based on resolution
         if "reject" in resolution.lower():
-            self.move_task(task_id, BoardColumn.FAILED, error=f"Rejected: {resolution}")
+            self.move_task(
+                task_id,
+                BoardColumn.FAILED,
+                error=f"Rejected: {resolution}",
+            )
         else:
             self.move_task(task_id, BoardColumn.RUNNING)
 
         action.outcome = "success"
         action.details = {"resolution": resolution}
 
-        logger.info(f"Task {task_id} human gate resolved by {actor}: {resolution}")
+        logger.info(
+            f"Task {task_id} human gate resolved by {actor}: {resolution}",
+        )
 
         return action
 
@@ -338,7 +358,9 @@ class TaskBoardService:
 
     def get_blocked_count(self) -> int:
         """Get count of blocked tasks (failed + human_gate)."""
-        return len(self.get_column(BoardColumn.FAILED)) + len(self.get_column(BoardColumn.HUMAN_GATE))
+        return len(self.get_column(BoardColumn.FAILED)) + len(
+            self.get_column(BoardColumn.HUMAN_GATE),
+        )
 
 
 # Global service instance

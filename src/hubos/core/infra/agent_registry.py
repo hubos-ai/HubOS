@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Agent Registry - Agent Factory V1.
 
 Provides:
@@ -49,10 +50,12 @@ class AgentStatus(str, Enum):
 class RiskLevel(str, Enum):
     """Risk level for agent operations."""
 
-    LOW = "low"           # Read-only, no system changes
-    MEDIUM = "medium"     # Minor changes, reversible
-    HIGH = "high"         # Significant changes, requires approval
-    CRITICAL = "critical" # System-level changes, requires multi-level approval
+    LOW = "low"  # Read-only, no system changes
+    MEDIUM = "medium"  # Minor changes, reversible
+    HIGH = "high"  # Significant changes, requires approval
+    CRITICAL = (
+        "critical"  # System-level changes, requires multi-level approval
+    )
 
 
 class ModelProvider(str, Enum):
@@ -71,8 +74,8 @@ class Agent:
 
     agent_id: str
     name: str
-    role: str              # e.g., "ceo", "info", "dev", "review"
-    goal: str              # Agent's objective
+    role: str  # e.g., "ceo", "info", "dev", "review"
+    goal: str  # Agent's objective
 
     # Model configuration
     model_provider: ModelProvider
@@ -100,8 +103,12 @@ class Agent:
 
     # Metadata
     version: str = "1.0"
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
+    updated_at: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
     created_by: str = "system"
 
     # Template reference
@@ -114,18 +121,24 @@ class Agent:
             "name": self.name,
             "role": self.role,
             "goal": self.goal,
-            "model_provider": self.model_provider.value if isinstance(self.model_provider, Enum) else self.model_provider,
+            "model_provider": self.model_provider.value
+            if isinstance(self.model_provider, Enum)
+            else self.model_provider,
             "model_name": self.model_name,
             "allowed_tools": self.allowed_tools,
             "max_subagents": self.max_subagents,
             "timeout_seconds": self.timeout_seconds,
             "retry_count": self.retry_count,
-            "risk_level": self.risk_level.value if isinstance(self.risk_level, Enum) else self.risk_level,
+            "risk_level": self.risk_level.value
+            if isinstance(self.risk_level, Enum)
+            else self.risk_level,
             "approval_required_actions": self.approval_required_actions,
             "routing_tags": self.routing_tags,
             "rollout_mode": self.rollout_mode,
             "rollout_ratio": self.rollout_ratio,
-            "status": self.status.value if isinstance(self.status, Enum) else self.status,
+            "status": self.status.value
+            if isinstance(self.status, Enum)
+            else self.status,
             "version": self.version,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
@@ -141,19 +154,32 @@ class Agent:
             name=data["name"],
             role=data["role"],
             goal=data["goal"],
-            model_provider=ModelProvider(data["model_provider"]) if isinstance(data["model_provider"], str) else data["model_provider"],
+            model_provider=ModelProvider(data["model_provider"])
+            if isinstance(data["model_provider"], str)
+            else data["model_provider"],
             model_name=data["model_name"],
             allowed_tools=data.get("allowed_tools", []),
             max_subagents=data.get("max_subagents", 0),
             timeout_seconds=data.get("timeout_seconds", 300),
             retry_count=data.get("retry_count", 3),
-            risk_level=RiskLevel(data["risk_level"]) if isinstance(data["risk_level"], str) else data["risk_level"],
-            approval_required_actions=data.get("approval_required_actions", []),
+            risk_level=RiskLevel(data["risk_level"])
+            if isinstance(data["risk_level"], str)
+            else data["risk_level"],
+            approval_required_actions=data.get(
+                "approval_required_actions",
+                [],
+            ),
             routing_tags=data.get("routing_tags", []),
-            status=AgentStatus(data["status"]) if isinstance(data["status"], str) else data["status"],
+            status=AgentStatus(data["status"])
+            if isinstance(data["status"], str)
+            else data["status"],
             version=data.get("version", "1.0"),
-            created_at=datetime.fromisoformat(data["created_at"]) if isinstance(data["created_at"], str) else data["created_at"],
-            updated_at=datetime.fromisoformat(data["updated_at"]) if isinstance(data["updated_at"], str) else data["updated_at"],
+            created_at=datetime.fromisoformat(data["created_at"])
+            if isinstance(data["created_at"], str)
+            else data["created_at"],
+            updated_at=datetime.fromisoformat(data["updated_at"])
+            if isinstance(data["updated_at"], str)
+            else data["updated_at"],
             created_by=data.get("created_by", "system"),
             template_id=data.get("template_id"),
         )
@@ -187,12 +213,24 @@ CEO_AGENT_TEMPLATE = AgentTemplate(
     goal="Coordinate all agents, make high-level decisions, delegate tasks to specialized agents. Ensure all work aligns with overall objectives.",
     model_provider=ModelProvider.OPENAI,
     model_name="gpt-4",
-    allowed_tools=["task_create", "task_read", "task_update", "task_list", "agent_dispatch", "memory_read", "memory_write"],
+    allowed_tools=[
+        "task_create",
+        "task_read",
+        "task_update",
+        "task_list",
+        "agent_dispatch",
+        "memory_read",
+        "memory_write",
+    ],
     max_subagents=4,
     timeout_seconds=600,
     retry_count=3,
     risk_level=RiskLevel.HIGH,
-    approval_required_actions=["policy:full_rollback", "tenant:delete", "config:global_change"],
+    approval_required_actions=[
+        "policy:full_rollback",
+        "tenant:delete",
+        "config:global_change",
+    ],
     routing_tags=["planning", "coordination", "strategy", "决策", "规划"],
 )
 
@@ -203,7 +241,14 @@ INFO_AGENT_TEMPLATE = AgentTemplate(
     goal="Gather, process, and provide information. Handle research tasks, data retrieval, and informational queries.",
     model_provider=ModelProvider.OPENAI,
     model_name="gpt-3.5-turbo",
-    allowed_tools=["web_search", "web_fetch", "memory_read", "memory_write", "task_create", "task_read"],
+    allowed_tools=[
+        "web_search",
+        "web_fetch",
+        "memory_read",
+        "memory_write",
+        "task_create",
+        "task_read",
+    ],
     max_subagents=0,
     timeout_seconds=120,
     retry_count=2,
@@ -219,7 +264,16 @@ DEV_AGENT_TEMPLATE = AgentTemplate(
     goal="Execute development tasks including code generation, debugging, testing, and implementation. Report progress and blockers.",
     model_provider=ModelProvider.OPENAI,
     model_name="gpt-4",
-    allowed_tools=["code_generate", "code_execute", "code_test", "file_read", "file_write", "task_create", "task_update", "memory_read"],
+    allowed_tools=[
+        "code_generate",
+        "code_execute",
+        "code_test",
+        "file_read",
+        "file_write",
+        "task_create",
+        "task_update",
+        "memory_read",
+    ],
     max_subagents=2,
     timeout_seconds=900,
     retry_count=3,
@@ -235,7 +289,14 @@ REVIEW_AGENT_TEMPLATE = AgentTemplate(
     goal="Review and validate outputs from other agents. Check quality, correctness, and completeness. Provide feedback.",
     model_provider=ModelProvider.OPENAI,
     model_name="gpt-4",
-    allowed_tools=["code_review", "test_review", "task_read", "task_update", "memory_read", "comment_create"],
+    allowed_tools=[
+        "code_review",
+        "test_review",
+        "task_read",
+        "task_update",
+        "memory_read",
+        "comment_create",
+    ],
     max_subagents=0,
     timeout_seconds=300,
     retry_count=2,
@@ -281,7 +342,10 @@ class AgentRegistry:
     def _get_conn(self) -> sqlite3.Connection:
         """Get database connection."""
         if self._conn is None:
-            self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
+            self._conn = sqlite3.connect(
+                self._db_path,
+                check_same_thread=False,
+            )
             self._conn.row_factory = sqlite3.Row
         return self._conn
 
@@ -289,7 +353,8 @@ class AgentRegistry:
         """Initialize database schema."""
         conn = self._get_conn()
 
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS agents (
                 agent_id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -311,22 +376,29 @@ class AgentRegistry:
                 created_by TEXT DEFAULT 'system',
                 template_id TEXT
             )
-        """)
+        """,
+        )
 
-        conn.execute("""
+        conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_agents_role
             ON agents(role)
-        """)
+        """,
+        )
 
-        conn.execute("""
+        conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_agents_status
             ON agents(status)
-        """)
+        """,
+        )
 
-        conn.execute("""
+        conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_agents_template
             ON agents(template_id)
-        """)
+        """,
+        )
 
         conn.commit()
 
@@ -357,13 +429,21 @@ class AgentRegistry:
             goal=row["goal"],
             model_provider=ModelProvider(row["model_provider"]),
             model_name=row["model_name"],
-            allowed_tools=json.loads(row["allowed_tools"]) if row["allowed_tools"] else [],
+            allowed_tools=json.loads(row["allowed_tools"])
+            if row["allowed_tools"]
+            else [],
             max_subagents=row["max_subagents"],
             timeout_seconds=row["timeout_seconds"],
             retry_count=row["retry_count"],
             risk_level=RiskLevel(row["risk_level"]),
-            approval_required_actions=json.loads(row["approval_required_actions"]) if row["approval_required_actions"] else [],
-            routing_tags=json.loads(row["routing_tags"]) if row["routing_tags"] else [],
+            approval_required_actions=json.loads(
+                row["approval_required_actions"],
+            )
+            if row["approval_required_actions"]
+            else [],
+            routing_tags=json.loads(row["routing_tags"])
+            if row["routing_tags"]
+            else [],
             status=AgentStatus(row["status"]),
             version=row["version"],
             created_at=datetime.fromisoformat(row["created_at"]),
@@ -386,7 +466,9 @@ class AgentRegistry:
             "timeout_seconds": agent.timeout_seconds,
             "retry_count": agent.retry_count,
             "risk_level": agent.risk_level.value,
-            "approval_required_actions": json.dumps(agent.approval_required_actions),
+            "approval_required_actions": json.dumps(
+                agent.approval_required_actions,
+            ),
             "routing_tags": json.dumps(agent.routing_tags),
             "status": agent.status.value,
             "version": agent.version,
@@ -611,7 +693,9 @@ class AgentRegistry:
         return self._set_agent_status(agent_id, AgentStatus.DISABLED)
 
     def _set_agent_status(
-        self, agent_id: str, status: AgentStatus
+        self,
+        agent_id: str,
+        status: AgentStatus,
     ) -> Optional[Agent]:
         """Set agent status."""
         agent = self._agents.get(agent_id)
@@ -647,7 +731,8 @@ class AgentRegistry:
 
         # Check if template already exists for this tenant
         existing = [
-            a for a in self._agents.values()
+            a
+            for a in self._agents.values()
             if a.template_id == template_id and a.created_by == created_by
         ]
         if existing:
@@ -711,7 +796,9 @@ class AgentRegistry:
         self._agents[agent.agent_id] = agent
         self._update_tags_index(agent)
 
-        logger.info(f"Agent cloned from template {template_id}: {agent.agent_id}")
+        logger.info(
+            f"Agent cloned from template {template_id}: {agent.agent_id}",
+        )
 
         return agent
 
@@ -725,7 +812,10 @@ class AgentRegistry:
         """
         agents = []
         for template_id in DEFAULT_TEMPLATES:
-            agent = self.clone_from_template(template_id, created_by=created_by)
+            agent = self.clone_from_template(
+                template_id,
+                created_by=created_by,
+            )
             if agent:
                 agents.append(agent)
         return agents
@@ -754,8 +844,10 @@ class AgentRegistry:
 
         # Filter to enabled agents and return one
         enabled = [
-            self._agents[aid] for aid in candidate_ids
-            if aid in self._agents and self._agents[aid].status == AgentStatus.ENABLED
+            self._agents[aid]
+            for aid in candidate_ids
+            if aid in self._agents
+            and self._agents[aid].status == AgentStatus.ENABLED
         ]
 
         if not enabled:
@@ -816,7 +908,8 @@ class AgentRegistry:
         return True, None
 
     def get_agent_execution_config(
-        self, agent_id: str
+        self,
+        agent_id: str,
     ) -> Optional[dict[str, Any]]:
         """Get execution configuration for agent."""
         agent = self._agents.get(agent_id)

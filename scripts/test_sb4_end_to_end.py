@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Stage B step 4: end-to-end closed-loop smoke.
 
 Simulates the full GM flow, end-to-end, through the **real** code paths:
@@ -55,7 +56,11 @@ sys.path.insert(0, str(SRC))
 # Stub agentscope / agentscope_runtime BEFORE importing any adapters.
 # ───────────────────────────────────────────────────────────────────────
 class _StubTextBlock:
-    def __init__(self, type: str = "text", text: str = "") -> None:  # noqa: A002
+    def __init__(
+        self,
+        type: str = "text",
+        text: str = "",
+    ) -> None:  # noqa: A002
         self.type = type
         self.text = text
 
@@ -67,7 +72,9 @@ class _StubToolResponse:
     def text(self) -> str:
         out = []
         for b in self.content:
-            t = getattr(b, "text", None) or (b.get("text") if isinstance(b, dict) else None)
+            t = getattr(b, "text", None) or (
+                b.get("text") if isinstance(b, dict) else None
+            )
             if isinstance(t, str):
                 out.append(t)
         return "\n".join(out)
@@ -102,7 +109,9 @@ sys.modules["agentscope.tool"] = _tool_mod
 _runtime = types.ModuleType("agentscope_runtime")
 _engine = types.ModuleType("agentscope_runtime.engine")
 _schemas = types.ModuleType("agentscope_runtime.engine.schemas")
-_agent_schemas = types.ModuleType("agentscope_runtime.engine.schemas.agent_schemas")
+_agent_schemas = types.ModuleType(
+    "agentscope_runtime.engine.schemas.agent_schemas",
+)
 _agent_schemas.AgentRequest = _StubAgentRequest
 _schemas.agent_schemas = _agent_schemas
 _engine.schemas = _schemas
@@ -380,8 +389,11 @@ async def main() -> int:
         detail=f"elapsed={elapsed:.2f}s (serial would be ~1.45s)",
     )
     # Sanity: must not be instant (i.e. real delay was observed).
-    check("workflow did real work (elapsed >= 0.5s)", elapsed >= 0.5,
-          detail=f"elapsed={elapsed:.2f}s")
+    check(
+        "workflow did real work (elapsed >= 0.5s)",
+        elapsed >= 0.5,
+        detail=f"elapsed={elapsed:.2f}s",
+    )
 
     # Capture the content the GM would have archived.
     archived_msgs = [
@@ -423,11 +435,15 @@ async def main() -> int:
             {"role": role, "content": content, "timestamp": now_iso},
         )
 
-    sessions_dir = Path(os.environ["HUBOS_MEMORY_ROOT"]) / "sessions" / session_id
+    sessions_dir = (
+        Path(os.environ["HUBOS_MEMORY_ROOT"]) / "sessions" / session_id
+    )
     check("session dir exists", sessions_dir.exists())
     messages_jsonl = sessions_dir / "messages.jsonl"
     check("messages.jsonl exists", messages_jsonl.exists())
-    line_count = sum(1 for _ in messages_jsonl.read_text(encoding="utf-8").splitlines() if _)
+    line_count = sum(
+        1 for _ in messages_jsonl.read_text(encoding="utf-8").splitlines() if _
+    )
     check(
         f"messages.jsonl has {len(archived_msgs)} lines",
         line_count == len(archived_msgs),
@@ -468,7 +484,8 @@ async def main() -> int:
     check(
         "recall_long_term finds content-level match ('mainstream')",
         any(
-            "mainstream" in (m.get("content") or "").lower() for m in message_hits
+            "mainstream" in (m.get("content") or "").lower()
+            for m in message_hits
         )
         or any(session_id == m.get("session_id") for m in message_hits),
         detail=f"message_hits={len(message_hits)}",
@@ -503,7 +520,9 @@ async def main() -> int:
     check(
         "last message is the summary",
         isinstance(last_content, str) and "[summary]" in last_content,
-        detail=last_content[:60] if isinstance(last_content, str) else "<non-str>",
+        detail=last_content[:60]
+        if isinstance(last_content, str)
+        else "<non-str>",
     )
 
     # =========================================================

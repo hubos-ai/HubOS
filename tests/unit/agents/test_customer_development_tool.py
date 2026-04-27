@@ -33,7 +33,9 @@ async def test_find_customer_leads_with_fake_pipeline(tmp_path: Path) -> None:
         json.dumps(
             {
                 "products": ["educational equipment"],
-                "countries": {"US": {"name": "United States", "language": "en"}},
+                "countries": {
+                    "US": {"name": "United States", "language": "en"},
+                },
             },
         ),
         encoding="utf-8",
@@ -70,14 +72,16 @@ json.dump([{'company_name': 'Alpha Science Supplies', 'country_code': 'US', 'sou
         encoding="utf-8",
     )
 
-    text = await _collect_text(find_customer_leads(
-        countries="US",
-        max_leads=5,
-        scripts_dir=str(scripts),
-        config_path=str(config),
-        output_dir=str(tmp_path / "run"),
-        timeout=60,
-    ))
+    text = await _collect_text(
+        find_customer_leads(
+            countries="US",
+            max_leads=5,
+            scripts_dir=str(scripts),
+            config_path=str(config),
+            output_dir=str(tmp_path / "run"),
+            timeout=60,
+        ),
+    )
 
     assert "客户线索查找完成" in text
     assert "Phase 1/3" in text
@@ -89,12 +93,16 @@ json.dump([{'company_name': 'Alpha Science Supplies', 'country_code': 'US', 'sou
 
 
 @pytest.mark.asyncio
-async def test_find_customer_leads_reports_missing_scripts(tmp_path: Path) -> None:
-    text = await _collect_text(find_customer_leads(
-        scripts_dir=str(tmp_path / "missing"),
-        config_path=str(tmp_path / "missing_config.json"),
-        output_dir=str(tmp_path / "run"),
-    ))
+async def test_find_customer_leads_reports_missing_scripts(
+    tmp_path: Path,
+) -> None:
+    text = await _collect_text(
+        find_customer_leads(
+            scripts_dir=str(tmp_path / "missing"),
+            config_path=str(tmp_path / "missing_config.json"),
+            output_dir=str(tmp_path / "run"),
+        ),
+    )
 
     assert "客户开发工具未配置完整" in text
     assert "HUBOS_CUSTOMER_DEV_SCRIPTS_DIR" in text
@@ -105,8 +113,11 @@ def test_find_customer_leads_registered_as_builtin_tool() -> None:
     assert "find_customer_leads" in tools
     assert tools["find_customer_leads"].enabled is True
 
+
 @pytest.mark.asyncio
-async def test_find_customer_leads_adds_missing_country_config(tmp_path: Path) -> None:
+async def test_find_customer_leads_adds_missing_country_config(
+    tmp_path: Path,
+) -> None:
     scripts = tmp_path / "scripts"
     scripts.mkdir()
     config = tmp_path / "search_terms_v2.json"
@@ -149,16 +160,23 @@ json.dump([], open(sys.argv[2], 'w', encoding='utf-8'))
         encoding="utf-8",
     )
 
-    text = await _collect_text(find_customer_leads(
-        countries="乌兹别克斯坦",
-        max_leads=5,
-        scripts_dir=str(scripts),
-        config_path=str(config),
-        output_dir=str(tmp_path / "run"),
-        timeout=60,
-    ))
+    text = await _collect_text(
+        find_customer_leads(
+            countries="乌兹别克斯坦",
+            max_leads=5,
+            scripts_dir=str(scripts),
+            config_path=str(config),
+            output_dir=str(tmp_path / "run"),
+            timeout=60,
+        ),
+    )
 
     assert "国家：UZ" in text
     effective_config = tmp_path / "run" / "effective_search_terms_config.json"
     assert effective_config.exists()
-    assert json.loads(effective_config.read_text(encoding="utf-8"))["countries"]["UZ"]["name"] == "Uzbekistan"
+    assert (
+        json.loads(effective_config.read_text(encoding="utf-8"))["countries"][
+            "UZ"
+        ]["name"]
+        == "Uzbekistan"
+    )

@@ -84,7 +84,11 @@ def _get_inprocess_components() -> tuple[Any, Any, Any]:
         return _inproc_orchestrator, _inproc_task_store, _inproc_event_store
     with _inproc_lock:
         if _inproc_orchestrator is not None:
-            return _inproc_orchestrator, _inproc_task_store, _inproc_event_store
+            return (
+                _inproc_orchestrator,
+                _inproc_task_store,
+                _inproc_event_store,
+            )
 
         # Execution loop must be enabled before hubos.core.execution wires the
         # orchestrator singleton.
@@ -100,7 +104,9 @@ def _get_inprocess_components() -> tuple[Any, Any, Any]:
         flags = get_feature_flags()
         if not flags.enable_execution_loop_mvp:
             flags.enable_execution_loop_mvp = True
-            logger.info("Force-enabled enable_execution_loop_mvp in this process")
+            logger.info(
+                "Force-enabled enable_execution_loop_mvp in this process",
+            )
 
         _inproc_task_store = get_task_store()
         _inproc_event_store = get_event_store()
@@ -135,7 +141,9 @@ def _current_runtime_ctx() -> dict[str, str]:
 
 
 def _get_runtime_base_url() -> str:
-    return os.environ.get("HUBOS_RUNTIME_URL", _DEFAULT_RUNTIME_URL).rstrip("/")
+    return os.environ.get("HUBOS_RUNTIME_URL", _DEFAULT_RUNTIME_URL).rstrip(
+        "/",
+    )
 
 
 def _new_client(timeout: Any = _SUBMIT_TIMEOUT) -> httpx.AsyncClient:
@@ -230,13 +238,25 @@ async def delegate_task(
     mode = _get_runtime_mode()
     if mode == "inprocess":
         return await _delegate_task_inprocess(
-            goal, priority, workflow, wait, timeout_seconds, extra_context,
+            goal,
+            priority,
+            workflow,
+            wait,
+            timeout_seconds,
+            extra_context,
         )
     if mode == "http":
         return await _delegate_task_http(
-            goal, priority, workflow, wait, timeout_seconds, extra_context,
+            goal,
+            priority,
+            workflow,
+            wait,
+            timeout_seconds,
+            extra_context,
         )
-    return _err(f"❌ Unknown HUBOS_RUNTIME_MODE: {mode!r} (expected 'inprocess' | 'http')")
+    return _err(
+        f"❌ Unknown HUBOS_RUNTIME_MODE: {mode!r} (expected 'inprocess' | 'http')",
+    )
 
 
 async def _delegate_task_http(
@@ -292,7 +312,7 @@ async def _delegate_task_http(
             f"✅ Task delegated to Runtime (http).\n"
             f"Task ID: {task_id}\n"
             f"Initial status: {submit.get('status')}\n"
-            f"Use track_task(task_id=\"{task_id}\") to check progress.",
+            f'Use track_task(task_id="{task_id}") to check progress.',
         )
 
     return await _wait_for_task(base_url, task_id, timeout_seconds)
@@ -359,7 +379,7 @@ async def _delegate_task_inprocess(
             f"✅ Task delegated to Runtime (inprocess).\n"
             f"Task ID: {task_id}\n"
             f"Initial status: {task.current_status.value}\n"
-            f"Use track_task(task_id=\"{task_id}\") to check progress.",
+            f'Use track_task(task_id="{task_id}") to check progress.',
         )
 
     try:
@@ -370,7 +390,7 @@ async def _delegate_task_inprocess(
             f"Task ID: {task_id}\n"
             f"Status: TIMEOUT\n"
             f"⏰ Wait timed out after {timeout_seconds}s. Task may still be "
-            f"running. Use track_task(\"{task_id}\") later.",
+            f'running. Use track_task("{task_id}") later.',
         )
     except Exception as e:  # noqa: BLE001
         logger.exception("execute_task crashed in in-process mode")
@@ -385,14 +405,21 @@ def _log_inprocess_completion(fut: "asyncio.Future[Any]") -> None:
     try:
         fut.result()
     except Exception:  # noqa: BLE001
-        logger.exception("Background in-process task crashed: %s", fut.get_name())
+        logger.exception(
+            "Background in-process task crashed: %s",
+            fut.get_name(),
+        )
 
 
 def _render_inprocess_task(task: Any) -> str:
     """Format a TaskStore Task object the same way HTTP path renders snapshots."""
     if task is None:
         return "Task not found (in-process)."
-    status = task.current_status.value if hasattr(task.current_status, "value") else str(task.current_status)
+    status = (
+        task.current_status.value
+        if hasattr(task.current_status, "value")
+        else str(task.current_status)
+    )
     lines = [
         f"Task ID: {task.task_id}",
         f"Status: {status}",
@@ -455,7 +482,9 @@ async def _track_task_http(
     if resp.status_code == 404:
         return _err(f"❌ Task not found: {task_id}")
     if resp.status_code != 200:
-        return _err(f"❌ Runtime returned HTTP {resp.status_code}: {resp.text[:300]}")
+        return _err(
+            f"❌ Runtime returned HTTP {resp.status_code}: {resp.text[:300]}",
+        )
 
     snapshot = resp.json()
     current_status = snapshot.get("current_status", "unknown")
@@ -492,7 +521,11 @@ async def _track_task_inprocess(
     if task is None:
         return _err(f"❌ Task not found (in-process): {task_id}")
 
-    status_value = task.current_status.value if hasattr(task.current_status, "value") else str(task.current_status)
+    status_value = (
+        task.current_status.value
+        if hasattr(task.current_status, "value")
+        else str(task.current_status)
+    )
     is_terminal = status_value.lower() in _TERMINAL_TASK_STATUSES
     if is_terminal or not follow:
         return _ok(_render_inprocess_task(task))
@@ -505,7 +538,11 @@ async def _track_task_inprocess(
         task = task_store.get_task(task_id)
         if task is None:
             return _err(f"❌ Task disappeared from store: {task_id}")
-        status_value = task.current_status.value if hasattr(task.current_status, "value") else str(task.current_status)
+        status_value = (
+            task.current_status.value
+            if hasattr(task.current_status, "value")
+            else str(task.current_status)
+        )
         if status_value.lower() in _TERMINAL_TASK_STATUSES:
             return _ok(_render_inprocess_task(task))
 
@@ -513,7 +550,7 @@ async def _track_task_inprocess(
         f"Task ID: {task_id}\n"
         f"Status: {status_value} (still running)\n"
         f"⏰ track_task timed out after {timeout_seconds}s. Task may still be "
-        f"running. Re-call track_task(\"{task_id}\") later.",
+        f'running. Re-call track_task("{task_id}") later.',
     )
 
 
@@ -655,9 +692,11 @@ async def _wait_for_task(
                     if line.startswith(":"):
                         continue
                     if line.startswith("event:"):
-                        current_event = line[len("event:"):].strip()
+                        current_event = line[len("event:") :].strip()
                     elif line.startswith("data:"):
-                        current_data_lines.append(line[len("data:"):].lstrip())
+                        current_data_lines.append(
+                            line[len("data:") :].lstrip(),
+                        )
                     elif line.startswith("id:"):
                         pass
     except _SseTimeout:
@@ -669,7 +708,7 @@ async def _wait_for_task(
                 progress_lines=progress_lines,
                 note=(
                     f"⏰ Wait timed out after {timeout_seconds}s. Task may still "
-                    f"be running. Use track_task(\"{task_id}\") later."
+                    f'be running. Use track_task("{task_id}") later.'
                 ),
             ),
         )
@@ -783,7 +822,10 @@ async def _aiter_lines_with_timeout(
         if remaining <= 0:
             raise _SseTimeout()
         try:
-            line = await asyncio.wait_for(iterator.__anext__(), timeout=remaining)
+            line = await asyncio.wait_for(
+                iterator.__anext__(),
+                timeout=remaining,
+            )
         except asyncio.TimeoutError:
             raise _SseTimeout()
         except StopAsyncIteration:

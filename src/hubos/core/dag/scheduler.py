@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """DAG scheduler for Parallel Core V1.5 Step 5.
 
 The core scheduling engine that manages DAG execution, node lifecycle,
@@ -28,6 +29,7 @@ from hubos.core.execution.executors.native_executor import NativeExecutor
 # by providing the corresponding executor module.
 try:
     from hubos.core.execution.executors.camel_executor import CAMELExecutor  # type: ignore
+
     _OPTIONAL_PARALLEL_EXECUTOR_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency
     CAMELExecutor = None  # type: ignore[assignment,misc]
@@ -44,12 +46,13 @@ DagEventCallback = Callable[["DagScheduler", str, dict[str, Any]], None]
 @dataclass
 class SchedulerConfig:
     """Configuration for DAG scheduler."""
+
     max_parallelism: int = 10
     default_executor: str = "native"  # "camel" or "native"
-    enable_fallback: bool = True       # Fall back to native if camel fails
-    merge_timeout_ms: int = 300000     # 5 minutes
+    enable_fallback: bool = True  # Fall back to native if camel fails
+    merge_timeout_ms: int = 300000  # 5 minutes
     default_node_timeout_ms: int = 300000
-    tick_interval_ms: int = 100       # Scheduler tick interval
+    tick_interval_ms: int = 100  # Scheduler tick interval
 
 
 class DagScheduler:
@@ -109,7 +112,9 @@ class DagScheduler:
         result = validator.validate()
         if not result.valid:
             logger.error(f"DAG plan validation failed: {result.errors}")
-            raise ValueError(f"Invalid DAG plan: {[e.message for e in result.errors]}")
+            raise ValueError(
+                f"Invalid DAG plan: {[e.message for e in result.errors]}",
+            )
 
         # Start merge state
         self._run_state.merge_state = MergeState(
@@ -124,7 +129,10 @@ class DagScheduler:
 
         self._run_state.status = "running"
         self._run_state.started_at = time.time()
-        self._emit_event("dag_ready", {"plan_id": self.plan.name, "task_id": self.task_id})
+        self._emit_event(
+            "dag_ready",
+            {"plan_id": self.plan.name, "task_id": self.task_id},
+        )
         self._persist_state()
 
     def tick(self) -> bool:
@@ -163,10 +171,13 @@ class DagScheduler:
                 if state.next_retry_at and time.time() >= state.next_retry_at:
                     state.status = NodeStatus.READY
                     self._runtime._ready_queue.append(node_id)
-                    self._emit_event("node_retry_scheduled", {
-                        "node_id": node_id,
-                        "retry_count": state.retry_count,
-                    })
+                    self._emit_event(
+                        "node_retry_scheduled",
+                        {
+                            "node_id": node_id,
+                            "retry_count": state.retry_count,
+                        },
+                    )
                     work_done = True
         return work_done
 
@@ -189,16 +200,26 @@ class DagScheduler:
                 node_id,
                 self.config.default_executor,
             )
-            executor = self._executors.get(executor_name, self._executors["native"])
+            executor = self._executors.get(
+                executor_name,
+                self._executors["native"],
+            )
 
             # Try dispatch
-            if self._runtime.dispatch_node(node_id, executor_name, self._dispatcher_id):
-                self._emit_event("node_dispatch", {
-                    "node_id": node_id,
-                    "role": node.role,
-                    "executor": executor_name,
-                    "attempt": self._run_state.nodes[node_id].attempt,
-                })
+            if self._runtime.dispatch_node(
+                node_id,
+                executor_name,
+                self._dispatcher_id,
+            ):
+                self._emit_event(
+                    "node_dispatch",
+                    {
+                        "node_id": node_id,
+                        "role": node.role,
+                        "executor": executor_name,
+                        "attempt": self._run_state.nodes[node_id].attempt,
+                    },
+                )
 
                 # Execute asynchronously in background (simulated for now)
                 self._execute_node_async(node_id, node, executor)
@@ -206,18 +227,27 @@ class DagScheduler:
 
         return work_done
 
-    def _execute_node_async(self, node_id: str, node, executor: BaseExecutor) -> None:
+    def _execute_node_async(
+        self,
+        node_id: str,
+        node,
+        executor: BaseExecutor,
+    ) -> None:
         """Execute a node asynchronously."""
+
         def _run():
             try:
                 # Mark as running
                 self._runtime.start_node(node_id)
 
-                self._emit_event("node_running", {
-                    "node_id": node_id,
-                    "role": node.role,
-                    "executor": executor.executor_name,
-                })
+                self._emit_event(
+                    "node_running",
+                    {
+                        "node_id": node_id,
+                        "role": node.role,
+                        "executor": executor.executor_name,
+                    },
+                )
 
                 # Execute
                 result = executor.execute(
@@ -232,36 +262,56 @@ class DagScheduler:
                 # Handle result
                 if result.success:
                     self._runtime.complete_node(node_id, result.output)
-                    self._emit_event("node_completed", {
-                        "node_id": node_id,
-                        "role": node.role,
-                        "duration_ms": result.duration_ms,
-                        "executor": result.executor,
-                    })
+                    self._emit_event(
+                        "node_completed",
+                        {
+                            "node_id": node_id,
+                            "role": node.role,
+                            "duration_ms": result.duration_ms,
+                            "executor": result.executor,
+                        },
+                    )
                 else:
-                    self._runtime.fail_node(node_id, result.error or "Unknown error")
-                    self._emit_event("node_failed", {
-                        "node_id": node_id,
-                        "role": node.role,
-                        "error": result.error,
-                        "attempt": self._run_state.nodes[node_id].attempt,
-                        "executor": result.executor,
-                    })
+                    self._runtime.fail_node(
+                        node_id,
+                        result.error or "Unknown error",
+                    )
+                    self._emit_event(
+                        "node_failed",
+                        {
+                            "node_id": node_id,
+                            "role": node.role,
+                            "error": result.error,
+                            "attempt": self._run_state.nodes[node_id].attempt,
+                            "executor": result.executor,
+                        },
+                    )
 
                     # Check if human gate
-                    if self._run_state.nodes[node_id].status == NodeStatus.HUMAN_GATE:
-                        self._emit_event("node_human_gate", {
-                            "node_id": node_id,
-                            "reason": self._run_state.nodes[node_id].human_gate_reason,
-                        })
+                    if (
+                        self._run_state.nodes[node_id].status
+                        == NodeStatus.HUMAN_GATE
+                    ):
+                        self._emit_event(
+                            "node_human_gate",
+                            {
+                                "node_id": node_id,
+                                "reason": self._run_state.nodes[
+                                    node_id
+                                ].human_gate_reason,
+                            },
+                        )
 
             except Exception as e:
                 logger.exception(f"Node {node_id} execution error")
                 self._runtime.fail_node(node_id, str(e))
-                self._emit_event("node_failed", {
-                    "node_id": node_id,
-                    "error": str(e),
-                })
+                self._emit_event(
+                    "node_failed",
+                    {
+                        "node_id": node_id,
+                        "error": str(e),
+                    },
+                )
 
             self._persist_state()
 
@@ -284,15 +334,21 @@ class DagScheduler:
             return False
 
         if self._runtime.check_merge_ready():
-            self._emit_event("merge_ready", {
-                "merge_node_id": self.plan.merge_node_id,
-                "required_nodes_complete": self._run_state.merge_state.required_nodes_complete,
-            })
+            self._emit_event(
+                "merge_ready",
+                {
+                    "merge_node_id": self.plan.merge_node_id,
+                    "required_nodes_complete": self._run_state.merge_state.required_nodes_complete,
+                },
+            )
 
             self._runtime.start_merge()
-            self._emit_event("merge_started", {
-                "merge_node_id": self.plan.merge_node_id,
-            })
+            self._emit_event(
+                "merge_started",
+                {
+                    "merge_node_id": self.plan.merge_node_id,
+                },
+            )
 
             # Execute merge (synchronous for now)
             self._execute_merge()
@@ -316,13 +372,19 @@ class DagScheduler:
             }
 
             self._runtime.complete_merge(merged_output)
-            self._emit_event("merge_completed", {
-                "merge_node_id": merge_id,
-                "duration_ms": (
-                    self._run_state.merge_state.completed_at -
-                    self._run_state.merge_state.started_at
-                ) * 1000 if self._run_state.merge_state.started_at else 0,
-            })
+            self._emit_event(
+                "merge_completed",
+                {
+                    "merge_node_id": merge_id,
+                    "duration_ms": (
+                        self._run_state.merge_state.completed_at
+                        - self._run_state.merge_state.started_at
+                    )
+                    * 1000
+                    if self._run_state.merge_state.started_at
+                    else 0,
+                },
+            )
 
         except Exception as e:
             logger.exception(f"Merge execution error")
@@ -355,33 +417,50 @@ class DagScheduler:
             self._run_state.status = "completed"
 
         self._run_state.completed_at = time.time()
-        self._emit_event("dag_completed", {
-            "status": self._run_state.status,
-            "duration_ms": (
-                self._run_state.completed_at - self._run_state.started_at
-            ) * 1000 if self._run_state.started_at else 0,
-        })
+        self._emit_event(
+            "dag_completed",
+            {
+                "status": self._run_state.status,
+                "duration_ms": (
+                    self._run_state.completed_at - self._run_state.started_at
+                )
+                * 1000
+                if self._run_state.started_at
+                else 0,
+            },
+        )
 
     def retry_node(self, node_id: str) -> bool:
         """Manually retry a failed or human-gate node."""
         success = self._runtime.retry_node(node_id)
         if success:
-            self._emit_event("node_retry_scheduled", {
-                "node_id": node_id,
-                "manual": True,
-            })
+            self._emit_event(
+                "node_retry_scheduled",
+                {
+                    "node_id": node_id,
+                    "manual": True,
+                },
+            )
             self._persist_state()
         return success
 
-    def resolve_human_gate(self, node_id: str, approved: bool, result: Any = None) -> bool:
+    def resolve_human_gate(
+        self,
+        node_id: str,
+        approved: bool,
+        result: Any = None,
+    ) -> bool:
         """Resolve a human gate node."""
         success = self._runtime.resolve_human_gate(node_id, approved, result)
         if success:
             status = "approved" if approved else "rejected"
-            self._emit_event("node_human_gate_resolved", {
-                "node_id": node_id,
-                "action": status,
-            })
+            self._emit_event(
+                "node_human_gate_resolved",
+                {
+                    "node_id": node_id,
+                    "action": status,
+                },
+            )
             self._persist_state()
         return success
 

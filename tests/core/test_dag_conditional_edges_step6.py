@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Tests for DAG Conditional Edge Routing - Parallel Core V1.5 Step 6."""
 
 import pytest
@@ -208,7 +209,12 @@ class TestConditionEvaluator:
 
         # Safe expressions
         assert evaluator.is_safe_expression("risk_score > 0.5") is True
-        assert evaluator.is_safe_expression("code_lang == 'python' AND risk_score > 0.7") is True
+        assert (
+            evaluator.is_safe_expression(
+                "code_lang == 'python' AND risk_score > 0.7",
+            )
+            is True
+        )
 
         # Dangerous patterns
         assert evaluator.is_safe_expression("import os") is False

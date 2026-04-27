@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Runtime configuration bridge for Console V2 settings."""
 
 from __future__ import annotations
@@ -42,7 +43,10 @@ def _enabled_tools(settings: dict[str, Any]) -> set[str]:
 
 def _default_parallel_limit(settings: dict[str, Any]) -> int | None:
     workflows = settings.get("workflows", [])
-    default_wf = next((w for w in workflows if w.get("enabled") and w.get("default")), None)
+    default_wf = next(
+        (w for w in workflows if w.get("enabled") and w.get("default")),
+        None,
+    )
     if not default_wf:
         return None
     value = default_wf.get("max_parallel_subagents")
@@ -51,7 +55,10 @@ def _default_parallel_limit(settings: dict[str, Any]) -> int | None:
     return None
 
 
-def build_effective_runtime_config(registry: Any, settings: dict[str, Any]) -> dict[str, Any]:
+def build_effective_runtime_config(
+    registry: Any,
+    settings: dict[str, Any],
+) -> dict[str, Any]:
     """Build current effective runtime config snapshot."""
     enabled_models = _enabled_models(settings)
     enabled_tools = sorted(list(_enabled_tools(settings)))
@@ -77,7 +84,10 @@ def build_effective_runtime_config(registry: Any, settings: dict[str, Any]) -> d
     }
 
 
-def apply_settings_to_registry(registry: Any, settings: dict[str, Any]) -> RuntimeConfigSummary:
+def apply_settings_to_registry(
+    registry: Any,
+    settings: dict[str, Any],
+) -> RuntimeConfigSummary:
     """
     Apply settings to currently registered agents.
 
@@ -88,7 +98,9 @@ def apply_settings_to_registry(registry: Any, settings: dict[str, Any]) -> Runti
     summary = RuntimeConfigSummary()
     enabled_models = _enabled_models(settings)
     enabled_model_pairs = {
-        (m.get("provider", ""), m.get("model", "")) for m in enabled_models if m.get("provider") and m.get("model")
+        (m.get("provider", ""), m.get("model", ""))
+        for m in enabled_models
+        if m.get("provider") and m.get("model")
     }
     default_model = enabled_models[0] if enabled_models else None
     enabled_tools = _enabled_tools(settings)
@@ -98,7 +110,11 @@ def apply_settings_to_registry(registry: Any, settings: dict[str, Any]) -> Runti
         changed = False
         updates: dict[str, Any] = {}
 
-        provider = agent.model_provider.value if hasattr(agent.model_provider, "value") else str(agent.model_provider)
+        provider = (
+            agent.model_provider.value
+            if hasattr(agent.model_provider, "value")
+            else str(agent.model_provider)
+        )
         model_name = agent.model_name
         if default_model and (provider, model_name) not in enabled_model_pairs:
             from hubos.core.infra.agent_registry import ModelProvider
@@ -114,9 +130,13 @@ def apply_settings_to_registry(registry: Any, settings: dict[str, Any]) -> Runti
             changed = True
 
         if enabled_tools:
-            pruned_tools = [t for t in agent.allowed_tools if t in enabled_tools]
+            pruned_tools = [
+                t for t in agent.allowed_tools if t in enabled_tools
+            ]
             if pruned_tools != agent.allowed_tools:
-                summary.tool_pruned += len([t for t in agent.allowed_tools if t not in enabled_tools])
+                summary.tool_pruned += len(
+                    [t for t in agent.allowed_tools if t not in enabled_tools],
+                )
                 updates["allowed_tools"] = pruned_tools
                 changed = True
 
@@ -132,14 +152,22 @@ def apply_settings_to_registry(registry: Any, settings: dict[str, Any]) -> Runti
     return summary
 
 
-def build_permissions_matrix(registry: Any, settings: dict[str, Any]) -> dict[str, Any]:
+def build_permissions_matrix(
+    registry: Any,
+    settings: dict[str, Any],
+) -> dict[str, Any]:
     """Build per-agent tool permissions matrix."""
     tool_policies = settings.get("tools", [])
     configured_tools = [t.get("id") for t in tool_policies if t.get("id")]
     if not configured_tools:
-        configured_tools = sorted({t for a in registry.list_agents() for t in a.allowed_tools})
+        configured_tools = sorted(
+            {t for a in registry.list_agents() for t in a.allowed_tools},
+        )
 
-    guard = AgentToolGuard(agent_registry=registry, tool_policies=tool_policies)
+    guard = AgentToolGuard(
+        agent_registry=registry,
+        tool_policies=tool_policies,
+    )
     rows: list[dict[str, Any]] = []
 
     for agent in registry.list_agents():
@@ -147,7 +175,9 @@ def build_permissions_matrix(registry: Any, settings: dict[str, Any]) -> dict[st
             "agent_id": agent.agent_id,
             "agent_name": agent.name,
             "role": agent.role,
-            "status": agent.status.value if hasattr(agent.status, "value") else str(agent.status),
+            "status": agent.status.value
+            if hasattr(agent.status, "value")
+            else str(agent.status),
             "permissions": {},
         }
         for tool_name in configured_tools:
@@ -179,9 +209,21 @@ def check_model_connection(model_cfg: dict[str, Any]) -> dict[str, Any]:
     checks.append({"name": "api_key_present", "ok": bool(api_key)})
 
     if not model_cfg.get("enabled"):
-        return _test_result(False, provider, checks, "Model is disabled", started)
+        return _test_result(
+            False,
+            provider,
+            checks,
+            "Model is disabled",
+            started,
+        )
     if not api_key:
-        return _test_result(False, provider, checks, f"Missing env key: {api_key_env}", started)
+        return _test_result(
+            False,
+            provider,
+            checks,
+            f"Missing env key: {api_key_env}",
+            started,
+        )
 
     base_url = (model_cfg.get("base_url") or "").rstrip("/")
     headers: dict[str, str] = {}
@@ -196,25 +238,81 @@ def check_model_connection(model_cfg: dict[str, Any]) -> dict[str, Any]:
         url = (base_url or "https://api.minimax.chat/v1") + "/models"
         headers = {"Authorization": f"Bearer {api_key}"}
     else:
-        checks.append({"name": "http_probe", "ok": True, "message": "Skipped for this provider"})
-        return _test_result(True, provider, checks, "Config looks valid", started)
+        checks.append(
+            {
+                "name": "http_probe",
+                "ok": True,
+                "message": "Skipped for this provider",
+            },
+        )
+        return _test_result(
+            True,
+            provider,
+            checks,
+            "Config looks valid",
+            started,
+        )
 
     req = urllib.request.Request(url=url, headers=headers, method="GET")
     try:
-        with urllib.request.urlopen(req, timeout=float(model_cfg.get("timeout_seconds", 5))) as response:
+        with urllib.request.urlopen(
+            req,
+            timeout=float(model_cfg.get("timeout_seconds", 5)),
+        ) as response:
             ok = 200 <= response.getcode() < 300
-            checks.append({"name": "http_probe", "ok": ok, "status_code": response.getcode(), "url": url})
-            return _test_result(ok, provider, checks, f"HTTP {response.getcode()}", started)
+            checks.append(
+                {
+                    "name": "http_probe",
+                    "ok": ok,
+                    "status_code": response.getcode(),
+                    "url": url,
+                },
+            )
+            return _test_result(
+                ok,
+                provider,
+                checks,
+                f"HTTP {response.getcode()}",
+                started,
+            )
     except urllib.error.HTTPError as exc:
         # MiniMax does not always expose a GET /models endpoint.
         # For connectivity checks, treat common client errors as reachable.
         if provider == "minimax" and exc.code in {401, 403, 404, 405}:
-            checks.append({"name": "http_probe", "ok": True, "status_code": exc.code, "url": url})
-            return _test_result(True, provider, checks, f"Endpoint reachable (HTTP {exc.code})", started)
-        checks.append({"name": "http_probe", "ok": False, "status_code": exc.code, "url": url})
-        return _test_result(False, provider, checks, f"HTTP error: {exc.code}", started)
+            checks.append(
+                {
+                    "name": "http_probe",
+                    "ok": True,
+                    "status_code": exc.code,
+                    "url": url,
+                },
+            )
+            return _test_result(
+                True,
+                provider,
+                checks,
+                f"Endpoint reachable (HTTP {exc.code})",
+                started,
+            )
+        checks.append(
+            {
+                "name": "http_probe",
+                "ok": False,
+                "status_code": exc.code,
+                "url": url,
+            },
+        )
+        return _test_result(
+            False,
+            provider,
+            checks,
+            f"HTTP error: {exc.code}",
+            started,
+        )
     except Exception as exc:  # noqa: BLE001
-        checks.append({"name": "http_probe", "ok": False, "error": str(exc), "url": url})
+        checks.append(
+            {"name": "http_probe", "ok": False, "error": str(exc), "url": url},
+        )
         return _test_result(False, provider, checks, str(exc), started)
 
 
@@ -227,13 +325,33 @@ def check_channel_connection(channel_cfg: dict[str, Any]) -> dict[str, Any]:
     checks.append({"name": "endpoint_present", "ok": bool(endpoint)})
 
     if not channel_cfg.get("enabled"):
-        return _test_result(False, channel_cfg.get("type", "unknown"), checks, "Channel is disabled", started)
+        return _test_result(
+            False,
+            channel_cfg.get("type", "unknown"),
+            checks,
+            "Channel is disabled",
+            started,
+        )
     if not endpoint:
-        return _test_result(False, channel_cfg.get("type", "unknown"), checks, "Missing endpoint", started)
+        return _test_result(
+            False,
+            channel_cfg.get("type", "unknown"),
+            checks,
+            "Missing endpoint",
+            started,
+        )
 
     if endpoint.startswith("/"):
-        checks.append({"name": "endpoint_kind", "ok": True, "kind": "local_path"})
-        return _test_result(True, channel_cfg.get("type", "unknown"), checks, "Local endpoint configured", started)
+        checks.append(
+            {"name": "endpoint_kind", "ok": True, "kind": "local_path"},
+        )
+        return _test_result(
+            True,
+            channel_cfg.get("type", "unknown"),
+            checks,
+            "Local endpoint configured",
+            started,
+        )
 
     if endpoint.startswith("http://") or endpoint.startswith("https://"):
         req = urllib.request.Request(url=endpoint, method="GET")
@@ -241,21 +359,63 @@ def check_channel_connection(channel_cfg: dict[str, Any]) -> dict[str, Any]:
             with urllib.request.urlopen(req, timeout=3.0) as response:
                 code = response.getcode()
                 ok = code < 500
-                checks.append({"name": "http_probe", "ok": ok, "status_code": code})
-                return _test_result(ok, channel_cfg.get("type", "unknown"), checks, f"HTTP {code}", started)
+                checks.append(
+                    {"name": "http_probe", "ok": ok, "status_code": code},
+                )
+                return _test_result(
+                    ok,
+                    channel_cfg.get("type", "unknown"),
+                    checks,
+                    f"HTTP {code}",
+                    started,
+                )
         except urllib.error.HTTPError as exc:
             ok = exc.code < 500
-            checks.append({"name": "http_probe", "ok": ok, "status_code": exc.code})
-            return _test_result(ok, channel_cfg.get("type", "unknown"), checks, f"HTTP {exc.code}", started)
+            checks.append(
+                {"name": "http_probe", "ok": ok, "status_code": exc.code},
+            )
+            return _test_result(
+                ok,
+                channel_cfg.get("type", "unknown"),
+                checks,
+                f"HTTP {exc.code}",
+                started,
+            )
         except Exception as exc:  # noqa: BLE001
-            checks.append({"name": "http_probe", "ok": False, "error": str(exc)})
-            return _test_result(False, channel_cfg.get("type", "unknown"), checks, str(exc), started)
+            checks.append(
+                {"name": "http_probe", "ok": False, "error": str(exc)},
+            )
+            return _test_result(
+                False,
+                channel_cfg.get("type", "unknown"),
+                checks,
+                str(exc),
+                started,
+            )
 
-    checks.append({"name": "endpoint_format", "ok": False, "message": "Endpoint must be '/' path or http(s) URL"})
-    return _test_result(False, channel_cfg.get("type", "unknown"), checks, "Invalid endpoint format", started)
+    checks.append(
+        {
+            "name": "endpoint_format",
+            "ok": False,
+            "message": "Endpoint must be '/' path or http(s) URL",
+        },
+    )
+    return _test_result(
+        False,
+        channel_cfg.get("type", "unknown"),
+        checks,
+        "Invalid endpoint format",
+        started,
+    )
 
 
-def _test_result(ok: bool, target: str, checks: list[dict[str, Any]], message: str, started: float) -> dict[str, Any]:
+def _test_result(
+    ok: bool,
+    target: str,
+    checks: list[dict[str, Any]],
+    message: str,
+    started: float,
+) -> dict[str, Any]:
     return {
         "ok": ok,
         "target": target,

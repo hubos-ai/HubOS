@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Test real model stage execution - Step 9.
 
 Tests that _execute_stage() no longer returns "Processed:" placeholder
@@ -18,9 +19,11 @@ class TestRealModelStageExecution:
         from hubos.core.execution.event_store import EventStore
 
         # Mock the feature flags and LLM runtime
-        with patch('hubos.core.infra.feature_flags.get_feature_flags') as mock_ff, \
-             patch('hubos.core.llm.runtime.get_llm_runtime') as mock_runtime:
-
+        with patch(
+            "hubos.core.infra.feature_flags.get_feature_flags",
+        ) as mock_ff, patch(
+            "hubos.core.llm.runtime.get_llm_runtime",
+        ) as mock_runtime:
             mock_flags = MagicMock()
             mock_flags.enable_real_model_execution = True
             mock_ff.return_value = mock_flags
@@ -47,10 +50,16 @@ class TestRealModelStageExecution:
             available_roles = {"ceo": True}
 
             result = orchestrator._execute_stage(
-                task, TaskStage.CEO, stage_def, available_roles
+                task,
+                TaskStage.CEO,
+                stage_def,
+                available_roles,
             )
 
-            assert result["content"] == "This is a strategic response from the AI model"
+            assert (
+                result["content"]
+                == "This is a strategic response from the AI model"
+            )
             assert "Processed" not in result["content"]
 
     def test_execute_stage_mock_when_flag_disabled(self):
@@ -59,7 +68,9 @@ class TestRealModelStageExecution:
         from hubos.core.execution.task_store import Task, TaskStage
         from hubos.core.execution.event_store import EventStore
 
-        with patch('hubos.core.infra.feature_flags.get_feature_flags') as mock_ff:
+        with patch(
+            "hubos.core.infra.feature_flags.get_feature_flags",
+        ) as mock_ff:
             mock_flags = MagicMock()
             mock_flags.enable_real_model_execution = False
             mock_ff.return_value = mock_flags
@@ -78,7 +89,10 @@ class TestRealModelStageExecution:
             available_roles = {"ceo": True}
 
             result = orchestrator._execute_stage(
-                task, TaskStage.CEO, stage_def, available_roles
+                task,
+                TaskStage.CEO,
+                stage_def,
+                available_roles,
             )
 
             assert "Processed" in result["content"]

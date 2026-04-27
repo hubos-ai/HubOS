@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Deprecate low-quality chat-summary Work Experience cards.
 
 This is intentionally conservative:
@@ -72,7 +73,9 @@ def main() -> int:
     print(f"Matched {len(matches)} low-quality chat-summary cards")
 
     for card in matches[:20]:
-        print(f"- {card.experience_id} [{card.scope.value}/{card.experience_level.value}] {card.title[:100]}")
+        print(
+            f"- {card.experience_id} [{card.scope.value}/{card.experience_level.value}] {card.title[:100]}",
+        )
     if len(matches) > 20:
         print(f"... and {len(matches) - 20} more")
 

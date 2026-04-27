@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Keyword extraction helpers for Work Experience retrieval.
 
 The chat runtime often receives Chinese task text. Plain ASCII tokenization misses
@@ -26,18 +27,45 @@ _COUNTRY_ALIASES: dict[str, tuple[str, ...]] = {
 
 _INTENT_ALIASES: dict[str, tuple[str, ...]] = {
     "customer_development": (
-        "找客户", "挖客户", "开发客户", "客户开发", "客户线索", "潜在客户",
-        "leads", "lead", "prospect", "prospects", "customer leads",
-        "find_customer_leads", "find customer", "find customers",
+        "找客户",
+        "挖客户",
+        "开发客户",
+        "客户开发",
+        "客户线索",
+        "潜在客户",
+        "leads",
+        "lead",
+        "prospect",
+        "prospects",
+        "customer leads",
+        "find_customer_leads",
+        "find customer",
+        "find customers",
     ),
     "education_equipment": (
-        "教育设备", "教学用品", "教学仪器", "实验室用品", "实验室设备",
-        "教学模型", "educational equipment", "school equipment",
-        "laboratory equipment", "teaching models", "lab equipment",
+        "教育设备",
+        "教学用品",
+        "教学仪器",
+        "实验室用品",
+        "实验室设备",
+        "教学模型",
+        "educational equipment",
+        "school equipment",
+        "laboratory equipment",
+        "teaching models",
+        "lab equipment",
     ),
     "distributor": (
-        "经销商", "分销商", "进口商", "批发商", "采购商",
-        "distributor", "importer", "wholesaler", "procurement", "buyer",
+        "经销商",
+        "分销商",
+        "进口商",
+        "批发商",
+        "采购商",
+        "distributor",
+        "importer",
+        "wholesaler",
+        "procurement",
+        "buyer",
     ),
     "search": ("搜索", "查找", "搜", "search", "crawl", "web", "browser"),
 }
@@ -59,20 +87,52 @@ def extract_semantic_keywords(values: Iterable[object]) -> list[str]:
             if any(alias in lower or alias in text for alias in aliases):
                 keywords.add(canonical)
                 # Add readable aliases for overlap with older cards/tools.
-                keywords.update(a for a in aliases if re.match(r"^[a-z0-9_-]+$", a))
+                keywords.update(
+                    a for a in aliases if re.match(r"^[a-z0-9_-]+$", a)
+                )
 
         for canonical, aliases in _INTENT_ALIASES.items():
             if any(alias in lower or alias in text for alias in aliases):
                 keywords.add(canonical)
                 if canonical == "customer_development":
-                    keywords.update({"customer", "customers", "lead", "leads", "prospect", "hunter"})
+                    keywords.update(
+                        {
+                            "customer",
+                            "customers",
+                            "lead",
+                            "leads",
+                            "prospect",
+                            "hunter",
+                        },
+                    )
                 elif canonical == "education_equipment":
-                    keywords.update({"education", "educational", "laboratory", "equipment", "teaching"})
+                    keywords.update(
+                        {
+                            "education",
+                            "educational",
+                            "laboratory",
+                            "equipment",
+                            "teaching",
+                        },
+                    )
                 elif canonical == "distributor":
-                    keywords.update({"distributor", "importer", "buyer", "procurement"})
+                    keywords.update(
+                        {"distributor", "importer", "buyer", "procurement"},
+                    )
 
-        if "客户" in text and any(marker in text for marker in ("找", "搜", "查", "挖", "开发")):
+        if "客户" in text and any(
+            marker in text for marker in ("找", "搜", "查", "挖", "开发")
+        ):
             keywords.add("customer_development")
-            keywords.update({"customer", "customers", "lead", "leads", "prospect", "hunter"})
+            keywords.update(
+                {
+                    "customer",
+                    "customers",
+                    "lead",
+                    "leads",
+                    "prospect",
+                    "hunter",
+                },
+            )
 
     return sorted(keywords)

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Smart Executor Selector for DAG-native Step 6.
 
 Selects optimal executor based on node hints, learned policies, and real-time metrics.
@@ -11,6 +12,7 @@ from typing import Any, Optional
 @dataclass
 class ExecutorMetrics:
     """Per-executor performance metrics."""
+
     executor: str
     total_runs: int = 0
     successful_runs: int = 0
@@ -35,6 +37,7 @@ class ExecutorMetrics:
 @dataclass
 class SelectionResult:
     """Result of executor selection."""
+
     selected_executor: str
     selection_reason: str
     confidence: float  # 0.0 to 1.0
@@ -54,7 +57,10 @@ class ExecutorSelector:
         self._enable_auto_switch = enable_auto_switch
         self._executor_metrics: dict[str, ExecutorMetrics] = {}
         self._node_hint: dict[str, str] = {}  # node_id -> executor hint
-        self._policy_recommendation: dict[str, str] = {}  # role -> executor recommendation
+        self._policy_recommendation: dict[
+            str,
+            str,
+        ] = {}  # role -> executor recommendation
         self._selection_history: list[dict] = []
 
     def set_node_hint(self, node_id: str, executor: str) -> None:
@@ -74,7 +80,9 @@ class ExecutorSelector:
     ) -> None:
         """Record execution outcome for learning."""
         if executor not in self._executor_metrics:
-            self._executor_metrics[executor] = ExecutorMetrics(executor=executor)
+            self._executor_metrics[executor] = ExecutorMetrics(
+                executor=executor,
+            )
 
         metrics = self._executor_metrics[executor]
         metrics.total_runs += 1
@@ -164,15 +172,17 @@ class ExecutorSelector:
                 fallback = None  # Auto-switch disabled
 
         # Record selection
-        self._selection_history.append({
-            "timestamp": time.time(),
-            "node_id": node_id,
-            "role": role,
-            "selected": selected,
-            "reason": reason,
-            "confidence": confidence,
-            "fallback": fallback,
-        })
+        self._selection_history.append(
+            {
+                "timestamp": time.time(),
+                "node_id": node_id,
+                "role": role,
+                "selected": selected,
+                "reason": reason,
+                "confidence": confidence,
+                "fallback": fallback,
+            },
+        )
 
         return SelectionResult(
             selected_executor=selected,
@@ -195,7 +205,10 @@ class ExecutorSelector:
             recency_factor = 1.0
             if metrics.last_used > 0:
                 age_hours = (time.time() - metrics.last_used) / 3600
-                recency_factor = max(0.5, 1.0 - (age_hours / 24))  # Decay over 24h
+                recency_factor = max(
+                    0.5,
+                    1.0 - (age_hours / 24),
+                )  # Decay over 24h
 
             score = metrics.success_rate * recency_factor
 
@@ -246,7 +259,9 @@ class ExecutorSelector:
 
     def get_alternative_executor(self, current: str) -> Optional[str]:
         """Get alternative executor to switch to."""
-        alternatives = [k for k in self._executor_metrics.keys() if k != current]
+        alternatives = [
+            k for k in self._executor_metrics.keys() if k != current
+        ]
 
         if not alternatives:
             alternatives = ["native", "camel"]

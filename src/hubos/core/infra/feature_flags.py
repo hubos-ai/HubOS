@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Feature flags for Week 8 production rollout.
 
 Controls which Week 8 features are enabled/disabled.
@@ -91,14 +92,16 @@ class FeatureFlags:
     # Step 8: Channel Architecture (OpenWork takes WeChat)
     # When enabled: WeChat -> OpenWork -> solo-hub (task) -> OpenWork -> WeChat
     # When disabled: solo-hub handles WeChat directly (legacy behavior)
-    enable_openwork_wechat_channel: bool = True   # OpenWork接管微信渠道
-    enable_openwork_channel_to_runtime: bool = True   # OpenWork转发消息到solo-hub任务API
-    enable_runtime_wechat_direct: bool = False   # solo-hub直接收发微信(建议false)
+    enable_openwork_wechat_channel: bool = True  # OpenWork接管微信渠道
+    enable_openwork_channel_to_runtime: bool = (
+        True  # OpenWork转发消息到solo-hub任务API
+    )
+    enable_runtime_wechat_direct: bool = False  # solo-hub直接收发微信(建议false)
 
     # Step 9: Real Model Execution
     # When enabled: one_person_default uses real MiniMax model for stage execution
     # When disabled: uses mock/echo implementation
-    enable_real_model_execution: bool = True   # 启用真实模型执行
+    enable_real_model_execution: bool = True  # 启用真实模型执行
 
     # Step 10: Work Experience Layer
     #
@@ -125,64 +128,260 @@ class FeatureFlags:
     #     effective_count: NEVER increments — _execute_stage_mock bypasses generate_for_stage
     #     → Cards accumulate hits but effective_count remains 0 in mock-only deployments
     #
-    enable_work_experience_layer: bool = False   # 启用经验沉淀层
+    enable_work_experience_layer: bool = False  # 启用经验沉淀层
     # When enabled: compressed experience hints are injected into LLM prompt
     # When disabled: prompts are assembled without experience hints
-    enable_work_experience_prompt_injection: bool = False   # 启用经验注入prompt
+    enable_work_experience_prompt_injection: bool = False  # 启用经验注入prompt
 
     @classmethod
     def from_env(cls) -> "FeatureFlags":
         """Load feature flags from environment variables."""
         return cls(
-            enable_policy_rollout_guard=os.environ.get("ENABLE_POLICY_ROLLOUT_GUARD", "false").lower() == "true",
-            enable_policy_auto_rollback=os.environ.get("ENABLE_POLICY_AUTO_ROLLBACK", "false").lower() == "true",
-            enable_memory_budget_enforcement=os.environ.get("ENABLE_MEMORY_BUDGET_ENFORCEMENT", "false").lower() == "true",
-            enable_hermes_persistent_retry=os.environ.get("ENABLE_HERMES_PERSISTENT_RETRY", "false").lower() == "true",
-            enable_postgres_store=os.environ.get("ENABLE_POSTGRES_STORE", "false").lower() == "true",
-            enable_distributed_locks=os.environ.get("ENABLE_DISTRIBUTED_LOCKS", "false").lower() == "true",
-            enable_release_orchestration=os.environ.get("ENABLE_RELEASE_ORCHESTRATION", "false").lower() == "true",
-            enable_openwork_ui_migration=os.environ.get("ENABLE_OPENWORK_UI_MIGRATION", "false").lower() == "true",
-            enable_execution_loop_mvp=os.environ.get("ENABLE_EXECUTION_LOOP_MVP", "false").lower() == "true",
-            enable_wechat_ilink_compat=os.environ.get("ENABLE_WECHAT_ILINK_COMPAT", "false").lower() == "true",
-            enable_wechat_embedded_plugin=os.environ.get("ENABLE_WECHAT_EMBEDDED_PLUGIN", "false").lower() == "true",
-            enable_wechat_qr_login_ui=os.environ.get("ENABLE_WECHAT_QR_LOGIN_UI", "false").lower() == "true",
-            enable_wechat_poller=os.environ.get("ENABLE_WECHAT_POLLER", "false").lower() == "true",
-            enable_camel_backend=os.environ.get("ENABLE_CAMEL_BACKEND", "false").lower() == "true",
-            enable_parallel_workflow_v1=os.environ.get("ENABLE_PARALLEL_WORKFLOW_V1", "false").lower() == "true",
-            enable_backend_auto_fallback=os.environ.get("ENABLE_BACKEND_AUTO_FALLBACK", "false").lower() == "true",
-            enable_camel_real_workforce=os.environ.get("ENABLE_CAMEL_REAL_WORKFORCE", "false").lower() == "true",
-            enable_parallel_merge_timeout_guard=os.environ.get("ENABLE_PARALLEL_MERGE_TIMEOUT_GUARD", "false").lower() == "true",
-            enable_parallel_branch_persistence=os.environ.get("ENABLE_PARALLEL_BRANCH_PERSISTENCE", "false").lower() == "true",
-            enable_parallel_branch_retry_human_gate=os.environ.get("ENABLE_PARALLEL_BRANCH_RETRY_HUMAN_GATE", "false").lower() == "true",
-            enable_camel_shared_memory=os.environ.get("ENABLE_CAMEL_SHARED_MEMORY", "false").lower() == "true",
-            enable_dag_native_engine=os.environ.get("ENABLE_DAG_NATIVE_ENGINE", "false").lower() == "true",
-            enable_dag_executor_mixed_mode=os.environ.get("ENABLE_DAG_EXECUTOR_MIXED_MODE", "false").lower() == "true",
-            enable_dag_persistence_v1=os.environ.get("ENABLE_DAG_PERSISTENCE_V1", "false").lower() == "true",
-            enable_dag_api_v1=os.environ.get("ENABLE_DAG_API_V1", "false").lower() == "true",
-            enable_openwork_dag_view=os.environ.get("ENABLE_OPENWORK_DAG_VIEW", "false").lower() == "true",
-            enable_dag_policy_learning=os.environ.get("ENABLE_DAG_POLICY_LEARNING", "false").lower() == "true",
-            enable_dag_conditional_edges=os.environ.get("ENABLE_DAG_CONDITIONAL_EDGES", "false").lower() == "true",
-            enable_dag_adaptive_parallelism=os.environ.get("ENABLE_DAG_ADAPTIVE_PARALLELISM", "false").lower() == "true",
-            enable_dag_smart_executor_selection=os.environ.get("ENABLE_DAG_SMART_EXECUTOR_SELECTION", "false").lower() == "true",
-            enable_openwork_dag_interactive_view=os.environ.get("ENABLE_OPENWORK_DAG_INTERACTIVE_VIEW", "false").lower() == "true",
-            enable_dag_executor_auto_switch=os.environ.get("ENABLE_DAG_EXECUTOR_AUTO_SWITCH", "false").lower() == "true",
-            enable_cross_task_knowledge_graph=os.environ.get("ENABLE_CROSS_TASK_KNOWLEDGE_GRAPH", "false").lower() == "true",
-            enable_policy_transfer_learning=os.environ.get("ENABLE_POLICY_TRANSFER_LEARNING", "false").lower() == "true",
-            enable_memory_anti_pollution_guard=os.environ.get("ENABLE_MEMORY_ANTI_POLLUTION_GUARD", "false").lower() == "true",
-            enable_autonomous_optimization_loop=os.environ.get("ENABLE_AUTONOMOUS_OPTIMIZATION_LOOP", "false").lower() == "true",
-            enable_openwork_learning_console=os.environ.get("ENABLE_OPENWORK_LEARNING_CONSOLE", "false").lower() == "true",
-            enable_org_objective_engine=os.environ.get("ENABLE_ORG_OBJECTIVE_ENGINE", "false").lower() == "true",
-            enable_global_resource_arbiter=os.environ.get("ENABLE_GLOBAL_RESOURCE_ARBITER", "false").lower() == "true",
-            enable_cross_channel_negotiation=os.environ.get("ENABLE_CROSS_CHANNEL_NEGOTIATION", "false").lower() == "true",
-            enable_org_policy_governance=os.environ.get("ENABLE_ORG_POLICY_GOVERNANCE", "false").lower() == "true",
-            enable_human_ai_cogovernance=os.environ.get("ENABLE_HUMAN_AI_COGOVERNANCE", "false").lower() == "true",
-            enable_openwork_org_console=os.environ.get("ENABLE_OPENWORK_ORG_CONSOLE", "false").lower() == "true",
-            enable_openwork_wechat_channel=os.environ.get("ENABLE_OPENWORK_WECHAT_CHANNEL", "true").lower() == "true",
-            enable_openwork_channel_to_runtime=os.environ.get("ENABLE_OPENWORK_CHANNEL_TO_RUNTIME", "true").lower() == "true",
-            enable_runtime_wechat_direct=os.environ.get("RUNTIME_WECHAT_DIRECT", "false").lower() == "true",
-            enable_real_model_execution=os.environ.get("ENABLE_REAL_MODEL_EXECUTION", "true").lower() == "true",
-            enable_work_experience_layer=os.environ.get("ENABLE_WORK_EXPERIENCE_LAYER", "false").lower() == "true",
-            enable_work_experience_prompt_injection=os.environ.get("ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION", "false").lower() == "true",
+            enable_policy_rollout_guard=os.environ.get(
+                "ENABLE_POLICY_ROLLOUT_GUARD",
+                "false",
+            ).lower()
+            == "true",
+            enable_policy_auto_rollback=os.environ.get(
+                "ENABLE_POLICY_AUTO_ROLLBACK",
+                "false",
+            ).lower()
+            == "true",
+            enable_memory_budget_enforcement=os.environ.get(
+                "ENABLE_MEMORY_BUDGET_ENFORCEMENT",
+                "false",
+            ).lower()
+            == "true",
+            enable_hermes_persistent_retry=os.environ.get(
+                "ENABLE_HERMES_PERSISTENT_RETRY",
+                "false",
+            ).lower()
+            == "true",
+            enable_postgres_store=os.environ.get(
+                "ENABLE_POSTGRES_STORE",
+                "false",
+            ).lower()
+            == "true",
+            enable_distributed_locks=os.environ.get(
+                "ENABLE_DISTRIBUTED_LOCKS",
+                "false",
+            ).lower()
+            == "true",
+            enable_release_orchestration=os.environ.get(
+                "ENABLE_RELEASE_ORCHESTRATION",
+                "false",
+            ).lower()
+            == "true",
+            enable_openwork_ui_migration=os.environ.get(
+                "ENABLE_OPENWORK_UI_MIGRATION",
+                "false",
+            ).lower()
+            == "true",
+            enable_execution_loop_mvp=os.environ.get(
+                "ENABLE_EXECUTION_LOOP_MVP",
+                "false",
+            ).lower()
+            == "true",
+            enable_wechat_ilink_compat=os.environ.get(
+                "ENABLE_WECHAT_ILINK_COMPAT",
+                "false",
+            ).lower()
+            == "true",
+            enable_wechat_embedded_plugin=os.environ.get(
+                "ENABLE_WECHAT_EMBEDDED_PLUGIN",
+                "false",
+            ).lower()
+            == "true",
+            enable_wechat_qr_login_ui=os.environ.get(
+                "ENABLE_WECHAT_QR_LOGIN_UI",
+                "false",
+            ).lower()
+            == "true",
+            enable_wechat_poller=os.environ.get(
+                "ENABLE_WECHAT_POLLER",
+                "false",
+            ).lower()
+            == "true",
+            enable_camel_backend=os.environ.get(
+                "ENABLE_CAMEL_BACKEND",
+                "false",
+            ).lower()
+            == "true",
+            enable_parallel_workflow_v1=os.environ.get(
+                "ENABLE_PARALLEL_WORKFLOW_V1",
+                "false",
+            ).lower()
+            == "true",
+            enable_backend_auto_fallback=os.environ.get(
+                "ENABLE_BACKEND_AUTO_FALLBACK",
+                "false",
+            ).lower()
+            == "true",
+            enable_camel_real_workforce=os.environ.get(
+                "ENABLE_CAMEL_REAL_WORKFORCE",
+                "false",
+            ).lower()
+            == "true",
+            enable_parallel_merge_timeout_guard=os.environ.get(
+                "ENABLE_PARALLEL_MERGE_TIMEOUT_GUARD",
+                "false",
+            ).lower()
+            == "true",
+            enable_parallel_branch_persistence=os.environ.get(
+                "ENABLE_PARALLEL_BRANCH_PERSISTENCE",
+                "false",
+            ).lower()
+            == "true",
+            enable_parallel_branch_retry_human_gate=os.environ.get(
+                "ENABLE_PARALLEL_BRANCH_RETRY_HUMAN_GATE",
+                "false",
+            ).lower()
+            == "true",
+            enable_camel_shared_memory=os.environ.get(
+                "ENABLE_CAMEL_SHARED_MEMORY",
+                "false",
+            ).lower()
+            == "true",
+            enable_dag_native_engine=os.environ.get(
+                "ENABLE_DAG_NATIVE_ENGINE",
+                "false",
+            ).lower()
+            == "true",
+            enable_dag_executor_mixed_mode=os.environ.get(
+                "ENABLE_DAG_EXECUTOR_MIXED_MODE",
+                "false",
+            ).lower()
+            == "true",
+            enable_dag_persistence_v1=os.environ.get(
+                "ENABLE_DAG_PERSISTENCE_V1",
+                "false",
+            ).lower()
+            == "true",
+            enable_dag_api_v1=os.environ.get(
+                "ENABLE_DAG_API_V1",
+                "false",
+            ).lower()
+            == "true",
+            enable_openwork_dag_view=os.environ.get(
+                "ENABLE_OPENWORK_DAG_VIEW",
+                "false",
+            ).lower()
+            == "true",
+            enable_dag_policy_learning=os.environ.get(
+                "ENABLE_DAG_POLICY_LEARNING",
+                "false",
+            ).lower()
+            == "true",
+            enable_dag_conditional_edges=os.environ.get(
+                "ENABLE_DAG_CONDITIONAL_EDGES",
+                "false",
+            ).lower()
+            == "true",
+            enable_dag_adaptive_parallelism=os.environ.get(
+                "ENABLE_DAG_ADAPTIVE_PARALLELISM",
+                "false",
+            ).lower()
+            == "true",
+            enable_dag_smart_executor_selection=os.environ.get(
+                "ENABLE_DAG_SMART_EXECUTOR_SELECTION",
+                "false",
+            ).lower()
+            == "true",
+            enable_openwork_dag_interactive_view=os.environ.get(
+                "ENABLE_OPENWORK_DAG_INTERACTIVE_VIEW",
+                "false",
+            ).lower()
+            == "true",
+            enable_dag_executor_auto_switch=os.environ.get(
+                "ENABLE_DAG_EXECUTOR_AUTO_SWITCH",
+                "false",
+            ).lower()
+            == "true",
+            enable_cross_task_knowledge_graph=os.environ.get(
+                "ENABLE_CROSS_TASK_KNOWLEDGE_GRAPH",
+                "false",
+            ).lower()
+            == "true",
+            enable_policy_transfer_learning=os.environ.get(
+                "ENABLE_POLICY_TRANSFER_LEARNING",
+                "false",
+            ).lower()
+            == "true",
+            enable_memory_anti_pollution_guard=os.environ.get(
+                "ENABLE_MEMORY_ANTI_POLLUTION_GUARD",
+                "false",
+            ).lower()
+            == "true",
+            enable_autonomous_optimization_loop=os.environ.get(
+                "ENABLE_AUTONOMOUS_OPTIMIZATION_LOOP",
+                "false",
+            ).lower()
+            == "true",
+            enable_openwork_learning_console=os.environ.get(
+                "ENABLE_OPENWORK_LEARNING_CONSOLE",
+                "false",
+            ).lower()
+            == "true",
+            enable_org_objective_engine=os.environ.get(
+                "ENABLE_ORG_OBJECTIVE_ENGINE",
+                "false",
+            ).lower()
+            == "true",
+            enable_global_resource_arbiter=os.environ.get(
+                "ENABLE_GLOBAL_RESOURCE_ARBITER",
+                "false",
+            ).lower()
+            == "true",
+            enable_cross_channel_negotiation=os.environ.get(
+                "ENABLE_CROSS_CHANNEL_NEGOTIATION",
+                "false",
+            ).lower()
+            == "true",
+            enable_org_policy_governance=os.environ.get(
+                "ENABLE_ORG_POLICY_GOVERNANCE",
+                "false",
+            ).lower()
+            == "true",
+            enable_human_ai_cogovernance=os.environ.get(
+                "ENABLE_HUMAN_AI_COGOVERNANCE",
+                "false",
+            ).lower()
+            == "true",
+            enable_openwork_org_console=os.environ.get(
+                "ENABLE_OPENWORK_ORG_CONSOLE",
+                "false",
+            ).lower()
+            == "true",
+            enable_openwork_wechat_channel=os.environ.get(
+                "ENABLE_OPENWORK_WECHAT_CHANNEL",
+                "true",
+            ).lower()
+            == "true",
+            enable_openwork_channel_to_runtime=os.environ.get(
+                "ENABLE_OPENWORK_CHANNEL_TO_RUNTIME",
+                "true",
+            ).lower()
+            == "true",
+            enable_runtime_wechat_direct=os.environ.get(
+                "RUNTIME_WECHAT_DIRECT",
+                "false",
+            ).lower()
+            == "true",
+            enable_real_model_execution=os.environ.get(
+                "ENABLE_REAL_MODEL_EXECUTION",
+                "true",
+            ).lower()
+            == "true",
+            enable_work_experience_layer=os.environ.get(
+                "ENABLE_WORK_EXPERIENCE_LAYER",
+                "false",
+            ).lower()
+            == "true",
+            enable_work_experience_prompt_injection=os.environ.get(
+                "ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION",
+                "false",
+            ).lower()
+            == "true",
         )
 
     def is_enabled(self, flag_name: str) -> bool:
@@ -266,7 +465,10 @@ class FeatureFlags:
 
     def use_openwork_org_console(self) -> bool:
         """Check if OpenWork org console is enabled."""
-        return self.enable_openwork_org_console and self.enable_org_objective_engine
+        return (
+            self.enable_openwork_org_console
+            and self.enable_org_objective_engine
+        )
 
     def use_openwork_wechat_channel(self) -> bool:
         """Check if OpenWork WeChat channel is enabled.
@@ -290,13 +492,15 @@ class FeatureFlags:
 
     def is_org_autonomy_enabled(self) -> bool:
         """Check if any org autonomy feature is enabled."""
-        return any([
-            self.enable_org_objective_engine,
-            self.enable_global_resource_arbiter,
-            self.enable_cross_channel_negotiation,
-            self.enable_org_policy_governance,
-            self.enable_human_ai_cogovernance,
-        ])
+        return any(
+            [
+                self.enable_org_objective_engine,
+                self.enable_global_resource_arbiter,
+                self.enable_cross_channel_negotiation,
+                self.enable_org_policy_governance,
+                self.enable_human_ai_cogovernance,
+            ],
+        )
 
     # ==================== Week 8 Convenience Methods ====================
 
@@ -306,7 +510,9 @@ class FeatureFlags:
 
     def use_distributed_locks(self) -> bool:
         """Check if distributed locks should be used (requires Redis)."""
-        return self.enable_distributed_locks and bool(os.environ.get("REDIS_HOST"))
+        return self.enable_distributed_locks and bool(
+            os.environ.get("REDIS_HOST"),
+        )
 
     def is_multi_instance_mode(self) -> bool:
         """Check if running in multi-instance mode."""
@@ -320,7 +526,10 @@ class FeatureFlags:
 
     def use_dag_executor_mixed_mode(self) -> bool:
         """Check if mixed executor mode is enabled."""
-        return self.enable_dag_executor_mixed_mode and self.enable_dag_native_engine
+        return (
+            self.enable_dag_executor_mixed_mode
+            and self.enable_dag_native_engine
+        )
 
     def use_dag_persistence(self) -> bool:
         """Check if DAG persistence is enabled."""
@@ -342,35 +551,51 @@ class FeatureFlags:
 
     def use_dag_policy_learning(self) -> bool:
         """Check if DAG policy learning is enabled."""
-        return self.enable_dag_policy_learning and self.enable_dag_native_engine
+        return (
+            self.enable_dag_policy_learning and self.enable_dag_native_engine
+        )
 
     def use_dag_conditional_edges(self) -> bool:
         """Check if DAG conditional edge routing is enabled."""
-        return self.enable_dag_conditional_edges and self.enable_dag_native_engine
+        return (
+            self.enable_dag_conditional_edges and self.enable_dag_native_engine
+        )
 
     def use_dag_adaptive_parallelism(self) -> bool:
         """Check if DAG adaptive parallelism is enabled."""
-        return self.enable_dag_adaptive_parallelism and self.enable_dag_native_engine
+        return (
+            self.enable_dag_adaptive_parallelism
+            and self.enable_dag_native_engine
+        )
 
     def use_dag_smart_executor_selection(self) -> bool:
         """Check if DAG smart executor selection is enabled."""
-        return self.enable_dag_smart_executor_selection and self.enable_dag_native_engine
+        return (
+            self.enable_dag_smart_executor_selection
+            and self.enable_dag_native_engine
+        )
 
     def use_openwork_dag_interactive_view(self) -> bool:
         """Check if OpenWork DAG interactive view is enabled."""
-        return self.enable_openwork_dag_interactive_view and self.enable_dag_native_engine
+        return (
+            self.enable_openwork_dag_interactive_view
+            and self.enable_dag_native_engine
+        )
 
     def use_dag_executor_auto_switch(self) -> bool:
         """Check if DAG executor auto-switch on failure is enabled."""
-        return self.enable_dag_executor_auto_switch and self.enable_dag_native_engine
+        return (
+            self.enable_dag_executor_auto_switch
+            and self.enable_dag_native_engine
+        )
 
     def is_dag_intelligence_enabled(self) -> bool:
         """Check if any DAG intelligence feature is enabled."""
         return (
-            self.enable_dag_policy_learning or
-            self.enable_dag_conditional_edges or
-            self.enable_dag_adaptive_parallelism or
-            self.enable_dag_smart_executor_selection
+            self.enable_dag_policy_learning
+            or self.enable_dag_conditional_edges
+            or self.enable_dag_adaptive_parallelism
+            or self.enable_dag_smart_executor_selection
         ) and self.enable_dag_native_engine
 
     # ==================== Step 7 Cross-Task Learning Convenience Methods ====================
@@ -381,7 +606,10 @@ class FeatureFlags:
 
     def use_policy_transfer_learning(self) -> bool:
         """Check if policy transfer learning is enabled."""
-        return self.enable_policy_transfer_learning and self.enable_cross_task_knowledge_graph
+        return (
+            self.enable_policy_transfer_learning
+            and self.enable_cross_task_knowledge_graph
+        )
 
     def use_memory_anti_pollution_guard(self) -> bool:
         """Check if memory anti-pollution guard is enabled."""
@@ -389,19 +617,25 @@ class FeatureFlags:
 
     def use_autonomous_optimization_loop(self) -> bool:
         """Check if autonomous optimization loop is enabled."""
-        return self.enable_autonomous_optimization_loop and self.enable_cross_task_knowledge_graph
+        return (
+            self.enable_autonomous_optimization_loop
+            and self.enable_cross_task_knowledge_graph
+        )
 
     def use_openwork_learning_console(self) -> bool:
         """Check if OpenWork learning console is enabled."""
-        return self.enable_openwork_learning_console and self.enable_cross_task_knowledge_graph
+        return (
+            self.enable_openwork_learning_console
+            and self.enable_cross_task_knowledge_graph
+        )
 
     def is_cross_task_learning_enabled(self) -> bool:
         """Check if any cross-task learning feature is enabled."""
         return (
-            self.enable_cross_task_knowledge_graph or
-            self.enable_policy_transfer_learning or
-            self.enable_memory_anti_pollution_guard or
-            self.enable_autonomous_optimization_loop
+            self.enable_cross_task_knowledge_graph
+            or self.enable_policy_transfer_learning
+            or self.enable_memory_anti_pollution_guard
+            or self.enable_autonomous_optimization_loop
         )
 
     def use_work_experience(self) -> bool:
@@ -412,8 +646,8 @@ class FeatureFlags:
         retrieved and stored but not injected into prompts.
         """
         return (
-            self.enable_work_experience_layer and
-            self.enable_work_experience_prompt_injection
+            self.enable_work_experience_layer
+            and self.enable_work_experience_prompt_injection
         )
 
     def work_experience_stage(self) -> str:

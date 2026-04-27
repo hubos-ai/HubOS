@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Test identity reply is WeChat friendly - Step 9.1.
 
 Tests that input "你是谁" produces a short, natural response
@@ -17,8 +18,11 @@ class TestIdentityReplyWeChatFriendly:
         from hubos.core.execution.task_store import Task
         from hubos.core.execution.event_store import EventStore
 
-        with patch('hubos.core.infra.feature_flags.get_feature_flags') as mock_ff, \
-             patch('hubos.core.llm.runtime.get_llm_runtime') as mock_runtime:
+        with patch(
+            "hubos.core.infra.feature_flags.get_feature_flags",
+        ) as mock_ff, patch(
+            "hubos.core.llm.runtime.get_llm_runtime",
+        ) as mock_runtime:
             mock_flags = MagicMock()
             mock_flags.enable_real_model_execution = True
             mock_ff.return_value = mock_flags
@@ -78,8 +82,11 @@ class TestIdentityReplyWeChatFriendly:
         from hubos.core.execution.task_store import Task
         from hubos.core.execution.event_store import EventStore
 
-        with patch('hubos.core.infra.feature_flags.get_feature_flags') as mock_ff, \
-             patch('hubos.core.llm.runtime.get_llm_runtime') as mock_runtime:
+        with patch(
+            "hubos.core.infra.feature_flags.get_feature_flags",
+        ) as mock_ff, patch(
+            "hubos.core.llm.runtime.get_llm_runtime",
+        ) as mock_runtime:
             mock_flags = MagicMock()
             mock_flags.enable_real_model_execution = True
             mock_ff.return_value = mock_flags
@@ -116,7 +123,9 @@ class TestIdentityReplyWeChatFriendly:
             # Check no analysis labels
             labels = ["##", "###", "**", "用户意图", "关键考量", "战略分析"]
             for label in labels:
-                assert label not in result["response_text"], f"Found {label} in response"
+                assert (
+                    label not in result["response_text"]
+                ), f"Found {label} in response"
 
 
 class TestWeChatFriendlyShortForm:

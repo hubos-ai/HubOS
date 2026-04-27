@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """S4c — real role source end-to-end.
 
 Closes the gap between "TenantContext has a `roles` field" (Stage C
@@ -119,9 +120,9 @@ auth_mod = _load_module(
 # auth.py reads AUTH_FILE at module load; double-confirm it points into
 # the sandbox. If SECRET_DIR stub above worked, this will already be
 # correct.
-assert str(auth_mod.AUTH_FILE).startswith(str(_TMP)), (
-    f"AUTH_FILE escaped sandbox: {auth_mod.AUTH_FILE}"
-)
+assert str(auth_mod.AUTH_FILE).startswith(
+    str(_TMP),
+), f"AUTH_FILE escaped sandbox: {auth_mod.AUTH_FILE}"
 
 tenant_mw_mod = _load_module(
     "hubos.app.tenant_middleware",
@@ -287,7 +288,10 @@ print("\n[T5] HUBOS_ADMIN_USERS allowlist")
 # alice is owner; add bob and Carol via allowlist.
 os.environ["HUBOS_ADMIN_USERS"] = "bob, Carol"
 check("bob via allowlist → admin", resolve("bob") == frozenset({"admin"}))
-check("Carol (case) via allowlist → admin", resolve("carol") == frozenset({"admin"}))
+check(
+    "Carol (case) via allowlist → admin",
+    resolve("carol") == frozenset({"admin"}),
+)
 check("dave not listed → empty", resolve("dave") == frozenset())
 
 # Middleware: bob now sees the admin page.
@@ -336,6 +340,8 @@ check(
 #     Build the context directly so we can inspect the merged role set.
 # ---------------------------------------------------------------------------
 print("\n[T7] supplementary role merge")
+
+
 # Fabricate a request-like object with the same duck typing as fastapi's
 # Request exposes to build_tenant_context.
 class _FakeReq:

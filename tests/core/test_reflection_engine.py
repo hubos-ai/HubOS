@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for reflection engine."""
 
 import time
@@ -11,7 +12,11 @@ from hubos.core.orchestrator.reflection_engine import (
     ReflectionMode,
     TaskContext,
 )
-from hubos.core.schemas.memory import LearnedPolicy, RouteHint, ReflectionReport
+from hubos.core.schemas.memory import (
+    LearnedPolicy,
+    RouteHint,
+    ReflectionReport,
+)
 from hubos.core.schemas.tasks import TaskResult, TaskStatus
 
 
@@ -42,8 +47,18 @@ class TestReflectionEngine:
             trace_id="trace-1",
             task_input={"query": "test query", "type": "search"},
             execution_trace=[
-                {"step": 1, "worker": "openai", "success": True, "latency_ms": 100},
-                {"step": 2, "worker": "openai", "success": True, "latency_ms": 150},
+                {
+                    "step": 1,
+                    "worker": "openai",
+                    "success": True,
+                    "latency_ms": 100,
+                },
+                {
+                    "step": 2,
+                    "worker": "openai",
+                    "success": True,
+                    "latency_ms": 150,
+                },
             ],
             task_result=TaskResult(
                 unit_id=uuid4(),
@@ -65,8 +80,18 @@ class TestReflectionEngine:
             trace_id="trace-2",
             task_input={"query": "large input", "size": 50000},
             execution_trace=[
-                {"step": 1, "worker": "openai", "success": False, "error": "timeout"},
-                {"step": 2, "worker": "claude", "success": False, "error": "timeout"},
+                {
+                    "step": 1,
+                    "worker": "openai",
+                    "success": False,
+                    "error": "timeout",
+                },
+                {
+                    "step": 2,
+                    "worker": "claude",
+                    "success": False,
+                    "error": "timeout",
+                },
             ],
             task_result=TaskResult(
                 unit_id=uuid4(),
@@ -232,7 +257,9 @@ class TestReflectionEngine:
         engine.reflect(context)
 
         # Now try to generate hint
-        hint = engine.generate_route_hint({"query": "search query", "type": "search"})
+        hint = engine.generate_route_hint(
+            {"query": "search query", "type": "search"},
+        )
 
         # May or may not match depending on trigger extraction
 
@@ -253,7 +280,10 @@ class TestReflectionEngine:
         engine._policy_store["test:trigger"] = policy
 
         # Record effectiveness
-        engine.record_policy_effectiveness(policy.policy_id, was_effective=True)
+        engine.record_policy_effectiveness(
+            policy.policy_id,
+            was_effective=True,
+        )
 
         updated = engine.get_policy(policy.policy_id)
         assert updated is not None

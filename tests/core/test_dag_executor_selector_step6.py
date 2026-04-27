@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Tests for DAG Executor Selector - Parallel Core V1.5 Step 6."""
 
 import pytest
@@ -283,7 +284,11 @@ class TestExecutorSelector:
 
     def test_success_rate_property(self):
         """Test ExecutorMetrics success_rate property."""
-        metrics = ExecutorMetrics(executor="test", total_runs=10, successful_runs=7)
+        metrics = ExecutorMetrics(
+            executor="test",
+            total_runs=10,
+            successful_runs=7,
+        )
 
         assert metrics.success_rate == 0.7
 

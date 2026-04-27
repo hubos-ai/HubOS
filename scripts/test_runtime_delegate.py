@@ -108,7 +108,11 @@ def _start_runtime(port: int, log_path: Path) -> subprocess.Popen:
     Stream logs to a file (not pipe) so the OS pipe buffer can never block
     the subprocess if it gets verbose.
     """
-    env = {**os.environ, "ENABLE_EXECUTION_LOOP_MVP": "true", "PYTHONUNBUFFERED": "1"}
+    env = {
+        **os.environ,
+        "ENABLE_EXECUTION_LOOP_MVP": "true",
+        "PYTHONUNBUFFERED": "1",
+    }
     cmd = [
         sys.executable,
         "scripts/run_api.py",
@@ -154,7 +158,9 @@ async def test_unreachable_runtime(rd) -> None:
     finally:
         os.environ.pop("HUBOS_RUNTIME_URL", None)
     text = _text(resp)
-    assert "unreachable" in text.lower(), f"expected unreachable error, got: {text!r}"
+    assert (
+        "unreachable" in text.lower()
+    ), f"expected unreachable error, got: {text!r}"
     assert "1" in text
     print("  ✓ Runtime 不可达时返回结构化错误（无 stack trace）")
 
@@ -162,7 +168,11 @@ async def test_unreachable_runtime(rd) -> None:
 async def test_delegate_no_wait(rd, base_url: str) -> None:
     os.environ["HUBOS_RUNTIME_URL"] = base_url
     rd.set_runtime_request_context(
-        {"session_id": "test-session-1", "user_id": "alice", "channel": "web_ui"},
+        {
+            "session_id": "test-session-1",
+            "user_id": "alice",
+            "channel": "web_ui",
+        },
     )
     resp = await rd.delegate_task(
         "Summarise the benefits of HTTP/2 in one sentence.",
@@ -176,7 +186,11 @@ async def test_delegate_no_wait(rd, base_url: str) -> None:
     return task_id
 
 
-async def test_track_after_done(rd, task_id: str, log_path: Path | None = None) -> None:
+async def test_track_after_done(
+    rd,
+    task_id: str,
+    log_path: Path | None = None,
+) -> None:
     """等之前的任务跑完，再 track_task 返回 final_response。"""
     last_text = ""
     terminal_markers = ("Status: done", "Status: failed", "Status: cancelled")
@@ -198,14 +212,20 @@ async def test_track_after_done(rd, task_id: str, log_path: Path | None = None) 
     assert f"Task ID: {task_id}" in text
     assert any(m in text for m in terminal_markers)
     if "Status: done" in text:
-        assert "Final response:" in text, f"DONE task missing final_response: {text!r}"
+        assert (
+            "Final response:" in text
+        ), f"DONE task missing final_response: {text!r}"
     print(f"  ✓ track_task(follow=False) 对终结任务返回 status + final_response")
 
 
 async def test_delegate_with_wait(rd) -> None:
     """delegate_task(wait=True) 阻塞 SSE 直到完成。"""
     rd.set_runtime_request_context(
-        {"session_id": "test-session-2", "user_id": "bob", "channel": "web_ui"},
+        {
+            "session_id": "test-session-2",
+            "user_id": "bob",
+            "channel": "web_ui",
+        },
     )
     t0 = time.perf_counter()
     resp = await rd.delegate_task(
@@ -228,15 +248,19 @@ async def test_cancel_returns_501_gracefully(rd, base_url: str) -> None:
     """已知 Runtime cancel 返回 501，工具应优雅说明而不报错。"""
     os.environ["HUBOS_RUNTIME_URL"] = base_url
     rd.set_runtime_request_context(
-        {"session_id": "test-session-3", "user_id": "carol", "channel": "web_ui"},
+        {
+            "session_id": "test-session-3",
+            "user_id": "carol",
+            "channel": "web_ui",
+        },
     )
     submit = await rd.delegate_task("noop", wait=False)
     task_id = _text(submit).split("Task ID:")[1].split("\n")[0].strip()
     resp = await rd.cancel_task(task_id)
     text = _text(resp)
-    assert ("not yet support" in text.lower()) or ("cancel requested" in text.lower()), (
-        f"unexpected cancel response: {text!r}"
-    )
+    assert ("not yet support" in text.lower()) or (
+        "cancel requested" in text.lower()
+    ), f"unexpected cancel response: {text!r}"
     assert task_id in text
     print(f"  ✓ cancel_task 优雅处理 Runtime 501 占位返回")
 
@@ -253,16 +277,20 @@ async def test_session_context_propagated(rd, base_url: str) -> None:
     os.environ["HUBOS_RUNTIME_URL"] = base_url
     expected_session = "test-session-ctx-99"
     rd.set_runtime_request_context(
-        {"session_id": expected_session, "user_id": "dave", "channel": "telegram"},
+        {
+            "session_id": expected_session,
+            "user_id": "dave",
+            "channel": "telegram",
+        },
     )
     submit = await rd.delegate_task("ping", wait=False)
     task_id = _text(submit).split("Task ID:")[1].split("\n")[0].strip()
     async with httpx.AsyncClient(timeout=5, trust_env=False) as client:
         snap = (await client.get(f"{base_url}/v1/tasks/{task_id}")).json()
     actual_session = snap.get("session_id")
-    assert actual_session == expected_session, (
-        f"session_id not propagated: expected {expected_session}, got {actual_session}"
-    )
+    assert (
+        actual_session == expected_session
+    ), f"session_id not propagated: expected {expected_session}, got {actual_session}"
     print(f"  ✓ session_id 正确透传（{expected_session}）")
 
 
@@ -291,7 +319,11 @@ async def main() -> None:
         try:
             _wait_for_health(base_url)
         except RuntimeError:
-            tail = log_path.read_text(errors="ignore")[-2000:] if log_path.exists() else "(no log)"
+            tail = (
+                log_path.read_text(errors="ignore")[-2000:]
+                if log_path.exists()
+                else "(no log)"
+            )
             print(f"\nRuntime log tail:\n{tail}")
             raise
         print(f"        Runtime healthy (pid={proc.pid})")

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Workflow services for usability sprint."""
 
 from hubos.core.workflow.preset import (

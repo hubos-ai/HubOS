@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Conditional Edge Routing Evaluator for DAG-native Step 6.
 
 Provides safe expression evaluation for conditional DAG routing.
@@ -37,6 +38,7 @@ SAFE_CONTEXT_PATTERNS = [
 @dataclass
 class EvaluationResult:
     """Result of condition evaluation."""
+
     expression: str
     result: bool
     evaluated_at: float
@@ -51,11 +53,20 @@ class ConditionEvaluator:
 
     def __init__(self) -> None:
         self._safe_vars: set[str] = {
-            "true", "false", "True", "False",
-            "none", "None",
-            "risk_score", "code_lang", "task_type",
-            "node_id", "role", "attempt",
-            "input_length", "has_dependencies",
+            "true",
+            "false",
+            "True",
+            "False",
+            "none",
+            "None",
+            "risk_score",
+            "code_lang",
+            "task_type",
+            "node_id",
+            "role",
+            "attempt",
+            "input_length",
+            "has_dependencies",
         }
 
     def evaluate(
@@ -174,7 +185,19 @@ class ConditionEvaluator:
         # Replace known identifiers with context lookups
         processed_tokens = []
         for token in tokens:
-            if token in ("(", ")", "AND", "OR", "NOT", "==", "!=", ">", ">=", "<", "<="):
+            if token in (
+                "(",
+                ")",
+                "AND",
+                "OR",
+                "NOT",
+                "==",
+                "!=",
+                ">",
+                ">=",
+                "<",
+                "<=",
+            ):
                 # Convert Python keywords to lowercase for eval
                 if token == "AND":
                     processed_tokens.append("and")
@@ -190,7 +213,11 @@ class ConditionEvaluator:
                 else:
                     # Treat as context variable
                     processed_tokens.append(f"context.get('{token}', False)")
-            elif token.startswith(("'", '"')) or token in ("True", "False", "None"):
+            elif token.startswith(("'", '"')) or token in (
+                "True",
+                "False",
+                "None",
+            ):
                 processed_tokens.append(token)
             else:
                 processed_tokens.append(token)

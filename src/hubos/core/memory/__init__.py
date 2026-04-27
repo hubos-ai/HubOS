@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """hubos.core memory layer.
 
 Layered memory model (see docs/architecture-memory-layers.md when written):

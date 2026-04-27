@@ -39,6 +39,7 @@ app.include_router(router, prefix="/api")
 # Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def tmp_root():
     """Temp directory for the store."""
@@ -50,6 +51,7 @@ def tmp_root():
 def store(tmp_root):
     """Provide a clean LocalWorkExperienceStore backed by temp dir."""
     from hubos.core.work_experience.store import LocalWorkExperienceStore
+
     return LocalWorkExperienceStore(root=tmp_root / "we")
 
 
@@ -69,6 +71,7 @@ def api_client():
 # =============================================================================
 # Test Data
 # =============================================================================
+
 
 def make_card(
     store,
@@ -113,9 +116,13 @@ def make_card(
 # GET /api/work-experience/cards
 # =============================================================================
 
+
 async def test_list_cards_empty(api_client, store):
     """Empty store returns empty list."""
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.get("/api/work-experience/cards")
     assert resp.status_code == 200
@@ -126,11 +133,18 @@ async def test_list_cards_empty(api_client, store):
 
 async def test_list_cards_returns_all_statuses(api_client, store):
     """List returns all cards regardless of status (no governance filter at API level)."""
-    c1 = make_card(store, status=WorkExperienceStatus.CANDIDATE, title="Card 1")
+    c1 = make_card(
+        store,
+        status=WorkExperienceStatus.CANDIDATE,
+        title="Card 1",
+    )
     c2 = make_card(store, status=WorkExperienceStatus.APPROVED, title="Card 2")
     c3 = make_card(store, status=WorkExperienceStatus.REJECTED, title="Card 3")
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.get("/api/work-experience/cards")
 
@@ -143,10 +157,17 @@ async def test_list_cards_returns_all_statuses(api_client, store):
 
 async def test_list_cards_filter_by_status(api_client, store):
     """Filter by status returns only matching cards."""
-    make_card(store, status=WorkExperienceStatus.CANDIDATE, title="Candidate 1")
+    make_card(
+        store,
+        status=WorkExperienceStatus.CANDIDATE,
+        title="Candidate 1",
+    )
     make_card(store, status=WorkExperienceStatus.APPROVED, title="Approved 1")
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.get("/api/work-experience/cards?status=approved")
 
@@ -162,7 +183,10 @@ async def test_list_cards_filter_by_scope(api_client, store):
     make_card(store, scope=WorkExperienceScope.GLOBAL, title="Global Card")
     make_card(store, scope=WorkExperienceScope.PROJECT, title="Project Card")
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.get("/api/work-experience/cards?scope=global")
 
@@ -177,7 +201,10 @@ async def test_list_cards_pagination(api_client, store):
     for i in range(5):
         make_card(store, title=f"Card {i}")
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.get("/api/work-experience/cards?limit=2&offset=1")
 
@@ -198,7 +225,10 @@ async def test_list_cards_includes_governance_fields(api_client, store):
         effective_count=2,
     )
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.get("/api/work-experience/cards")
 
@@ -215,9 +245,14 @@ async def test_list_cards_includes_governance_fields(api_client, store):
 
 async def test_list_cards_invalid_status(api_client, store):
     """Invalid status returns 400."""
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
-            resp = await c.get("/api/work-experience/cards?status=invalid_status")
+            resp = await c.get(
+                "/api/work-experience/cards?status=invalid_status",
+            )
     assert resp.status_code == 400
     assert "Invalid status" in resp.json()["detail"]
 
@@ -226,13 +261,19 @@ async def test_list_cards_invalid_status(api_client, store):
 # GET /api/work-experience/cards/{card_id}
 # =============================================================================
 
+
 async def test_get_card(api_client, store):
     """Get single card by ID."""
     card = make_card(store, status=WorkExperienceStatus.APPROVED)
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
-            resp = await c.get(f"/api/work-experience/cards/{card.experience_id}")
+            resp = await c.get(
+                f"/api/work-experience/cards/{card.experience_id}",
+            )
 
     assert resp.status_code == 200
     data = resp.json()
@@ -242,15 +283,23 @@ async def test_get_card(api_client, store):
 
 async def test_get_card_not_found(api_client, store):
     """Get non-existent card returns 404."""
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
-            resp = await c.get("/api/work-experience/cards/00000000-0000-0000-0000-000000000000")
+            resp = await c.get(
+                "/api/work-experience/cards/00000000-0000-0000-0000-000000000000",
+            )
     assert resp.status_code == 404
 
 
 async def test_get_card_invalid_uuid(api_client, store):
     """Get with invalid UUID returns 400."""
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.get("/api/work-experience/cards/not-a-uuid")
     assert resp.status_code == 400
@@ -261,13 +310,19 @@ async def test_get_card_invalid_uuid(api_client, store):
 # POST /api/work-experience/cards/{card_id}/approve
 # =============================================================================
 
+
 async def test_approve_candidate(api_client, store):
     """Approve a candidate card."""
     card = make_card(store, status=WorkExperienceStatus.CANDIDATE)
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
-            resp = await c.post(f"/api/work-experience/cards/{card.experience_id}/approve")
+            resp = await c.post(
+                f"/api/work-experience/cards/{card.experience_id}/approve",
+            )
 
     assert resp.status_code == 200
     data = resp.json()
@@ -283,9 +338,14 @@ async def test_approve_already_approved(api_client, store):
     """Approve an already-approved card returns 409."""
     card = make_card(store, status=WorkExperienceStatus.APPROVED)
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
-            resp = await c.post(f"/api/work-experience/cards/{card.experience_id}/approve")
+            resp = await c.post(
+                f"/api/work-experience/cards/{card.experience_id}/approve",
+            )
     assert resp.status_code == 409
 
 
@@ -293,13 +353,19 @@ async def test_approve_already_approved(api_client, store):
 # POST /api/work-experience/cards/{card_id}/reject
 # =============================================================================
 
+
 async def test_reject_approved(api_client, store):
     """Reject an approved card."""
     card = make_card(store, status=WorkExperienceStatus.APPROVED)
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
-            resp = await c.post(f"/api/work-experience/cards/{card.experience_id}/reject")
+            resp = await c.post(
+                f"/api/work-experience/cards/{card.experience_id}/reject",
+            )
 
     assert resp.status_code == 200
     assert resp.json()["new_status"] == "rejected"
@@ -312,9 +378,14 @@ async def test_reject_candidate(api_client, store):
     """Reject a candidate card."""
     card = make_card(store, status=WorkExperienceStatus.CANDIDATE)
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
-            resp = await c.post(f"/api/work-experience/cards/{card.experience_id}/reject")
+            resp = await c.post(
+                f"/api/work-experience/cards/{card.experience_id}/reject",
+            )
 
     assert resp.status_code == 200
     assert resp.json()["new_status"] == "rejected"
@@ -324,13 +395,19 @@ async def test_reject_candidate(api_client, store):
 # POST /api/work-experience/cards/{card_id}/archive
 # =============================================================================
 
+
 async def test_archive_approved(api_client, store):
     """Archive an approved card."""
     card = make_card(store, status=WorkExperienceStatus.APPROVED)
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
-            resp = await c.post(f"/api/work-experience/cards/{card.experience_id}/archive")
+            resp = await c.post(
+                f"/api/work-experience/cards/{card.experience_id}/archive",
+            )
 
     assert resp.status_code == 200
     assert resp.json()["new_status"] == "archived"
@@ -340,9 +417,14 @@ async def test_archive_rejected(api_client, store):
     """Archive a rejected card."""
     card = make_card(store, status=WorkExperienceStatus.REJECTED)
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
-            resp = await c.post(f"/api/work-experience/cards/{card.experience_id}/archive")
+            resp = await c.post(
+                f"/api/work-experience/cards/{card.experience_id}/archive",
+            )
 
     assert resp.status_code == 200
     assert resp.json()["new_status"] == "archived"
@@ -352,13 +434,19 @@ async def test_archive_rejected(api_client, store):
 # POST /api/work-experience/cards/{card_id}/reactivate
 # =============================================================================
 
+
 async def test_reactivate_rejected(api_client, store):
     """Reactivate a rejected card back to candidate."""
     card = make_card(store, status=WorkExperienceStatus.REJECTED)
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
-            resp = await c.post(f"/api/work-experience/cards/{card.experience_id}/reactivate")
+            resp = await c.post(
+                f"/api/work-experience/cards/{card.experience_id}/reactivate",
+            )
 
     assert resp.status_code == 200
     assert resp.json()["new_status"] == "candidate"
@@ -368,9 +456,14 @@ async def test_reactivate_approved_fails(api_client, store):
     """Cannot reactivate an approved card (409)."""
     card = make_card(store, status=WorkExperienceStatus.APPROVED)
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
-            resp = await c.post(f"/api/work-experience/cards/{card.experience_id}/reactivate")
+            resp = await c.post(
+                f"/api/work-experience/cards/{card.experience_id}/reactivate",
+            )
     assert resp.status_code == 409
 
 
@@ -378,11 +471,15 @@ async def test_reactivate_approved_fails(api_client, store):
 # PATCH /api/work-experience/cards/{card_id}/status
 # =============================================================================
 
+
 async def test_transition_status_valid(api_client, store):
     """Valid status transition via PATCH works."""
     card = make_card(store, status=WorkExperienceStatus.CANDIDATE)
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.patch(
                 f"/api/work-experience/cards/{card.experience_id}/status",
@@ -397,7 +494,10 @@ async def test_transition_status_invalid(api_client, store):
     """Invalid status transition returns 409."""
     card = make_card(store, status=WorkExperienceStatus.ARCHIVED)
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.patch(
                 f"/api/work-experience/cards/{card.experience_id}/status",
@@ -410,6 +510,7 @@ async def test_transition_status_invalid(api_client, store):
 # =============================================================================
 # GET /api/work-experience/cards/{card_id}/quality-score
 # =============================================================================
+
 
 async def test_quality_score_breakdown(api_client, store):
     """Quality score endpoint returns formula breakdown."""
@@ -424,9 +525,14 @@ async def test_quality_score_breakdown(api_client, store):
     cards = store.list_all()
     card_id = cards[0].experience_id
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
-            resp = await c.get(f"/api/work-experience/cards/{card_id}/quality-score")
+            resp = await c.get(
+                f"/api/work-experience/cards/{card_id}/quality-score",
+            )
 
     assert resp.status_code == 200
     data = resp.json()
@@ -441,6 +547,7 @@ async def test_quality_score_breakdown(api_client, store):
 # =============================================================================
 # GET /api/work-experience/cards/{card_id}/duplicates
 # =============================================================================
+
 
 async def test_find_duplicates(api_client, store):
     """Find duplicates returns similar cards."""
@@ -466,9 +573,14 @@ async def test_find_duplicates(api_client, store):
         hint="type:web",
     )
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
-            resp = await c.get(f"/api/work-experience/cards/{card1.experience_id}/duplicates?threshold=0.3")
+            resp = await c.get(
+                f"/api/work-experience/cards/{card1.experience_id}/duplicates?threshold=0.3",
+            )
 
     assert resp.status_code == 200
     data = resp.json()
@@ -480,6 +592,7 @@ async def test_find_duplicates(api_client, store):
 # =============================================================================
 # POST /api/work-experience/merge
 # =============================================================================
+
 
 async def test_merge_cards(api_client, store):
     """Merge source into target, source gets archived."""
@@ -499,11 +612,17 @@ async def test_merge_cards(api_client, store):
         effective_count=2,
     )
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.post(
                 "/api/work-experience/merge",
-                json={"source_id": str(source.experience_id), "target_id": str(target.experience_id)},
+                json={
+                    "source_id": str(source.experience_id),
+                    "target_id": str(target.experience_id),
+                },
             )
 
     assert resp.status_code == 200
@@ -513,7 +632,9 @@ async def test_merge_cards(api_client, store):
     assert data["merged_into"] == str(target.experience_id)
 
     # Source should be archived
-    assert store.get(source.experience_id).status == WorkExperienceStatus.ARCHIVED
+    assert (
+        store.get(source.experience_id).status == WorkExperienceStatus.ARCHIVED
+    )
     # Target should have merged hit_count
     merged = store.get(target.experience_id)
     assert merged.hit_count == target.hit_count + source.hit_count
@@ -523,7 +644,10 @@ async def test_merge_not_found_source(api_client, store):
     """Merge with non-existent source returns 404."""
     target = make_card(store)
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.post(
                 "/api/work-experience/merge",
@@ -539,9 +663,13 @@ async def test_merge_not_found_source(api_client, store):
 # GET /api/work-experience/stats
 # =============================================================================
 
+
 async def test_stats_empty(api_client, store):
     """Empty store returns zero stats."""
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.get("/api/work-experience/stats")
     assert resp.status_code == 200
@@ -560,7 +688,10 @@ async def test_stats_populated(api_client, store):
         effective_count=5,
     )
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.get("/api/work-experience/stats")
 
@@ -579,12 +710,16 @@ async def test_stats_populated(api_client, store):
 # GET /api/work-experience/candidates
 # =============================================================================
 
+
 async def test_list_candidates(api_client, store):
     """List only candidate cards."""
     make_card(store, status=WorkExperienceStatus.CANDIDATE, title="Cand 1")
     make_card(store, status=WorkExperienceStatus.APPROVED, title="Appr 1")
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.get("/api/work-experience/candidates")
 
@@ -599,7 +734,11 @@ async def test_list_candidates(api_client, store):
 # GET /api/work-experience/top-cards
 # =============================================================================
 
-async def test_top_cards_returns_all_non_deprecated_sorted_by_maturity(api_client, store):
+
+async def test_top_cards_returns_all_non_deprecated_sorted_by_maturity(
+    api_client,
+    store,
+):
     """Top cards returns all non-deprecated cards sorted by maturity score (new maturity model)."""
     from hubos.core.work_experience.schemas import ExperienceLevel
 
@@ -631,7 +770,10 @@ async def test_top_cards_returns_all_non_deprecated_sorted_by_maturity(api_clien
         experience_level=ExperienceLevel.MATURE,
     )
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.get("/api/work-experience/top-cards?top_k=5")
 
@@ -650,6 +792,7 @@ async def test_top_cards_returns_all_non_deprecated_sorted_by_maturity(api_clien
 # Governance: approved-only retrieval is at service level, not API level
 # =============================================================================
 
+
 async def test_api_returns_all_statuses_not_just_approved(api_client, store):
     """
     The API returns all statuses (for admin visibility).
@@ -659,7 +802,10 @@ async def test_api_returns_all_statuses_not_just_approved(api_client, store):
     make_card(store, status=WorkExperienceStatus.APPROVED, title="Approved")
     make_card(store, status=WorkExperienceStatus.REJECTED, title="Rejected")
 
-    with patch("hubos.app.routers.work_experience.LocalWorkExperienceStore", return_value=store):
+    with patch(
+        "hubos.app.routers.work_experience.LocalWorkExperienceStore",
+        return_value=store,
+    ):
         async with api_client as c:
             resp = await c.get("/api/work-experience/cards")
 

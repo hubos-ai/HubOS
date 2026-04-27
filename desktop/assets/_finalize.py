@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Clean up the user-supplied AI assets so they're actually usable.
 
 Both ``icon_1.png`` and ``logo_1.png`` arrived 100 % opaque — the AI baked
@@ -32,7 +33,10 @@ FLOOD_THRESH = 60
 TRANSPARENT = (0, 0, 0, 0)
 
 
-def make_corners_transparent(im: Image.Image, thresh: int = FLOOD_THRESH) -> Image.Image:
+def make_corners_transparent(
+    im: Image.Image,
+    thresh: int = FLOOD_THRESH,
+) -> Image.Image:
     """Return a copy of ``im`` with the background flood-filled to alpha 0
     starting from each corner. Operates in-place on the returned copy.
     """

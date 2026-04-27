@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for task state machine legal and illegal transitions."""
 
 import pytest
@@ -178,7 +179,11 @@ class TestStateMachineProperties:
 
     def test_is_terminal_true_for_terminal(self) -> None:
         """Test is_terminal returns True for terminal states."""
-        for terminal_state in [TaskState.PERSISTED, TaskState.FAILED, TaskState.NEEDS_HUMAN]:
+        for terminal_state in [
+            TaskState.PERSISTED,
+            TaskState.FAILED,
+            TaskState.NEEDS_HUMAN,
+        ]:
             sm = TaskStateMachine(terminal_state)
             assert sm.is_terminal() is True
 
@@ -189,8 +194,14 @@ class TestLegalTransitionsComplete:
     def test_all_legal_transitions_defined(self) -> None:
         """Verify LEGAL_TRANSITIONS has entries for all non-terminal states."""
         for state in TaskState:
-            if state not in [TaskState.PERSISTED, TaskState.FAILED, TaskState.NEEDS_HUMAN]:
-                assert state in LEGAL_TRANSITIONS, f"Missing transition definition for {state}"
+            if state not in [
+                TaskState.PERSISTED,
+                TaskState.FAILED,
+                TaskState.NEEDS_HUMAN,
+            ]:
+                assert (
+                    state in LEGAL_TRANSITIONS
+                ), f"Missing transition definition for {state}"
 
     def test_all_legal_transitions_work(self) -> None:
         """Test that all defined legal transitions succeed."""

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Final response and merge result schemas."""
 
 from dataclasses import dataclass, field

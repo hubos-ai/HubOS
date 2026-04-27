@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Async-safe tenant / user / session context.
 
 This module provides the canonical place for per-request ambient state
@@ -151,7 +152,9 @@ def reset_tenant_context(token: Token) -> None:
 
 
 @contextmanager
-def bind_tenant_context(ctx: Optional[TenantContext]) -> Iterator[TenantContext]:
+def bind_tenant_context(
+    ctx: Optional[TenantContext],
+) -> Iterator[TenantContext]:
     """Push ``ctx`` for the duration of the ``with`` block.
 
     Yields the bound context so callers can ``with bind_tenant_context(c) as c:``

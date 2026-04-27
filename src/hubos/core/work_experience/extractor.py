@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """WorkExperienceExtractor — converts ReflectionReport + TaskContext into WorkExperience cards."""
 
 import logging
@@ -20,11 +21,55 @@ DEFAULT_MIN_CONFIDENCE = 0.5
 
 # Stopwords for keyword extraction
 _STOPWORDS = {
-    "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
-    "of", "with", "by", "from", "is", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "should",
-    "could", "may", "might", "must", "can", "this", "that", "these", "those",
-    "it", "its", "they", "them", "their", "we", "our", "us", "i", "my",
+    "a",
+    "an",
+    "the",
+    "and",
+    "or",
+    "but",
+    "in",
+    "on",
+    "at",
+    "to",
+    "for",
+    "of",
+    "with",
+    "by",
+    "from",
+    "is",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "should",
+    "could",
+    "may",
+    "might",
+    "must",
+    "can",
+    "this",
+    "that",
+    "these",
+    "those",
+    "it",
+    "its",
+    "they",
+    "them",
+    "their",
+    "we",
+    "our",
+    "us",
+    "i",
+    "my",
 }
 
 
@@ -118,7 +163,10 @@ class WorkExperienceExtractor:
         # ---- New fields for work guidance model ----
 
         # Usage pattern summary
-        usage_pattern_summary = self._build_usage_pattern_summary(context, report)
+        usage_pattern_summary = self._build_usage_pattern_summary(
+            context,
+            report,
+        )
 
         # Recommended tool order (from execution trace)
         recommended_tool_order = self._extract_tool_order(context)
@@ -171,7 +219,9 @@ class WorkExperienceExtractor:
                 "scope": card.scope.value,
                 "experience_level": card.experience_level.value,
                 "keyword_count": len(card.trigger_keywords),
-                "tool_order": recommended_tool_order[:3] if recommended_tool_order else [],
+                "tool_order": recommended_tool_order[:3]
+                if recommended_tool_order
+                else [],
             },
         )
 
@@ -194,7 +244,9 @@ class WorkExperienceExtractor:
         return WorkExperienceScope.GLOBAL
 
     def _extract_keywords(
-        self, report: ReflectionReport, context: TaskContext
+        self,
+        report: ReflectionReport,
+        context: TaskContext,
     ) -> list[str]:
         """Extract retrieval keywords from report and context."""
         words: set[str] = set()
@@ -233,7 +285,9 @@ class WorkExperienceExtractor:
         return f"{first_key}:{val_str}"
 
     def _build_title(
-        self, report: ReflectionReport, context: TaskContext
+        self,
+        report: ReflectionReport,
+        context: TaskContext,
     ) -> str:
         """Build a one-line title from what_worked or task type."""
         if report.what_worked:
@@ -243,7 +297,12 @@ class WorkExperienceExtractor:
                 first = first[:77] + "..."
             return first
         # Fall back to task type from input
-        task_type = str(context.task_input.get("type", context.task_input.get("query", "task"))[:80])
+        task_type = str(
+            context.task_input.get(
+                "type",
+                context.task_input.get("query", "task"),
+            )[:80],
+        )
         return f"Task: {task_type}"
 
     def _build_narrative(self, report: ReflectionReport) -> str:
@@ -281,7 +340,7 @@ class WorkExperienceExtractor:
         """Extract applicability tags from execution trace tool names and task_input keys."""
         tags: set[str] = set()
         # From execution_trace tool names
-        for step in (context.execution_trace or []):
+        for step in context.execution_trace or []:
             tool = step.get("tool") or step.get("worker") or ""
             if tool:
                 tags.add(tool)
@@ -293,7 +352,9 @@ class WorkExperienceExtractor:
     # ---- New field extraction methods ----
 
     def _build_usage_pattern_summary(
-        self, context: TaskContext, report: ReflectionReport
+        self,
+        context: TaskContext,
+        report: ReflectionReport,
     ) -> str:
         """
         Build a concise summary of the task pattern this experience applies to.
@@ -308,7 +369,11 @@ class WorkExperienceExtractor:
             task_type = report.what_worked[0][:50]
 
         if not task_type:
-            task_type = task_input.get("input_text", "")[:50] if task_input.get("input_text") else "general"
+            task_type = (
+                task_input.get("input_text", "")[:50]
+                if task_input.get("input_text")
+                else "general"
+            )
 
         return task_type.strip()
 
@@ -325,7 +390,7 @@ class WorkExperienceExtractor:
         seen = set()
 
         # Primary: from execution trace
-        for step in (context.execution_trace or []):
+        for step in context.execution_trace or []:
             tool = step.get("tool") or step.get("worker") or ""
             if tool and tool not in seen and tool != "chat_reply":
                 tools.append(tool)
@@ -333,7 +398,7 @@ class WorkExperienceExtractor:
 
         # Secondary: from task_input.tools_used (populated by chat enrichment)
         task_input = context.task_input or {}
-        for tool in (task_input.get("tools_used") or []):
+        for tool in task_input.get("tools_used") or []:
             if tool not in seen:
                 tools.append(tool)
                 seen.add(tool)
@@ -347,7 +412,9 @@ class WorkExperienceExtractor:
         Returns step descriptions in execution order.
         """
         steps: list[str] = []
-        for i, step in enumerate((context.execution_trace or [])[:10]):  # Limit to 10 steps
+        for i, step in enumerate(
+            (context.execution_trace or [])[:10],
+        ):  # Limit to 10 steps
             tool = step.get("tool") or step.get("worker") or f"step_{i}"
             success = step.get("success", True)
             status = step.get("status", "completed")
@@ -384,7 +451,17 @@ class WorkExperienceExtractor:
         input_text = task_input.get("input_text", "")
         if input_text:
             # Simple verb extraction for task type
-            verbs = ["send", "read", "write", "process", "crawl", "fetch", "extract", "generate", "analyze"]
+            verbs = [
+                "send",
+                "read",
+                "write",
+                "process",
+                "crawl",
+                "fetch",
+                "extract",
+                "generate",
+                "analyze",
+            ]
             input_lower = input_text.lower()
             for verb in verbs:
                 if verb in input_lower:

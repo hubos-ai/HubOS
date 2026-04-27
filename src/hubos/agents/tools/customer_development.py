@@ -15,6 +15,7 @@ Pipeline:
 
 import asyncio
 import json
+import logging
 import os
 import re
 import sys
@@ -29,6 +30,7 @@ from urllib.parse import urlparse
 from agentscope.message import TextBlock
 from agentscope.tool import ToolResponse
 
+logger = logging.getLogger(__name__)
 
 # HubOS 自带的客户开发脚本和配置（独立于 openclaw）
 _TOOLS_DIR = Path(__file__).parent / "customer_dev"
@@ -90,36 +92,70 @@ COUNTRY_ALIASES: dict[str, tuple[str, str, str]] = {
 }
 
 COUNTRY_NAME_TO_CODE: dict[str, str] = {
-    "uzbekistan": "UZ", "uzbekiston": "UZ", "乌兹别克斯坦": "UZ", "乌兹": "UZ",
-    "russia": "RU", "俄罗斯": "RU",
-    "brazil": "BR", "巴西": "BR",
-    "mexico": "MX", "墨西哥": "MX",
-    "peru": "PE", "秘鲁": "PE",
-    "colombia": "CO", "哥伦比亚": "CO",
-    "chile": "CL", "智利": "CL",
-    "malaysia": "MY", "马来西亚": "MY",
-    "philippines": "PH", "菲律宾": "PH",
-    "vietnam": "VN", "越南": "VN",
-    "thailand": "TH", "泰国": "TH",
-    "indonesia": "ID", "印尼": "ID", "印度尼西亚": "ID",
-    "india": "IN", "印度": "IN",
-    "turkey": "TR", "土耳其": "TR",
-    "kazakhstan": "KZ", "哈萨克斯坦": "KZ",
-    "egypt": "EG", "埃及": "EG",
-    "nigeria": "NG", "尼日利亚": "NG",
-    "south africa": "ZA", "南非": "ZA",
-    "germany": "DE", "德国": "DE",
-    "france": "FR", "法国": "FR",
-    "united kingdom": "GB", "uk": "GB", "英国": "GB",
-    "spain": "ES", "西班牙": "ES",
-    "united states": "US", "usa": "US", "美国": "US",
-    "japan": "JP", "日本": "JP",
-    "south korea": "KR", "韩国": "KR",
-    "uae": "AE", "阿联酋": "AE",
-    "saudi": "SA", "沙特": "SA", "沙特阿拉伯": "SA",
+    "uzbekistan": "UZ",
+    "uzbekiston": "UZ",
+    "乌兹别克斯坦": "UZ",
+    "乌兹": "UZ",
+    "russia": "RU",
+    "俄罗斯": "RU",
+    "brazil": "BR",
+    "巴西": "BR",
+    "mexico": "MX",
+    "墨西哥": "MX",
+    "peru": "PE",
+    "秘鲁": "PE",
+    "colombia": "CO",
+    "哥伦比亚": "CO",
+    "chile": "CL",
+    "智利": "CL",
+    "malaysia": "MY",
+    "马来西亚": "MY",
+    "philippines": "PH",
+    "菲律宾": "PH",
+    "vietnam": "VN",
+    "越南": "VN",
+    "thailand": "TH",
+    "泰国": "TH",
+    "indonesia": "ID",
+    "印尼": "ID",
+    "印度尼西亚": "ID",
+    "india": "IN",
+    "印度": "IN",
+    "turkey": "TR",
+    "土耳其": "TR",
+    "kazakhstan": "KZ",
+    "哈萨克斯坦": "KZ",
+    "egypt": "EG",
+    "埃及": "EG",
+    "nigeria": "NG",
+    "尼日利亚": "NG",
+    "south africa": "ZA",
+    "南非": "ZA",
+    "germany": "DE",
+    "德国": "DE",
+    "france": "FR",
+    "法国": "FR",
+    "united kingdom": "GB",
+    "uk": "GB",
+    "英国": "GB",
+    "spain": "ES",
+    "西班牙": "ES",
+    "united states": "US",
+    "usa": "US",
+    "美国": "US",
+    "japan": "JP",
+    "日本": "JP",
+    "south korea": "KR",
+    "韩国": "KR",
+    "uae": "AE",
+    "阿联酋": "AE",
+    "saudi": "SA",
+    "沙特": "SA",
+    "沙特阿拉伯": "SA",
 }
 
 # ---- API Key loading ----
+
 
 def _load_tavily_keys() -> list[str]:
     """Load all available Tavily API keys (multi-key rotation).
@@ -146,7 +182,10 @@ def _load_tavily_keys() -> list[str]:
     # 2) hubos config
     config_path = Path("~/.hubos/config.json").expanduser()
     if config_path.exists():
-        m = re.search(r'"TAVILY_API_KEY":\s*"([^"]+)"', config_path.read_text())
+        m = re.search(
+            r'"TAVILY_API_KEY":\s*"([^"]+)"',
+            config_path.read_text(),
+        )
         if m and m.group(1) and m.group(1) not in seen:
             keys.append(m.group(1))
             seen.add(m.group(1))
@@ -166,7 +205,9 @@ def _load_tavily_key() -> str:
 
 def _load_zhipu_key() -> str:
     """Load Zhipu API key from hubos secret."""
-    secret_path = Path("~/.hubos.secret/providers/custom/zhipuai.json").expanduser()
+    secret_path = Path(
+        "~/.hubos.secret/providers/custom/zhipuai.json",
+    ).expanduser()
     if secret_path.exists():
         try:
             cfg = json.loads(secret_path.read_text())
@@ -183,7 +224,11 @@ def _extract_mcp_text(result: Any) -> str:
     if isinstance(result, str):
         text = result
     elif isinstance(result, dict):
-        text = result.get("content") or result.get("text") or json.dumps(result, ensure_ascii=False)
+        text = (
+            result.get("content")
+            or result.get("text")
+            or json.dumps(result, ensure_ascii=False)
+        )
     elif hasattr(result, "content"):
         blocks = getattr(result, "content", [])
         parts: list[str] = []
@@ -207,7 +252,12 @@ def _extract_mcp_text(result: Any) -> str:
         except Exception:
             break
         if isinstance(data, dict):
-            text = data.get("content") or data.get("text") or data.get("result") or text
+            text = (
+                data.get("content")
+                or data.get("text")
+                or data.get("result")
+                or text
+            )
         elif isinstance(data, list):
             parts = []
             for item in data:
@@ -227,7 +277,9 @@ async def _zhipu_webreader_mcp(url: str) -> str:
         return ""
     try:
         cfg = json.loads(HUBOS_AGENT_CONFIG_PATH.read_text(encoding="utf-8"))
-        reader_cfg = (cfg.get("mcp", {}).get("clients", {}) or {}).get("zhipu_reader")
+        reader_cfg = (cfg.get("mcp", {}).get("clients", {}) or {}).get(
+            "zhipu_reader",
+        )
         if not reader_cfg or not reader_cfg.get("enabled", True):
             return ""
 
@@ -258,6 +310,7 @@ async def _zhipu_webreader_mcp(url: str) -> str:
 
 # ---- HubOS enrichment functions ----
 
+
 async def _tavily_search(query: str, max_results: int = 5) -> list[dict]:
     """Search using Tavily API with multi-key rotation.
 
@@ -268,19 +321,27 @@ async def _tavily_search(query: str, max_results: int = 5) -> list[dict]:
     if not keys:
         return []
 
-    payload = json.dumps({
-        "query": query,
-        "max_results": max_results,
-        "include_answer": False,
-        "search_depth": "basic",
-    })
+    payload = json.dumps(
+        {
+            "query": query,
+            "max_results": max_results,
+            "include_answer": False,
+            "search_depth": "basic",
+        },
+    )
 
     for api_key in keys:
         try:
             proc = await asyncio.create_subprocess_exec(
-                "curl", "-s", "-X", "POST", "https://api.tavily.com/search",
-                "-H", "Content-Type: application/json",
-                "-d", payload,
+                "curl",
+                "-s",
+                "-X",
+                "POST",
+                "https://api.tavily.com/search",
+                "-H",
+                "Content-Type: application/json",
+                "-d",
+                payload,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -291,16 +352,21 @@ async def _tavily_search(query: str, max_results: int = 5) -> list[dict]:
             if isinstance(resp, dict) and "detail" in resp:
                 err = str(resp.get("detail", {}))
                 if "usage limit" in err.lower() or "exceeds" in err.lower():
-                    logger.warning("Tavily key %s… quota exceeded, trying next", api_key[:12])
+                    logger.warning(
+                        "Tavily key %s… quota exceeded, trying next",
+                        api_key[:12],
+                    )
                     continue
 
             results = []
             for r in resp.get("results", []):
-                results.append({
-                    "url": r.get("url", ""),
-                    "title": r.get("title", ""),
-                    "content": r.get("content", "")[:500],
-                })
+                results.append(
+                    {
+                        "url": r.get("url", ""),
+                        "title": r.get("title", ""),
+                        "content": r.get("content", "")[:500],
+                    },
+                )
             return results
         except Exception:
             continue
@@ -314,6 +380,7 @@ async def _duckduckgo_search(query: str, max_results: int = 10) -> list[dict]:
     Uses webReader (Zhipu) to fetch DDG HTML page, then extracts URLs.
     """
     from urllib.parse import quote_plus, unquote
+
     ddg_url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
 
     # Use zhipu webReader to fetch the page
@@ -322,8 +389,12 @@ async def _duckduckgo_search(query: str, max_results: int = 10) -> list[dict]:
         # Fallback: try curl directly
         try:
             proc = await asyncio.create_subprocess_exec(
-                "curl", "-s", "-L", ddg_url,
-                "-H", "User-Agent: Mozilla/5.0",
+                "curl",
+                "-s",
+                "-L",
+                ddg_url,
+                "-H",
+                "User-Agent: Mozilla/5.0",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -345,13 +416,14 @@ async def _duckduckgo_search(query: str, max_results: int = 10) -> list[dict]:
         # Extract title: look for link text near the URL
         title = ""
         title_match = re.search(
-            r'>([^<]{5,200})</a>\s*</[^>]*>\s*<[^>]*uddg=' + re.escape(match.group(1)),
+            r">([^<]{5,200})</a>\s*</[^>]*>\s*<[^>]*uddg="
+            + re.escape(match.group(1)),
             html,
         )
         if not title_match:
             # Alternative: grab the link text right before the uddg
-            chunk = html[max(0, match.start() - 500):match.start()]
-            tm = re.findall(r'>([^<]{3,150})</a>', chunk)
+            chunk = html[max(0, match.start() - 500) : match.start()]
+            tm = re.findall(r">([^<]{3,150})</a>", chunk)
             if tm:
                 title = tm[-1].strip()
         else:
@@ -361,11 +433,13 @@ async def _duckduckgo_search(query: str, max_results: int = 10) -> list[dict]:
         if any(r["url"] == raw_url for r in results):
             continue
 
-        results.append({
-            "url": raw_url,
-            "title": title,
-            "content": "",
-        })
+        results.append(
+            {
+                "url": raw_url,
+                "title": title,
+                "content": "",
+            },
+        )
         if len(results) >= max_results:
             break
 
@@ -386,11 +460,17 @@ async def _zhipu_webreader(url: str) -> str:
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            "curl", "-s", "-X", "POST",
+            "curl",
+            "-s",
+            "-X",
+            "POST",
             "https://open.bigmodel.cn/api/paas/v4/tools",
-            "-H", "Content-Type: application/json",
-            "-H", f"Authorization: Bearer {api_key}",
-            "-d", payload,
+            "-H",
+            "Content-Type: application/json",
+            "-H",
+            f"Authorization: Bearer {api_key}",
+            "-d",
+            payload,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -412,8 +492,10 @@ async def _hunter_domain(domain: str) -> list[dict]:
     super_crawler_dir = "/Users/allen/projects/super-crawler"
     try:
         proc = await asyncio.create_subprocess_exec(
-            "node", f"{super_crawler_dir}/src/openclaw-tools.js",
-            "call", "hunter_domain",
+            "node",
+            f"{super_crawler_dir}/src/openclaw-tools.js",
+            "call",
+            "hunter_domain",
             json.dumps({"domain": domain, "found_only": True}),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -448,11 +530,17 @@ def _extract_emails_from_text(text: str, domain: str) -> list[str]:
     if not text:
         return []
     text = unescape(text)
-    emails = re.findall(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}', text)
-    return [e.lower() for e in emails if _domain_matches(domain, e.split("@")[-1])]
+    emails = re.findall(
+        r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}",
+        text,
+    )
+    return [
+        e.lower() for e in emails if _domain_matches(domain, e.split("@")[-1])
+    ]
 
 
 # ---- Phase 2.5: Tavily search enrichment ----
+
 
 async def _phase2_5_tavily_enrich(
     config_path: Path,
@@ -488,11 +576,14 @@ async def _phase2_5_tavily_enrich(
 
         # Build high-quality search queries: local language first, then English
         search_terms = list(local_terms[:6])
-        for product in ["educational equipment", "school laboratory equipment", "laboratory instruments"][:2]:
+        for product in [
+            "educational equipment",
+            "school laboratory equipment",
+            "laboratory instruments",
+        ][:2]:
             search_terms.append(f"{product} distributor {english_name}")
             search_terms.append(f"{product} supplier {english_name}")
 
-        tavily_failed = False
         for term in search_terms[:8]:
             # Try Tavily first
             results = await _tavily_search(term, max_results=5)
@@ -502,26 +593,26 @@ async def _phase2_5_tavily_enrich(
             if not results:
                 results = await _duckduckgo_search(term, max_results=10)
                 engine = "duckduckgo"
-                if results:
-                    tavily_failed = False  # DDG works, just use it
 
             for r in results:
                 url = r.get("url", "")
                 if not url or url in seen_urls:
                     continue
                 seen_urls.add(url)
-                new_results.append({
-                    "url": url,
-                    "title": r.get("title", ""),
-                    "snippet": r.get("content", "")[:500],
-                    "search_term": term,
-                    "country_code": code,
-                    "country_name": english_name,
-                    "position": 0,
-                    "score": 0.5,
-                    "buyer_signal_count": 0,
-                    "search_engine": engine,
-                })
+                new_results.append(
+                    {
+                        "url": url,
+                        "title": r.get("title", ""),
+                        "snippet": r.get("content", "")[:500],
+                        "search_term": term,
+                        "country_code": code,
+                        "country_name": english_name,
+                        "position": 0,
+                        "score": 0.5,
+                        "buyer_signal_count": 0,
+                        "search_engine": engine,
+                    },
+                )
 
     if new_results:
         combined = existing + new_results
@@ -540,6 +631,7 @@ async def _phase2_5_tavily_enrich(
 
 # ---- Phase 3.5: HubOS enrichment (webReader + hunter_domain) ----
 
+
 async def _phase3_5_enrich_emails(
     leads_path: Path,
     run_dir: Path,
@@ -550,7 +642,9 @@ async def _phase3_5_enrich_emails(
         return 0
 
     enriched = 0
-    needs_email = [l for l in leads if not l.get("email_pattern") and not l.get("emails")]
+    needs_email = [
+        l for l in leads if not l.get("email_pattern") and not l.get("emails")
+    ]
 
     if not needs_email:
         return 0
@@ -559,9 +653,12 @@ async def _phase3_5_enrich_emails(
     semaphore = asyncio.Semaphore(3)
 
     async def _enrich_one(lead: dict) -> int:
-        nonlocal enriched
         async with semaphore:
-            url = lead.get("source_url") or lead.get("url") or lead.get("website", "")
+            url = (
+                lead.get("source_url")
+                or lead.get("url")
+                or lead.get("website", "")
+            )
             domain = _extract_domain(url)
             if not domain:
                 return 0
@@ -577,7 +674,10 @@ async def _phase3_5_enrich_emails(
                     lead["email_source"] = "zhipu_webreader"
                     lead["email_confidence"] = 0.80
                     lead.setdefault("emails", []).extend(emails)
-                    lead["match_reason"] = lead.get("match_reason", "") + "; zhipu_webreader=enriched"
+                    lead["match_reason"] = (
+                        lead.get("match_reason", "")
+                        + "; zhipu_webreader=enriched"
+                    )
                     found = 1
 
             # If still no email, try hunter_domain
@@ -591,7 +691,10 @@ async def _phase3_5_enrich_emails(
                         lead["email_source"] = "hunter_domain_v2"
                         lead["email_confidence"] = best.get("confidence", 0.85)
                         lead.setdefault("emails", []).append(email)
-                        lead["match_reason"] = lead.get("match_reason", "") + "; hunter_domain_v2=enriched"
+                        lead["match_reason"] = (
+                            lead.get("match_reason", "")
+                            + "; hunter_domain_v2=enriched"
+                        )
                         found = 1
 
             return found
@@ -609,12 +712,16 @@ async def _phase3_5_enrich_emails(
     # Save enrichment report
     report_path = run_dir / "hubos_enrichment_report.json"
     report_path.write_text(
-        json.dumps({
-            "leads_without_email": len(needs_email),
-            "enriched": enriched,
-            "tavily_key_available": bool(_load_tavily_key()),
-            "zhipu_key_available": bool(_load_zhipu_key()),
-        }, ensure_ascii=False, indent=2),
+        json.dumps(
+            {
+                "leads_without_email": len(needs_email),
+                "enriched": enriched,
+                "tavily_key_available": bool(_load_tavily_key()),
+                "zhipu_key_available": bool(_load_zhipu_key()),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
@@ -622,6 +729,7 @@ async def _phase3_5_enrich_emails(
 
 
 # ---- Utility functions ----
+
 
 def _compact_lead(lead: dict[str, Any]) -> dict[str, Any]:
     """Return a small, chat-safe lead record."""
@@ -635,7 +743,9 @@ def _compact_lead(lead: dict[str, Any]) -> dict[str, Any]:
         "score": _lead_score(lead),
         "email_source": lead.get("email_source") or "",
         "email_confidence": lead.get("email_confidence") or 0,
-        "reason": str(lead.get("match_reason") or lead.get("reason") or "")[:240],
+        "reason": str(lead.get("match_reason") or lead.get("reason") or "")[
+            :240
+        ],
     }
 
 
@@ -662,7 +772,9 @@ def _normalize_country_codes(countries: str) -> list[str]:
         item = raw.strip()
         if not item:
             continue
-        code = COUNTRY_NAME_TO_CODE.get(item.lower()) or COUNTRY_NAME_TO_CODE.get(item)
+        code = COUNTRY_NAME_TO_CODE.get(
+            item.lower(),
+        ) or COUNTRY_NAME_TO_CODE.get(item)
         if not code:
             code = item.upper()
         if code not in codes:
@@ -699,18 +811,25 @@ def _default_country_entry(code: str) -> dict[str, Any]:
     }
 
 
-def _build_effective_config(config: Path, country_codes: list[str], run_dir: Path) -> Path:
+def _build_effective_config(
+    config: Path,
+    country_codes: list[str],
+    run_dir: Path,
+) -> Path:
     """Copy config and add missing countries dynamically for this run."""
     data = _load_json(config, {})
     if not isinstance(data, dict):
         data = {}
-    data.setdefault("products", [
-        "educational equipment",
-        "school laboratory equipment",
-        "laboratory instruments",
-        "teaching models",
-        "medical training simulators",
-    ])
+    data.setdefault(
+        "products",
+        [
+            "educational equipment",
+            "school laboratory equipment",
+            "laboratory instruments",
+            "teaching models",
+            "medical training simulators",
+        ],
+    )
     countries_cfg = data.setdefault("countries", {})
     added: list[str] = []
     for code in country_codes:
@@ -741,13 +860,20 @@ async def _run_command(
         env=os.environ.copy(),
     )
     try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(),
+            timeout=timeout,
+        )
     except asyncio.TimeoutError:
         try:
             proc.kill()
         except ProcessLookupError:
             pass
-        return -1, "", f"Command timed out after {timeout} seconds: {' '.join(cmd)}"
+        return (
+            -1,
+            "",
+            f"Command timed out after {timeout} seconds: {' '.join(cmd)}",
+        )
     return (
         proc.returncode or 0,
         stdout.decode("utf-8", errors="replace"),
@@ -795,7 +921,11 @@ async def _run_command_events(
     timed_out = False
     try:
         while True:
-            if proc.returncode is not None and all(t.done() for t in pumps) and queue.empty():
+            if (
+                proc.returncode is not None
+                and all(t.done() for t in pumps)
+                and queue.empty()
+            ):
                 break
             elapsed = time.monotonic() - started
             if elapsed > timeout:
@@ -821,7 +951,9 @@ async def _run_command_events(
                 task.cancel()
 
     if timed_out:
-        timeout_msg = f"Command timed out after {timeout} seconds: {' '.join(cmd)}"
+        timeout_msg = (
+            f"Command timed out after {timeout} seconds: {' '.join(cmd)}"
+        )
         stderr_chunks.append(timeout_msg)
         yield "done", {
             "code": -1,
@@ -844,7 +976,12 @@ def _load_json(path: Path, fallback: Any) -> Any:
 
 
 def _lead_score(lead: dict[str, Any]) -> float:
-    for key in ("effective_score", "buyer_score", "customer_fit_score", "score"):
+    for key in (
+        "effective_score",
+        "buyer_score",
+        "customer_fit_score",
+        "score",
+    ):
         try:
             value = float(lead.get(key) or 0)
         except (TypeError, ValueError):
@@ -860,7 +997,11 @@ def _summarize_leads(leads: list[dict[str, Any]], max_leads: int) -> str:
 
     lines = []
     for idx, lead in enumerate(leads[:max_leads], 1):
-        company = lead.get("company_name") or lead.get("company") or "Unknown company"
+        company = (
+            lead.get("company_name")
+            or lead.get("company")
+            or "Unknown company"
+        )
         country = lead.get("country_code") or lead.get("country") or ""
         website = lead.get("source_url") or lead.get("website") or ""
         email = lead.get("email_pattern") or lead.get("email") or ""
@@ -892,6 +1033,7 @@ def _summarize_leads(leads: list[dict[str, Any]], max_leads: int) -> str:
 
 # ---- Main tool function ----
 
+
 async def find_customer_leads(
     countries: str = "BR,MX,US",
     max_leads: int = 8,
@@ -921,12 +1063,18 @@ async def find_customer_leads(
         ToolResponse with a concise summary and artifact paths.
     """
 
-    scripts = Path(scripts_dir).expanduser() if scripts_dir else DEFAULT_SCRIPTS_DIR
-    config = Path(config_path).expanduser() if config_path else DEFAULT_CONFIG_PATH
+    scripts = (
+        Path(scripts_dir).expanduser() if scripts_dir else DEFAULT_SCRIPTS_DIR
+    )
+    config = (
+        Path(config_path).expanduser() if config_path else DEFAULT_CONFIG_PATH
+    )
     if output_dir:
         run_dir = Path(output_dir).expanduser()
     else:
-        run_dir = DEFAULT_OUTPUT_ROOT / datetime.now().strftime("%Y%m%d_%H%M%S")
+        run_dir = DEFAULT_OUTPUT_ROOT / datetime.now().strftime(
+            "%Y%m%d_%H%M%S",
+        )
     run_dir.mkdir(parents=True, exist_ok=True)
 
     required = {
@@ -967,9 +1115,30 @@ async def find_customer_leads(
     log_path = run_dir / "pipeline.log"
 
     phases = [
-        [sys.executable, str(required["phase1"]), "--countries", countries_str, "--config", str(effective_config), "--output", str(terms_path)],
-        [sys.executable, str(required["phase2"]), "--search-terms", str(terms_path), "--output", str(search_path)],
-        [sys.executable, str(required["phase3"]), str(search_path), str(leads_path)],
+        [
+            sys.executable,
+            str(required["phase1"]),
+            "--countries",
+            countries_str,
+            "--config",
+            str(effective_config),
+            "--output",
+            str(terms_path),
+        ],
+        [
+            sys.executable,
+            str(required["phase2"]),
+            "--search-terms",
+            str(terms_path),
+            "--output",
+            str(search_path),
+        ],
+        [
+            sys.executable,
+            str(required["phase3"]),
+            str(search_path),
+            str(leads_path),
+        ],
     ]
     phase_names = {
         1: "生成搜索词",
@@ -988,9 +1157,15 @@ async def find_customer_leads(
 
     # ---- Phase 1-3: OpenClaw pipeline ----
     for idx, cmd in enumerate(phases, 1):
-        yield _progress_response(f"Phase {idx}/3：{phase_names[idx]}，开始执行。")
+        yield _progress_response(
+            f"Phase {idx}/3：{phase_names[idx]}，开始执行。"
+        )
         phase_result: dict[str, Any] | None = None
-        async for event, payload in _run_command_events(cmd, cwd=scripts, timeout=timeout):
+        async for event, payload in _run_command_events(
+            cmd,
+            cwd=scripts,
+            timeout=timeout,
+        ):
             if event == "done":
                 phase_result = payload
                 continue
@@ -1013,7 +1188,11 @@ async def find_customer_leads(
                 yield _progress_response(line)
 
         if phase_result is None:
-            phase_result = {"code": -1, "stdout": "", "stderr": "Command ended without status."}
+            phase_result = {
+                "code": -1,
+                "stdout": "",
+                "stderr": "Command ended without status.",
+            }
         code = int(phase_result.get("code", -1))
         stdout = str(phase_result.get("stdout") or "")
         stderr = str(phase_result.get("stderr") or "")
@@ -1025,7 +1204,9 @@ async def find_customer_leads(
         if code != 0:
             # Phase 2 失败（xcrawl 额度用完）时尝试 tavily 兜底
             if idx == 2:
-                yield _progress_response("⚠️ xcrawl 搜索失败，启动 HubOS Tavily 兜底搜索...")
+                yield _progress_response(
+                    "⚠️ xcrawl 搜索失败，启动 HubOS Tavily 兜底搜索...",
+                )
                 break
             yield _tool_response(
                 f"客户线索查找失败：phase{idx} 退出码 {code}\n"
@@ -1041,22 +1222,33 @@ async def find_customer_leads(
     if isinstance(search_results, list) and len(search_results) < 15:
         yield _progress_response(
             f"Phase 2.5：xcrawl 结果不足（{len(search_results)}个），"
-            f"使用 Tavily 补充搜索..."
+            f"使用 Tavily 补充搜索...",
         )
         tavily_count = await _phase2_5_tavily_enrich(
-            config, search_path, run_dir, country_codes
+            config,
+            search_path,
+            run_dir,
+            country_codes,
         )
-        yield _progress_response(f"Phase 2.5：Tavily 补充了 {tavily_count} 个候选URL。")
+        yield _progress_response(
+            f"Phase 2.5：Tavily 补充了 {tavily_count} 个候选URL。",
+        )
 
         # Re-run phase3 if we added tavily results
         if tavily_count > 0:
             # Only if phase3 hasn't run yet or we need to re-run
             existing_leads = _load_json(leads_path, [])
             if not existing_leads:
-                yield _progress_response("Phase 3：使用补充后的搜索结果重新爬取...")
+                yield _progress_response(
+                    "Phase 3：使用补充后的搜索结果重新爬取..."
+                )
                 cmd = phases[2]  # phase3
                 phase_result = None
-                async for event, payload in _run_command_events(cmd, cwd=scripts, timeout=timeout):
+                async for event, payload in _run_command_events(
+                    cmd,
+                    cwd=scripts,
+                    timeout=timeout,
+                ):
                     if event == "done":
                         phase_result = payload
                         continue
@@ -1071,19 +1263,33 @@ async def find_customer_leads(
                     log_chunks.append(
                         f"$ {' '.join(cmd)} (tavily-enriched)\nexit={code}\n[stdout]\n{stdout}\n[stderr]\n{stderr}\n",
                     )
-                    log_path.write_text("\n".join(log_chunks), encoding="utf-8")
+                    log_path.write_text(
+                        "\n".join(log_chunks),
+                        encoding="utf-8",
+                    )
     elif not isinstance(search_results, list) or len(search_results) == 0:
         # phase2 completely failed, try tavily-only search
-        yield _progress_response("Phase 2.5：xcrawl 完全失败，使用 Tavily 搜索所有候选...")
-        tavily_count = await _phase2_5_tavily_enrich(
-            config, search_path, run_dir, country_codes
+        yield _progress_response(
+            "Phase 2.5：xcrawl 完全失败，使用 Tavily 搜索所有候选..."
         )
-        yield _progress_response(f"Phase 2.5：Tavily 找到 {tavily_count} 个候选URL。")
+        tavily_count = await _phase2_5_tavily_enrich(
+            config,
+            search_path,
+            run_dir,
+            country_codes,
+        )
+        yield _progress_response(
+            f"Phase 2.5：Tavily 找到 {tavily_count} 个候选URL。"
+        )
 
         if tavily_count > 0:
             yield _progress_response("Phase 3：爬取 Tavily 搜索结果...")
             cmd = phases[2]
-            async for event, payload in _run_command_events(cmd, cwd=scripts, timeout=timeout):
+            async for event, payload in _run_command_events(
+                cmd,
+                cwd=scripts,
+                timeout=timeout,
+            ):
                 if event == "done":
                     phase_result = payload
                     continue
@@ -1102,12 +1308,14 @@ async def find_customer_leads(
     # ---- Phase 3.5: HubOS email enrichment ----
     raw_leads = _load_json(leads_path, [])
     leads = raw_leads if isinstance(raw_leads, list) else []
-    no_email_count = sum(1 for l in leads if not l.get("email_pattern") and not l.get("emails"))
+    no_email_count = sum(
+        1 for l in leads if not l.get("email_pattern") and not l.get("emails")
+    )
 
     if no_email_count > 0:
         yield _progress_response(
             f"Phase 3.5：{no_email_count} 个客户缺少邮箱，"
-            f"使用 HubOS 工具补充（智谱 webReader + hunter_domain）..."
+            f"使用 HubOS 工具补充（智谱 webReader + hunter_domain）...",
         )
         enriched = await _phase3_5_enrich_emails(leads_path, run_dir)
         yield _progress_response(f"Phase 3.5：成功补充 {enriched} 个邮箱。")
@@ -1118,9 +1326,14 @@ async def find_customer_leads(
     leads = sorted(leads, key=_lead_score, reverse=True)
     top_leads = [_compact_lead(lead) for lead in leads[:max_leads]]
     top_path = run_dir / "top_customer_leads.json"
-    top_path.write_text(json.dumps(top_leads, ensure_ascii=False, indent=2), encoding="utf-8")
+    top_path.write_text(
+        json.dumps(top_leads, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
-    has_email = sum(1 for l in leads if l.get("email_pattern") or l.get("emails"))
+    has_email = sum(
+        1 for l in leads if l.get("email_pattern") or l.get("emails")
+    )
     a_count = sum(1 for l in leads if l.get("grade") == "A")
 
     summary_path = run_dir / "summary.md"

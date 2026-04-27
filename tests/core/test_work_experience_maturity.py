@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for Work Experience Layer maturity model (Phase 7+)."""
 
 import tempfile
@@ -26,6 +27,7 @@ from hubos.core.work_experience.schemas import (
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def tmp_root(tmp_path: Path) -> Path:
@@ -101,6 +103,7 @@ def sample_report() -> ReflectionReport:
 # Experience Level Tests
 # =============================================================================
 
+
 class TestExperienceLevel:
     """Tests for ExperienceLevel enum."""
 
@@ -115,28 +118,50 @@ class TestExperienceLevel:
         """Valid level transitions work."""
         assert ExperienceLevel.NEW.can_transition_to(ExperienceLevel.OBSERVED)
         assert ExperienceLevel.NEW.can_transition_to(ExperienceLevel.MATURE)
-        assert ExperienceLevel.NEW.can_transition_to(ExperienceLevel.DEPRECATED)
+        assert ExperienceLevel.NEW.can_transition_to(
+            ExperienceLevel.DEPRECATED,
+        )
 
-        assert ExperienceLevel.OBSERVED.can_transition_to(ExperienceLevel.MATURE)
-        assert ExperienceLevel.OBSERVED.can_transition_to(ExperienceLevel.NEW)  # regress
-        assert ExperienceLevel.OBSERVED.can_transition_to(ExperienceLevel.DEPRECATED)
+        assert ExperienceLevel.OBSERVED.can_transition_to(
+            ExperienceLevel.MATURE,
+        )
+        assert ExperienceLevel.OBSERVED.can_transition_to(
+            ExperienceLevel.NEW,
+        )  # regress
+        assert ExperienceLevel.OBSERVED.can_transition_to(
+            ExperienceLevel.DEPRECATED,
+        )
 
-        assert ExperienceLevel.MATURE.can_transition_to(ExperienceLevel.OBSERVED)  # regress
-        assert ExperienceLevel.MATURE.can_transition_to(ExperienceLevel.DEPRECATED)
+        assert ExperienceLevel.MATURE.can_transition_to(
+            ExperienceLevel.OBSERVED,
+        )  # regress
+        assert ExperienceLevel.MATURE.can_transition_to(
+            ExperienceLevel.DEPRECATED,
+        )
 
-        assert not ExperienceLevel.DEPRECATED.can_transition_to(ExperienceLevel.NEW)
-        assert not ExperienceLevel.DEPRECATED.can_transition_to(ExperienceLevel.OBSERVED)
-        assert not ExperienceLevel.DEPRECATED.can_transition_to(ExperienceLevel.MATURE)
+        assert not ExperienceLevel.DEPRECATED.can_transition_to(
+            ExperienceLevel.NEW,
+        )
+        assert not ExperienceLevel.DEPRECATED.can_transition_to(
+            ExperienceLevel.OBSERVED,
+        )
+        assert not ExperienceLevel.DEPRECATED.can_transition_to(
+            ExperienceLevel.MATURE,
+        )
 
 
 # =============================================================================
 # Store Maturity Tests
 # =============================================================================
 
+
 class TestStoreMaturity:
     """Tests for store maturity methods."""
 
-    def test_update_experience_level(self, store: LocalWorkExperienceStore) -> None:
+    def test_update_experience_level(
+        self,
+        store: LocalWorkExperienceStore,
+    ) -> None:
         """update_experience_level transitions work."""
         card = WorkExperience(
             scope=WorkExperienceScope.GLOBAL,
@@ -158,14 +183,18 @@ class TestStoreMaturity:
         store.save(card)
 
         # Promote to observed
-        ok = store.update_experience_level(card.experience_id, ExperienceLevel.OBSERVED)
+        ok = store.update_experience_level(
+            card.experience_id,
+            ExperienceLevel.OBSERVED,
+        )
         assert ok is True
         retrieved = store.get(card.experience_id)
         assert retrieved is not None
         assert retrieved.experience_level == ExperienceLevel.OBSERVED
 
     def test_update_experience_level_invalid_transition(
-        self, store: LocalWorkExperienceStore
+        self,
+        store: LocalWorkExperienceStore,
     ) -> None:
         """Invalid level transitions return False."""
         card = WorkExperience(
@@ -188,10 +217,16 @@ class TestStoreMaturity:
         store.save(card)
 
         # Can't transition from deprecated
-        ok = store.update_experience_level(card.experience_id, ExperienceLevel.NEW)
+        ok = store.update_experience_level(
+            card.experience_id,
+            ExperienceLevel.NEW,
+        )
         assert ok is False
 
-    def test_update_maturity_score(self, store: LocalWorkExperienceStore) -> None:
+    def test_update_maturity_score(
+        self,
+        store: LocalWorkExperienceStore,
+    ) -> None:
         """update_maturity_score works."""
         card = WorkExperience(
             scope=WorkExperienceScope.GLOBAL,
@@ -219,7 +254,8 @@ class TestStoreMaturity:
         assert retrieved.maturity_score == 75.5
 
     def test_update_maturity_score_clamps(
-        self, store: LocalWorkExperienceStore
+        self,
+        store: LocalWorkExperienceStore,
     ) -> None:
         """maturity_score is clamped to 0-100."""
         card = WorkExperience(
@@ -315,7 +351,8 @@ class TestStoreMaturity:
         assert card3.experience_id not in [c.experience_id for c in similar]
 
     def test_find_similar_with_keywords(
-        self, store: LocalWorkExperienceStore
+        self,
+        store: LocalWorkExperienceStore,
     ) -> None:
         """find_similar filters by keywords when provided."""
         card1 = WorkExperience(
@@ -360,7 +397,8 @@ class TestStoreMaturity:
         assert similar[0].experience_id == card1.experience_id
 
     def test_backward_compatibility_status(
-        self, store: LocalWorkExperienceStore
+        self,
+        store: LocalWorkExperienceStore,
     ) -> None:
         """Old cards without experience_level default to NEW."""
         # Simulate old card data (before experience_level field was added)
@@ -391,6 +429,7 @@ class TestStoreMaturity:
 # =============================================================================
 # Extractor Maturity Tests
 # =============================================================================
+
 
 class TestExtractorMaturity:
     """Tests for extractor new fields."""
@@ -468,18 +507,22 @@ class TestExtractorMaturity:
         assert "html_parser" in card.recommended_tool_order
         assert "data_saver" in card.recommended_tool_order
         # Order preserved
-        assert card.recommended_tool_order.index("http_fetch") < card.recommended_tool_order.index("html_parser")
+        assert card.recommended_tool_order.index(
+            "http_fetch",
+        ) < card.recommended_tool_order.index("html_parser")
 
 
 # =============================================================================
 # Retriever Maturity Tests
 # =============================================================================
 
+
 class TestRetrieverMaturity:
     """Tests for maturity-based retrieval."""
 
     def test_new_experience_participates_at_low_weight(
-        self, store: LocalWorkExperienceStore
+        self,
+        store: LocalWorkExperienceStore,
     ) -> None:
         """New experiences can be retrieved (low weight but participating)."""
         new_card = WorkExperience(
@@ -509,7 +552,8 @@ class TestRetrieverMaturity:
         assert new_card.experience_id in [c.experience_id for c in results]
 
     def test_mature_experience_ranks_higher(
-        self, store: LocalWorkExperienceStore
+        self,
+        store: LocalWorkExperienceStore,
     ) -> None:
         """Mature experiences rank higher than new in retrieval."""
         new_card = WorkExperience(
@@ -557,12 +601,21 @@ class TestRetrieverMaturity:
 
         assert len(results) >= 2
         # Mature should be first
-        mature_idx = next(i for i, c in enumerate(results) if c.experience_id == mature_card.experience_id)
-        new_idx = next(i for i, c in enumerate(results) if c.experience_id == new_card.experience_id)
+        mature_idx = next(
+            i
+            for i, c in enumerate(results)
+            if c.experience_id == mature_card.experience_id
+        )
+        new_idx = next(
+            i
+            for i, c in enumerate(results)
+            if c.experience_id == new_card.experience_id
+        )
         assert mature_idx < new_idx
 
     def test_deprecated_excluded_by_default(
-        self, store: LocalWorkExperienceStore
+        self,
+        store: LocalWorkExperienceStore,
     ) -> None:
         """Deprecated experiences are excluded from retrieval."""
         deprecated_card = WorkExperience(
@@ -588,10 +641,13 @@ class TestRetrieverMaturity:
         retriever = WorkExperienceRetriever(store, max_results=5)
         results = retriever.retrieve(keywords=["test", "deprecated"])
 
-        assert deprecated_card.experience_id not in [c.experience_id for c in results]
+        assert deprecated_card.experience_id not in [
+            c.experience_id for c in results
+        ]
 
     def test_deprecated_included_when_requested(
-        self, store: LocalWorkExperienceStore
+        self,
+        store: LocalWorkExperienceStore,
     ) -> None:
         """Deprecated experiences included when include_deprecated=True."""
         deprecated_card = WorkExperience(
@@ -615,12 +671,18 @@ class TestRetrieverMaturity:
         store.save(deprecated_card)
 
         retriever = WorkExperienceRetriever(store, max_results=5)
-        results = retriever.retrieve(keywords=["test", "deprecated"], include_deprecated=True)
+        results = retriever.retrieve(
+            keywords=["test", "deprecated"],
+            include_deprecated=True,
+        )
 
-        assert deprecated_card.experience_id in [c.experience_id for c in results]
+        assert deprecated_card.experience_id in [
+            c.experience_id for c in results
+        ]
 
     def test_disabled_excluded_by_default(
-        self, store: LocalWorkExperienceStore
+        self,
+        store: LocalWorkExperienceStore,
     ) -> None:
         """Disabled experiences are excluded from retrieval."""
         disabled_card = WorkExperience(
@@ -647,17 +709,23 @@ class TestRetrieverMaturity:
         retriever = WorkExperienceRetriever(store, max_results=5)
         results = retriever.retrieve(keywords=["test", "disabled"])
 
-        assert disabled_card.experience_id not in [c.experience_id for c in results]
+        assert disabled_card.experience_id not in [
+            c.experience_id for c in results
+        ]
 
 
 # =============================================================================
 # Service Maturity Tests
 # =============================================================================
 
+
 class TestServiceMaturity:
     """Tests for service maturity methods."""
 
-    def test_promote_to_observed(self, store: LocalWorkExperienceStore) -> None:
+    def test_promote_to_observed(
+        self,
+        store: LocalWorkExperienceStore,
+    ) -> None:
         """Service can promote NEW to OBSERVED."""
         from hubos.core.work_experience.service import WorkExperienceService
 
@@ -720,7 +788,8 @@ class TestServiceMaturity:
         assert retrieved.experience_level == ExperienceLevel.DEPRECATED
 
     def test_update_existing_experience(
-        self, store: LocalWorkExperienceStore
+        self,
+        store: LocalWorkExperienceStore,
     ) -> None:
         """Service can update an existing experience with new observations."""
         from hubos.core.work_experience.service import WorkExperienceService
@@ -775,7 +844,10 @@ class TestServiceMaturity:
             task_id="task-2",
             session_id="session-1",
             trace_id="trace-2",
-            what_worked=["Used chardet for encoding detection", "pandas read_csv worked"],
+            what_worked=[
+                "Used chardet for encoding detection",
+                "pandas read_csv worked",
+            ],
             what_failed=["Old approach failed on latin-1 files"],
             root_cause="Latin-1 encoding not handled",
             next_time_strategy="Always use chardet before parsing",
@@ -786,7 +858,11 @@ class TestServiceMaturity:
         )
 
         service = WorkExperienceService(store)
-        ok = service.update_existing_experience(existing.experience_id, new_report, new_context)
+        ok = service.update_existing_experience(
+            existing.experience_id,
+            new_report,
+            new_context,
+        )
 
         assert ok is True
         updated = store.get(existing.experience_id)
@@ -802,6 +878,7 @@ class TestServiceMaturity:
 # =============================================================================
 # Effective Ratio Tests
 # =============================================================================
+
 
 class TestEffectiveRatio:
     """Tests for effective_ratio method."""

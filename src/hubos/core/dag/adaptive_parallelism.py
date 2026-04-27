@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Adaptive Parallelism Controller for DAG-native Step 6.
 
 Dynamically adjusts max_parallelism based on system load and failure rates.
@@ -11,6 +12,7 @@ from typing import Optional
 @dataclass
 class ParallelismConfig:
     """Configuration for adaptive parallelism."""
+
     min_parallelism: int = 1
     max_parallelism: int = 50
     scale_up_threshold: float = 0.3  # Scale up when queue pressure < 30%
@@ -24,6 +26,7 @@ class ParallelismConfig:
 @dataclass
 class SystemMetrics:
     """Snapshot of system metrics for adaptation."""
+
     queue_depth: int = 0
     running_nodes: int = 0
     recent_failures: int = 0
@@ -50,7 +53,11 @@ class AdaptiveParallelism:
         """Record that a node started."""
         self._metrics.running_nodes += 1
 
-    def record_node_completed(self, success: bool, timed_out: bool = False) -> None:
+    def record_node_completed(
+        self,
+        success: bool,
+        timed_out: bool = False,
+    ) -> None:
         """Record node completion."""
         self._metrics.running_nodes -= 1
         self._metrics.recent_total += 1
@@ -68,7 +75,10 @@ class AdaptiveParallelism:
     def should_adjust(self) -> bool:
         """Check if an adjustment should be made."""
         now = time.time()
-        if now - self._metrics.last_adjustment_time < self._config.cooldown_seconds:
+        if (
+            now - self._metrics.last_adjustment_time
+            < self._config.cooldown_seconds
+        ):
             return False
 
         # Need enough samples
@@ -88,22 +98,26 @@ class AdaptiveParallelism:
 
         failure_rate = (
             self._metrics.recent_failures / self._metrics.recent_total
-            if self._metrics.recent_total > 0 else 0
+            if self._metrics.recent_total > 0
+            else 0
         )
 
         timeout_rate = (
             self._metrics.recent_timeouts / self._metrics.recent_total
-            if self._metrics.recent_total > 0 else 0
+            if self._metrics.recent_total > 0
+            else 0
         )
 
         queue_pressure = (
             self._metrics.queue_depth / self._current_parallelism
-            if self._current_parallelism > 0 else 0
+            if self._current_parallelism > 0
+            else 0
         )
 
         utilization = (
             self._metrics.running_nodes / self._current_parallelism
-            if self._current_parallelism > 0 else 0
+            if self._current_parallelism > 0
+            else 0
         )
 
         new_parallelism = self._current_parallelism
@@ -111,15 +125,21 @@ class AdaptiveParallelism:
 
         # Check if should scale down
         if failure_rate > self._config.failure_rate_threshold:
-            new_parallelism = int(self._current_parallelism / self._config.scale_factor)
+            new_parallelism = int(
+                self._current_parallelism / self._config.scale_factor,
+            )
             reason_parts.append(f"failure_rate={failure_rate:.2%}>threshold")
         elif timeout_rate > self._config.timeout_rate_threshold:
-            new_parallelism = int(self._current_parallelism / self._config.scale_factor)
+            new_parallelism = int(
+                self._current_parallelism / self._config.scale_factor,
+            )
             reason_parts.append(f"timeout_rate={timeout_rate:.2%}>threshold")
         elif utilization > self._config.scale_down_threshold:
             # System is busy, but healthy - scale down slightly
             if self._metrics.queue_depth < self._metrics.running_nodes:
-                new_parallelism = int(self._current_parallelism / self._config.scale_factor)
+                new_parallelism = int(
+                    self._current_parallelism / self._config.scale_factor,
+                )
                 reason_parts.append(f"high_utilization={utilization:.2%}")
 
         # Check if should scale up
@@ -127,14 +147,16 @@ class AdaptiveParallelism:
             if self._metrics.queue_depth > self._current_parallelism:
                 new_parallelism = min(
                     int(self._current_parallelism * self._config.scale_factor),
-                    self._config.max_parallelism
+                    self._config.max_parallelism,
                 )
-                reason_parts.append(f"queue_pressure={queue_pressure:.2%}<threshold")
+                reason_parts.append(
+                    f"queue_pressure={queue_pressure:.2%}<threshold",
+                )
 
         # Apply limits
         new_parallelism = max(
             self._config.min_parallelism,
-            min(self._config.max_parallelism, new_parallelism)
+            min(self._config.max_parallelism, new_parallelism),
         )
 
         reason = ", ".join(reason_parts) if reason_parts else "no_change"
@@ -155,12 +177,14 @@ class AdaptiveParallelism:
             self._metrics.last_adjustment_time = time.time()
 
             # Record history
-            self._adjustment_history.append({
-                "timestamp": time.time(),
-                "old_value": old_val,
-                "new_value": new_val,
-                "reason": reason,
-            })
+            self._adjustment_history.append(
+                {
+                    "timestamp": time.time(),
+                    "old_value": old_val,
+                    "new_value": new_val,
+                    "reason": reason,
+                },
+            )
 
             # Keep only last 100 adjustments
             if len(self._adjustment_history) > 100:
@@ -188,15 +212,18 @@ class AdaptiveParallelism:
             "recent_total": self._metrics.recent_total,
             "failure_rate": (
                 self._metrics.recent_failures / self._metrics.recent_total
-                if self._metrics.recent_total > 0 else 0
+                if self._metrics.recent_total > 0
+                else 0
             ),
             "timeout_rate": (
                 self._metrics.recent_timeouts / self._metrics.recent_total
-                if self._metrics.recent_total > 0 else 0
+                if self._metrics.recent_total > 0
+                else 0
             ),
             "queue_pressure": (
                 self._metrics.queue_depth / self._current_parallelism
-                if self._current_parallelism > 0 else 0
+                if self._current_parallelism > 0
+                else 0
             ),
         }
 

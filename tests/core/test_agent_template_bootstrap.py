@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for agent template bootstrap."""
 
 import tempfile
@@ -166,7 +167,7 @@ class TestCloneFromTemplate:
         agent = registry.clone_from_template(
             "ceo",
             name="My CEO Agent",
-            created_by="test-tenant"
+            created_by="test-tenant",
         )
 
         assert agent is not None
@@ -208,7 +209,10 @@ class TestCloneFromTemplate:
         assert agent.timeout_seconds == template.timeout_seconds
         assert agent.retry_count == template.retry_count
         assert agent.risk_level == template.risk_level
-        assert agent.approval_required_actions == template.approval_required_actions
+        assert (
+            agent.approval_required_actions
+            == template.approval_required_actions
+        )
         assert agent.routing_tags == template.routing_tags
 
 

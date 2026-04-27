@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Stub worker provider for testing and development."""
 
 import asyncio
@@ -41,7 +42,12 @@ class StubWorkerProvider(WorkerProvider):
         """Return the provider name."""
         return "stub"
 
-    async def execute(self, unit_id: UUID, input_data: dict[str, Any], timeout_seconds: int) -> WorkerResult:
+    async def execute(
+        self,
+        unit_id: UUID,
+        input_data: dict[str, Any],
+        timeout_seconds: int,
+    ) -> WorkerResult:
         """
         Execute a stub task.
 
@@ -60,7 +66,10 @@ class StubWorkerProvider(WorkerProvider):
         start_time = time.time()
         logger.info(
             "Stub worker executing",
-            extra={"unit_id": str(unit_id), "timeout_seconds": timeout_seconds},
+            extra={
+                "unit_id": str(unit_id),
+                "timeout_seconds": timeout_seconds,
+            },
         )
 
         try:
@@ -83,7 +92,9 @@ class StubWorkerProvider(WorkerProvider):
 
         except asyncio.TimeoutError:
             elapsed_ms = int((time.time() - start_time) * 1000)
-            raise WorkerTimeoutError(f"Task {unit_id} timed out after {elapsed_ms}ms")
+            raise WorkerTimeoutError(
+                f"Task {unit_id} timed out after {elapsed_ms}ms",
+            )
 
         except Exception as e:
             elapsed_ms = int((time.time() - start_time) * 1000)

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Prometheus metrics service for production observability."""
 
 import logging
@@ -820,9 +821,15 @@ class MetricsService:
         """Generate metric key from name and label names (for registration)."""
         return f"{name}:{','.join(sorted(label_names))}"
 
-    def _metric_key_with_values(self, name: str, labels: dict[str, str]) -> str:
+    def _metric_key_with_values(
+        self,
+        name: str,
+        labels: dict[str, str],
+    ) -> str:
         """Generate metric key from name and label values (for operations)."""
-        return f"{name}:{','.join(f'{k}={v}' for k, v in sorted(labels.items()))}"
+        return (
+            f"{name}:{','.join(f'{k}={v}' for k, v in sorted(labels.items()))}"
+        )
 
     # ==================== Metric Operations ====================
 
@@ -880,12 +887,27 @@ class MetricsService:
         )
 
         # Update success rate gauge (simplified)
-        key = self._metric_key_with_values("hubos_core_worker_success_rate", {"provider": provider})
+        key = self._metric_key_with_values(
+            "hubos_core_worker_success_rate",
+            {"provider": provider},
+        )
         if key in self._gauges:
-            counter_key = self._metric_key_with_values("hubos_core_worker_executions_total", {"provider": provider, "status": "success"})
-            total_key = self._metric_key_with_values("hubos_core_worker_executions_total", {"provider": provider, "status": "failure"})
-            successes = self._counters.get(counter_key, Counter(name="", description="")).value
-            failures = self._counters.get(total_key, Counter(name="", description="")).value
+            counter_key = self._metric_key_with_values(
+                "hubos_core_worker_executions_total",
+                {"provider": provider, "status": "success"},
+            )
+            total_key = self._metric_key_with_values(
+                "hubos_core_worker_executions_total",
+                {"provider": provider, "status": "failure"},
+            )
+            successes = self._counters.get(
+                counter_key,
+                Counter(name="", description=""),
+            ).value
+            failures = self._counters.get(
+                total_key,
+                Counter(name="", description=""),
+            ).value
             total = successes + failures
             if total > 0:
                 self._gauges[key].value = successes / total
@@ -894,7 +916,11 @@ class MetricsService:
         """Record planning phase latency."""
         self.observe_histogram("hubos_core_planning_latency_ms", latency_ms)
 
-    def record_merge_latency(self, latency_ms: float, has_conflict: bool) -> None:
+    def record_merge_latency(
+        self,
+        latency_ms: float,
+        has_conflict: bool,
+    ) -> None:
         """Record merge phase latency and conflict."""
         self.observe_histogram("hubos_core_merge_latency_ms", latency_ms)
         if has_conflict:
@@ -902,7 +928,10 @@ class MetricsService:
 
     def record_task_completion(self, latency_ms: float) -> None:
         """Record task completion time."""
-        self.observe_histogram("hubos_core_task_completion_time_ms", latency_ms)
+        self.observe_histogram(
+            "hubos_core_task_completion_time_ms",
+            latency_ms,
+        )
 
     def record_human_gate_task(self, status: str) -> None:
         """Record human gate task event."""
@@ -920,7 +949,10 @@ class MetricsService:
         """Update memory-related metrics."""
         self.set_gauge("hubos_core_memory_local_hit_rate", local_hit_rate)
         self.set_gauge("hubos_core_memory_hermes_hit_rate", hermes_hit_rate)
-        self.set_gauge("hubos_core_memory_hermes_sync_success_rate", hermes_sync_rate)
+        self.set_gauge(
+            "hubos_core_memory_hermes_sync_success_rate",
+            hermes_sync_rate,
+        )
 
     # ==================== Week 11: Approval Gate Metrics ====================
 
@@ -967,7 +999,11 @@ class MetricsService:
         """Record a cost tracking event."""
         self.increment_counter(
             "hubos_core_cost_tracked_total",
-            {"team_id": team_id, "resource_type": resource_type, "provider": provider},
+            {
+                "team_id": team_id,
+                "resource_type": resource_type,
+                "provider": provider,
+            },
             cost,
         )
 
@@ -1127,7 +1163,10 @@ class MetricsService:
 
     def record_task_execution_duration(self, duration_ms: float) -> None:
         """Record task execution duration."""
-        self.observe_histogram("hubos_core_task_execution_duration_ms", duration_ms)
+        self.observe_histogram(
+            "hubos_core_task_execution_duration_ms",
+            duration_ms,
+        )
 
     def record_task_success(self) -> None:
         """Record a successful task completion."""
@@ -1141,9 +1180,17 @@ class MetricsService:
         """Record a task entering human gate."""
         self.increment_counter("hubos_core_task_human_gate_total")
 
-    def record_task_stage_duration(self, stage: str, duration_ms: float) -> None:
+    def record_task_stage_duration(
+        self,
+        stage: str,
+        duration_ms: float,
+    ) -> None:
         """Record task stage execution duration."""
-        self.observe_histogram("hubos_core_task_stage_duration_ms", duration_ms, {"stage": stage})
+        self.observe_histogram(
+            "hubos_core_task_stage_duration_ms",
+            duration_ms,
+            {"stage": stage},
+        )
 
     def update_task_queue_depth(self, depth: int) -> None:
         """Update task queue depth gauge."""
@@ -1191,7 +1238,11 @@ class MetricsService:
             {"account_id": account_id},
         )
 
-    def record_wechat_poller_latency(self, account_id: str, latency_ms: float) -> None:
+    def record_wechat_poller_latency(
+        self,
+        account_id: str,
+        latency_ms: float,
+    ) -> None:
         """Record WeChat poller latency."""
         self.observe_histogram(
             "hubos_core_wechat_poller_latency_ms",
@@ -1201,7 +1252,10 @@ class MetricsService:
 
     def update_wechat_poller_running(self, count: int) -> None:
         """Update number of running WeChat pollers."""
-        self.set_gauge("hubos_core_wechat_poller_running_accounts", float(count))
+        self.set_gauge(
+            "hubos_core_wechat_poller_running_accounts",
+            float(count),
+        )
 
     # ==================== Week 13.5: Parallel Core V1.5 Step 4 Metrics ====================
 
@@ -1212,28 +1266,43 @@ class MetricsService:
             {"backend": backend},
         )
 
-    def record_parallel_fallback(self, from_backend: str, to_backend: str) -> None:
+    def record_parallel_fallback(
+        self,
+        from_backend: str,
+        to_backend: str,
+    ) -> None:
         """Record backend fallback from one backend to another."""
         self.increment_counter(
             "hubos_core_parallel_fallback_total",
             {"from_backend": from_backend, "to_backend": to_backend},
         )
 
-    def record_parallel_branch_duplicate_prevented(self, branch_id: str) -> None:
+    def record_parallel_branch_duplicate_prevented(
+        self,
+        branch_id: str,
+    ) -> None:
         """Record that a duplicate branch execution was prevented."""
         self.increment_counter(
             "hubos_core_parallel_branch_duplicate_prevented_total",
             {"branch_id": branch_id},
         )
 
-    def record_parallel_recovery_resume(self, task_id: str, source: str) -> None:
+    def record_parallel_recovery_resume(
+        self,
+        task_id: str,
+        source: str,
+    ) -> None:
         """Record that execution was resumed from recovery."""
         self.increment_counter(
             "hubos_core_parallel_recovery_resume_total",
             {"task_id": task_id, "source": source},
         )
 
-    def record_parallel_human_gate_open(self, task_id: str, branch_id: Optional[str] = None) -> None:
+    def record_parallel_human_gate_open(
+        self,
+        task_id: str,
+        branch_id: Optional[str] = None,
+    ) -> None:
         """Record a human gate opening for a parallel branch or merge."""
         self.increment_counter(
             "hubos_core_parallel_human_gate_open_total",
@@ -1241,22 +1310,38 @@ class MetricsService:
         )
 
     def record_parallel_human_gate_resolved(
-        self, task_id: str, branch_id: Optional[str] = None, action: str = "approved"
+        self,
+        task_id: str,
+        branch_id: Optional[str] = None,
+        action: str = "approved",
     ) -> None:
         """Record a human gate resolution."""
         self.increment_counter(
             "hubos_core_parallel_human_gate_resolved_total",
-            {"task_id": task_id, "branch_id": branch_id or "merge", "action": action},
+            {
+                "task_id": task_id,
+                "branch_id": branch_id or "merge",
+                "action": action,
+            },
         )
 
-    def record_parallel_merge_timeout(self, task_id: str, merge_id: str) -> None:
+    def record_parallel_merge_timeout(
+        self,
+        task_id: str,
+        merge_id: str,
+    ) -> None:
         """Record a merge timeout event."""
         self.increment_counter(
             "hubos_core_parallel_merge_timeout_total",
             {"task_id": task_id, "merge_id": merge_id},
         )
 
-    def record_parallel_branch_dispatch(self, branch_id: str, role: str, backend: str) -> None:
+    def record_parallel_branch_dispatch(
+        self,
+        branch_id: str,
+        role: str,
+        backend: str,
+    ) -> None:
         """Record a parallel branch dispatch event."""
         self.increment_counter(
             "hubos_core_parallel_branch_dispatch_total",
@@ -1264,22 +1349,42 @@ class MetricsService:
         )
 
     def record_parallel_branch_complete(
-        self, branch_id: str, role: str, backend: str, status: str
+        self,
+        branch_id: str,
+        role: str,
+        backend: str,
+        status: str,
     ) -> None:
         """Record a parallel branch completion event."""
         self.increment_counter(
             "hubos_core_parallel_branch_complete_total",
-            {"branch_id": branch_id, "role": role, "backend": backend, "status": status},
+            {
+                "branch_id": branch_id,
+                "role": role,
+                "backend": backend,
+                "status": status,
+            },
         )
 
-    def record_parallel_merge_start(self, merge_id: str, required_branches: int) -> None:
+    def record_parallel_merge_start(
+        self,
+        merge_id: str,
+        required_branches: int,
+    ) -> None:
         """Record a parallel merge start event."""
         self.increment_counter(
             "hubos_core_parallel_merge_start_total",
-            {"merge_id": merge_id, "required_branches": str(required_branches)},
+            {
+                "merge_id": merge_id,
+                "required_branches": str(required_branches),
+            },
         )
 
-    def record_parallel_merge_complete(self, merge_id: str, status: str) -> None:
+    def record_parallel_merge_complete(
+        self,
+        merge_id: str,
+        status: str,
+    ) -> None:
         """Record a parallel merge completion event."""
         self.increment_counter(
             "hubos_core_parallel_merge_complete_total",
@@ -1288,7 +1393,12 @@ class MetricsService:
 
     # ==================== DAG-native Metrics (Step 5) ====================
 
-    def record_dag_node_dispatch(self, node_id: str, role: str, executor: str) -> None:
+    def record_dag_node_dispatch(
+        self,
+        node_id: str,
+        role: str,
+        executor: str,
+    ) -> None:
         """Record a DAG node dispatch."""
         self.increment_counter(
             "hubos_core_dag_node_dispatch_total",
@@ -1296,14 +1406,25 @@ class MetricsService:
         )
         self.increment_gauge("hubos_core_dag_nodes_running", {}, 1)
 
-    def record_dag_node_complete(self, node_id: str, role: str, executor: str, status: str, duration_ms: float) -> None:
+    def record_dag_node_complete(
+        self,
+        node_id: str,
+        role: str,
+        executor: str,
+        status: str,
+        duration_ms: float,
+    ) -> None:
         """Record a DAG node completion."""
         self.increment_counter(
             "hubos_core_dag_node_complete_total",
             {"node_role": role, "executor": executor, "status": status},
         )
         self.increment_gauge("hubos_core_dag_nodes_running", {}, -1)
-        self.record_histogram("hubos_core_dag_node_latency_ms", duration_ms, {"node_role": role, "executor": executor})
+        self.record_histogram(
+            "hubos_core_dag_node_latency_ms",
+            duration_ms,
+            {"node_role": role, "executor": executor},
+        )
 
     def record_dag_retry(self, node_id: str, reason: str) -> None:
         """Record a DAG node retry."""
@@ -1323,14 +1444,22 @@ class MetricsService:
         """Record DAG merge wait time."""
         self.record_histogram("hubos_core_dag_merge_wait_ms", wait_ms, {})
 
-    def record_dag_executor_selection(self, executor: str, reason: str) -> None:
+    def record_dag_executor_selection(
+        self,
+        executor: str,
+        reason: str,
+    ) -> None:
         """Record DAG executor selection decision."""
         self.increment_counter(
             "hubos_core_dag_executor_selection_total",
             {"executor": executor, "reason": reason},
         )
 
-    def record_dag_duplicate_prevented(self, node_id: str, instance_id: str) -> None:
+    def record_dag_duplicate_prevented(
+        self,
+        node_id: str,
+        instance_id: str,
+    ) -> None:
         """Record a duplicate dispatch was prevented."""
         self.increment_counter(
             "hubos_core_dag_duplicate_prevented_total",
@@ -1346,7 +1475,10 @@ class MetricsService:
 
     def record_dag_completed(self, status: str) -> None:
         """Record a DAG execution completed."""
-        self.increment_counter("hubos_core_dag_completed_total", {"status": status})
+        self.increment_counter(
+            "hubos_core_dag_completed_total",
+            {"status": status},
+        )
 
     def set_dag_active_plans(self, count: int) -> None:
         """Set the number of active DAG plans."""
@@ -1373,9 +1505,13 @@ class MetricsService:
 
             if counter.labels:
                 # Multi-label counter
-                labels_str = ",".join(f'{k}="{v}"' for k, v in counter.labels.items() if v)
+                labels_str = ",".join(
+                    f'{k}="{v}"' for k, v in counter.labels.items() if v
+                )
                 if labels_str:
-                    lines.append(f"{counter.name}{{{labels_str}}} {counter.value} {timestamp}")
+                    lines.append(
+                        f"{counter.name}{{{labels_str}}} {counter.value} {timestamp}",
+                    )
                 else:
                     lines.append(f"{counter.name} {counter.value} {timestamp}")
             else:
@@ -1387,9 +1523,13 @@ class MetricsService:
             lines.append(f"# TYPE {gauge.name} gauge")
 
             if any(gauge.labels.values()):
-                labels_str = ",".join(f'{k}="{v}"' for k, v in gauge.labels.items() if v)
+                labels_str = ",".join(
+                    f'{k}="{v}"' for k, v in gauge.labels.items() if v
+                )
                 if labels_str:
-                    lines.append(f"{gauge.name}{{{labels_str}}} {gauge.value} {timestamp}")
+                    lines.append(
+                        f"{gauge.name}{{{labels_str}}} {gauge.value} {timestamp}",
+                    )
                 else:
                     lines.append(f"{gauge.name} {gauge.value} {timestamp}")
             else:
@@ -1410,18 +1550,26 @@ class MetricsService:
             for bucket in histogram.buckets:
                 count = sum(1 for v in values_sorted if v <= bucket)
                 bucket_label = f'le="{bucket}"'
-                lines.append(f"{histogram.name}_bucket{{{bucket_label}}} {count} {timestamp}")
+                lines.append(
+                    f"{histogram.name}_bucket{{{bucket_label}}} {count} {timestamp}",
+                )
 
             # +Inf bucket
-            lines.append(f"{histogram.name}_bucket{{le=\"+Inf\"}} {total} {timestamp}")
+            lines.append(
+                f'{histogram.name}_bucket{{le="+Inf"}} {total} {timestamp}',
+            )
 
             # Sum and count
-            lines.append(f"{histogram.name}_sum {sum(values_sorted)} {timestamp}")
+            lines.append(
+                f"{histogram.name}_sum {sum(values_sorted)} {timestamp}",
+            )
             lines.append(f"{histogram.name}_count {total} {timestamp}")
 
         # Add uptime
         uptime_seconds = time.time() - self._start_time
-        lines.append(f"# HELP hubos_core_uptime_seconds_seconds Service uptime")
+        lines.append(
+            f"# HELP hubos_core_uptime_seconds_seconds Service uptime",
+        )
         lines.append(f"# TYPE hubos_core_uptime_seconds_seconds gauge")
         lines.append(f"hubos_core_uptime_seconds {uptime_seconds} {timestamp}")
 

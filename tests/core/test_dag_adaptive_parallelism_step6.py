@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Tests for DAG Adaptive Parallelism - Parallel Core V1.5 Step 6."""
 
 import pytest
@@ -149,7 +150,10 @@ class TestAdaptiveParallelism:
         # Record 15% timeout rate
         for i in range(20):
             timed_out = i < 3  # 3 timeouts = 15%
-            controller.record_node_completed(success=not timed_out, timed_out=timed_out)
+            controller.record_node_completed(
+                success=not timed_out,
+                timed_out=timed_out,
+            )
 
         new_val, reason = controller.calculate_adjustment()
 
@@ -168,7 +172,9 @@ class TestAdaptiveParallelism:
         controller = AdaptiveParallelism(config)
         controller._current_parallelism = 10
         controller._metrics.queue_depth = 2  # 2/10 = 0.2 < 0.3
-        controller._metrics.last_adjustment_time = time.time() - 100  # Outside cooldown
+        controller._metrics.last_adjustment_time = (
+            time.time() - 100
+        )  # Outside cooldown
 
         # Record enough successful completions
         for _ in range(10):

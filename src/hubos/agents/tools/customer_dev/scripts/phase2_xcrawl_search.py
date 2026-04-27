@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 phase2_xcrawl_search.py - Hunter Agent
 使用 xcrawl Search API 搜索候选公司。
@@ -30,34 +31,82 @@ HUBOS_AGENT_CONFIG = os.path.expanduser(
     os.environ.get(
         "HUBOS_MCP_AGENT_CONFIG",
         "~/.hubos/workspaces/default/agent.json",
-    )
+    ),
 )
 
 LOW_VALUE_DOMAINS = {
-    'amazon.', 'alibaba.', 'made-in-china.', 'globalsources.', 'ec21.',
-    'kompass.', 'yellowpages', 'linkedin.', 'facebook.', 'instagram.',
-    'youtube.', 'wikipedia.', 'trade.gov', 'volza.', 'trademo.',
-    'go4worldbusiness.', 'b2brazil.', 'developmentaid.',
+    "amazon.",
+    "alibaba.",
+    "made-in-china.",
+    "globalsources.",
+    "ec21.",
+    "kompass.",
+    "yellowpages",
+    "linkedin.",
+    "facebook.",
+    "instagram.",
+    "youtube.",
+    "wikipedia.",
+    "trade.gov",
+    "volza.",
+    "trademo.",
+    "go4worldbusiness.",
+    "b2brazil.",
+    "developmentaid.",
 }
 
 # Government / school / institutional domains — NOT potential customers
 NON_COMMERCIAL_DOMAINS = {
-    '.gov.', '.gob.', '.edu.', '.k12.', '.ac.uk', '.sch.', '.edu.',
-    'deped.gov', 'deped.', 'wordpress.com', 'blogspot.', 'medium.com',
-    'reddit.com', 'quora.com', 'slideshare.', 'scribd.',
-    'researchgate.', 'academia.edu',
+    ".gov.",
+    ".gob.",
+    ".edu.",
+    ".k12.",
+    ".ac.uk",
+    ".sch.",
+    ".edu.",
+    "deped.gov",
+    "deped.",
+    "wordpress.com",
+    "blogspot.",
+    "medium.com",
+    "reddit.com",
+    "quora.com",
+    "slideshare.",
+    "scribd.",
+    "researchgate.",
+    "academia.edu",
 }
 
 LOW_VALUE_TEXT = {
-    'top 10', 'best suppliers', 'directory', 'yellow pages', 'marketplace',
-    'news', 'blog', 'article', 'expo', 'fair', 'exhibition', 'tender notice',
-    'find a distributor', 'dealer locator', 'product details',
+    "top 10",
+    "best suppliers",
+    "directory",
+    "yellow pages",
+    "marketplace",
+    "news",
+    "blog",
+    "article",
+    "expo",
+    "fair",
+    "exhibition",
+    "tender notice",
+    "find a distributor",
+    "dealer locator",
+    "product details",
 }
 
 BUYER_SIGNAL_TEXT = {
-    'distributor', 'importer', 'wholesaler', 'dealer', 'reseller',
-    'school supplier', 'laboratory supplier', 'educational equipment',
-    'science equipment', 'teaching equipment', 'medical teaching',
+    "distributor",
+    "importer",
+    "wholesaler",
+    "dealer",
+    "reseller",
+    "school supplier",
+    "laboratory supplier",
+    "educational equipment",
+    "science equipment",
+    "teaching equipment",
+    "medical teaching",
 }
 
 
@@ -73,7 +122,11 @@ def _extract_text_from_mcp_result(result) -> str:
     if isinstance(result, str):
         text = result
     elif isinstance(result, dict):
-        text = result.get("content") or result.get("text") or json.dumps(result, ensure_ascii=False)
+        text = (
+            result.get("content")
+            or result.get("text")
+            or json.dumps(result, ensure_ascii=False)
+        )
     elif hasattr(result, "content"):
         blocks = getattr(result, "content", [])
         texts = []
@@ -98,7 +151,12 @@ def _extract_text_from_mcp_result(result) -> str:
         except Exception:
             break
         if isinstance(data, dict):
-            text = data.get("content") or data.get("text") or data.get("result") or text
+            text = (
+                data.get("content")
+                or data.get("text")
+                or data.get("result")
+                or text
+            )
         elif isinstance(data, list):
             parts = []
             for item in data:
@@ -132,7 +190,10 @@ async def _get_webreader():
 
     config_path = HUBOS_AGENT_CONFIG
     if not os.path.exists(config_path):
-        print(f"    ℹ️  webReader: agent.json not found at {config_path}", flush=True)
+        print(
+            f"    ℹ️  webReader: agent.json not found at {config_path}",
+            flush=True,
+        )
         return None
 
     try:
@@ -196,20 +257,25 @@ def _parse_ddg_html(html: str, max_results: int = 10) -> list[dict]:
     seen = set()
 
     # webReader returns rendered Markdown for DDG, not raw HTML.
-    for match in re.finditer(r"\[([^\]\n]{3,200})\]\((https?://[^)\s]+)\)", html):
+    for match in re.finditer(
+        r"\[([^\]\n]{3,200})\]\((https?://[^)\s]+)\)",
+        html,
+    ):
         title = match.group(1).strip()
         url = _clean_duckduckgo_url(match.group(2).strip())
         if not url or "duckduckgo.com" in url or url in seen:
             continue
         seen.add(url)
-        results.append({
-            "url": url,
-            "title": title,
-            "content": "",
-            "description": "",
-            "position": len(results) + 1,
-            "score": max(0.1, 1.0 - len(results) * 0.08),
-        })
+        results.append(
+            {
+                "url": url,
+                "title": title,
+                "content": "",
+                "description": "",
+                "position": len(results) + 1,
+                "score": max(0.1, 1.0 - len(results) * 0.08),
+            },
+        )
         if len(results) >= max_results:
             return results
 
@@ -224,8 +290,8 @@ def _parse_ddg_html(html: str, max_results: int = 10) -> list[dict]:
 
         # Extract title from nearby link text
         title = ""
-        chunk = html[max(0, match.start() - 500):match.start()]
-        titles = re.findall(r'>([^<]{3,150})</a>', chunk)
+        chunk = html[max(0, match.start() - 500) : match.start()]
+        titles = re.findall(r">([^<]{3,150})</a>", chunk)
         if titles:
             title = titles[-1].strip()
 
@@ -237,7 +303,8 @@ def _parse_ddg_html(html: str, max_results: int = 10) -> list[dict]:
     # Pattern 2: if no uddg found, try result__a links
     if not results:
         for match in re.finditer(
-            r'class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)', html
+            r'class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)',
+            html,
         ):
             href = match.group(1)
             title = match.group(2).strip()
@@ -259,10 +326,16 @@ def _parse_ddg_html(html: str, max_results: int = 10) -> list[dict]:
 
     # Pattern 3: generic <a href="https://..."> fallback
     if not results:
-        for match in re.finditer(r'<a[^>]+href="(https?://[^"]+)"[^>]*>([^<]{3,})</a>', html):
+        for match in re.finditer(
+            r'<a[^>]+href="(https?://[^"]+)"[^>]*>([^<]{3,})</a>',
+            html,
+        ):
             url = match.group(1)
             title = match.group(2).strip()
-            if any(skip in url for skip in ("duckduckgo.com", "bing.com", "google.com")):
+            if any(
+                skip in url
+                for skip in ("duckduckgo.com", "bing.com", "google.com")
+            ):
                 continue
             if url in seen:
                 continue
@@ -283,9 +356,11 @@ def search_webreader_duckduckgo(query, max_results=5):
         if loop.is_running():
             # We're inside an async context — create a new loop in a thread
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor() as pool:
                 html = pool.submit(
-                    asyncio.run, _webreader_fetch(ddg_url)
+                    asyncio.run,
+                    _webreader_fetch(ddg_url),
                 ).result(timeout=30)
         else:
             html = loop.run_until_complete(_webreader_fetch(ddg_url))
@@ -305,13 +380,14 @@ def search_webreader_duckduckgo(query, max_results=5):
 
 # ─── xcrawl search ─────────────────────────────────────────────────────
 
+
 def load_xcrawl_key():
     global XCRAWL_API_KEY
-    config_path = os.path.expanduser('~/.xcrawl/config.json')
+    config_path = os.path.expanduser("~/.xcrawl/config.json")
     if os.path.exists(config_path):
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             cfg = json.load(f)
-            XCRAWL_API_KEY = cfg.get('XCRAWL_API_KEY', '')
+            XCRAWL_API_KEY = cfg.get("XCRAWL_API_KEY", "")
 
 
 def search_xcrawl(query, max_results=5):
@@ -319,49 +395,63 @@ def search_xcrawl(query, max_results=5):
         "query": query,
         "max_results": max_results,
         "include_answer": True,
-        "include_raw_content": False
+        "include_raw_content": False,
     }
 
     try:
         result = subprocess.run(
-            ['curl', '-s', '-X', 'POST', f'{XCRAWL_BASE_URL}/v1/search',
-             '-H', 'Content-Type: application/json',
-             '-H', f'Authorization: Bearer {XCRAWL_API_KEY}',
-             '-d', json.dumps(payload)],
-            capture_output=True, text=True, timeout=30
+            [
+                "curl",
+                "-s",
+                "-X",
+                "POST",
+                f"{XCRAWL_BASE_URL}/v1/search",
+                "-H",
+                "Content-Type: application/json",
+                "-H",
+                f"Authorization: Bearer {XCRAWL_API_KEY}",
+                "-d",
+                json.dumps(payload),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
 
         if result.returncode != 0:
-            return None, 'curl_error'
+            return None, "curl_error"
 
         resp = json.loads(result.stdout)
-        if resp.get('status') == 'error' or resp.get('code'):
-            return None, resp.get('message', 'unknown_error')
+        if resp.get("status") == "error" or resp.get("code"):
+            return None, resp.get("message", "unknown_error")
 
-        data = resp.get('data', {})
-        results = data.get('data', [])
-        return results or [], 'ok'
+        data = resp.get("data", {})
+        results = data.get("data", [])
+        return results or [], "ok"
     except Exception as e:
         return None, str(e)
 
 
 # ─── common helpers ─────────────────────────────────────────────────────
 
+
 def load_search_blocks(path):
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, "r", encoding="utf-8") as f:
         search_data = json.load(f)
 
     if isinstance(search_data, list):
         return search_data
 
-    countries = search_data.get('countries', {})
+    countries = search_data.get("countries", {})
     blocks = []
     for code, block in countries.items():
-        blocks.append({
-            'country_code': code,
-            'country_name': block.get('name', code),
-            'search_terms': block.get('terms', [])
-        })
+        blocks.append(
+            {
+                "country_code": code,
+                "country_name": block.get("name", code),
+                "search_terms": block.get("terms", []),
+            },
+        )
     return blocks
 
 
@@ -373,18 +463,18 @@ def select_terms(country_code, terms):
 
 def stable_score(item):
     return (
-        float(item.get('score', 0) or 0),
-        -int(item.get('position', 999) or 999)
+        float(item.get("score", 0) or 0),
+        -int(item.get("position", 999) or 999),
     )
 
 
 def is_low_value_search_result(item):
-    url = (item.get('url') or '').lower()
-    title = (item.get('title') or '').lower()
-    snippet = (item.get('snippet') or item.get('description') or '').lower()
-    text = f'{url} {title} {snippet}'
+    url = (item.get("url") or "").lower()
+    title = (item.get("title") or "").lower()
+    snippet = (item.get("snippet") or item.get("description") or "").lower()
+    text = f"{url} {title} {snippet}"
 
-    if url.endswith(('.pdf', '.doc', '.docx', '.xls', '.xlsx')):
+    if url.endswith((".pdf", ".doc", ".docx", ".xls", ".xlsx")):
         return True
     if any(domain in url for domain in LOW_VALUE_DOMAINS):
         return True
@@ -397,17 +487,17 @@ def is_low_value_search_result(item):
 
 
 def buyer_signal_count(item):
-    title = (item.get('title') or '').lower()
-    snippet = (item.get('snippet') or item.get('description') or '').lower()
-    term = (item.get('search_term') or '').lower()
-    text = f'{title} {snippet} {term}'
+    title = (item.get("title") or "").lower()
+    snippet = (item.get("snippet") or item.get("description") or "").lower()
+    term = (item.get("search_term") or "").lower()
+    text = f"{title} {snippet} {term}"
     return sum(1 for signal in BUYER_SIGNAL_TEXT if signal in text)
 
 
 def balance_results(results):
     by_country = defaultdict(list)
     for r in results:
-        by_country[r.get('country_code', '?')].append(r)
+        by_country[r.get("country_code", "?")].append(r)
 
     for code in by_country:
         by_country[code].sort(key=stable_score, reverse=True)
@@ -419,7 +509,7 @@ def balance_results(results):
     for code, items in by_country.items():
         picked = 0
         for item in items:
-            url = item.get('url')
+            url = item.get("url")
             if not url or url in seen_urls:
                 continue
             final.append(item)
@@ -432,7 +522,7 @@ def balance_results(results):
     remaining = []
     for items in by_country.values():
         for item in items:
-            url = item.get('url')
+            url = item.get("url")
             if url and url not in seen_urls:
                 remaining.append(item)
 
@@ -440,7 +530,7 @@ def balance_results(results):
     for item in remaining:
         if len(final) >= FINAL_LIMIT:
             break
-        url = item.get('url')
+        url = item.get("url")
         if not url or url in seen_urls:
             continue
         final.append(item)
@@ -451,10 +541,11 @@ def balance_results(results):
 
 # ─── main ───────────────────────────────────────────────────────────────
 
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--search-terms', required=True)
-    parser.add_argument('--output', required=True)
+    parser.add_argument("--search-terms", required=True)
+    parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
     load_xcrawl_key()
@@ -469,9 +560,12 @@ def main():
     webreader_results = 0
 
     for country_block in search_blocks:
-        country_code = country_block['country_code']
-        country_name = country_block['country_name']
-        terms = select_terms(country_code, country_block.get('search_terms', []))
+        country_code = country_block["country_code"]
+        country_name = country_block["country_name"]
+        terms = select_terms(
+            country_code,
+            country_block.get("search_terms", []),
+        )
 
         country_results = []
 
@@ -493,19 +587,34 @@ def main():
                 elif results is not None and len(results) == 0:
                     # xcrawl returned empty — try webReader fallback
                     print(f"    🔄 xcrawl 空结果，启用 webReader 兜底...", flush=True)
-                    results, status = search_webreader_duckduckgo(term, max_results=5)
+                    results, status = search_webreader_duckduckgo(
+                        term,
+                        max_results=5,
+                    )
                     webreader_calls += 1
                     used_xcrawl = False
                 else:
                     # xcrawl failed — try webReader fallback
-                    print(f"    🔄 xcrawl 失败({status})，启用 webReader 兜底...", flush=True)
-                    results, status = search_webreader_duckduckgo(term, max_results=5)
+                    print(
+                        f"    🔄 xcrawl 失败({status})，启用 webReader 兜底...",
+                        flush=True,
+                    )
+                    results, status = search_webreader_duckduckgo(
+                        term,
+                        max_results=5,
+                    )
                     webreader_calls += 1
                     used_xcrawl = False
             else:
                 # No xcrawl key — go straight to webReader
-                print(f"    🔄 无 xcrawl key，使用 webReader + DuckDuckGo...", flush=True)
-                results, status = search_webreader_duckduckgo(term, max_results=5)
+                print(
+                    f"    🔄 无 xcrawl key，使用 webReader + DuckDuckGo...",
+                    flush=True,
+                )
+                results, status = search_webreader_duckduckgo(
+                    term,
+                    max_results=5,
+                )
                 webreader_calls += 1
                 used_xcrawl = False
 
@@ -516,32 +625,42 @@ def main():
                 continue
 
             for r in results:
-                url = r.get('url', '')
+                url = r.get("url", "")
                 if not url:
                     continue
                 if is_low_value_search_result(r):
                     continue
-                if any(existing['url'] == url for existing in country_results):
+                if any(existing["url"] == url for existing in country_results):
                     continue
 
-                description = r.get('description', r.get('snippet', r.get('content', '')))
-                signal_count = buyer_signal_count({
-                    **r,
-                    'search_term': term,
-                    'snippet': description or '',
-                })
-                country_results.append({
-                    'url': url,
-                    'title': r.get('title', ''),
-                    'snippet': description[:500] if description else '',
-                    'search_term': term,
-                    'country_code': country_code,
-                    'country_name': country_name,
-                    'position': r.get('position', 0),
-                    'score': float(r.get('score', 0) or 0) + signal_count * 0.2,
-                    'buyer_signal_count': signal_count,
-                    'search_engine': 'xcrawl' if used_xcrawl else 'webreader_ddg',
-                })
+                description = r.get(
+                    "description",
+                    r.get("snippet", r.get("content", "")),
+                )
+                signal_count = buyer_signal_count(
+                    {
+                        **r,
+                        "search_term": term,
+                        "snippet": description or "",
+                    },
+                )
+                country_results.append(
+                    {
+                        "url": url,
+                        "title": r.get("title", ""),
+                        "snippet": description[:500] if description else "",
+                        "search_term": term,
+                        "country_code": country_code,
+                        "country_name": country_name,
+                        "position": r.get("position", 0),
+                        "score": float(r.get("score", 0) or 0)
+                        + signal_count * 0.2,
+                        "buyer_signal_count": signal_count,
+                        "search_engine": "xcrawl"
+                        if used_xcrawl
+                        else "webreader_ddg",
+                    },
+                )
 
             engine_label = "xcrawl" if used_xcrawl else "webReader+DDG"
             print(f"    ✅ 找到 {len(results)} 个结果 ({engine_label})", flush=True)
@@ -557,15 +676,19 @@ def main():
 
     top_results = balance_results(all_results)
 
-    with open(args.output, 'w', encoding='utf-8') as f:
+    with open(args.output, "w", encoding="utf-8") as f:
         json.dump(top_results, f, ensure_ascii=False, indent=2)
 
-    print(f"\n✅ 阶段2完成：执行 {total_searches} 次搜索，找到 {len(top_results)} 个候选URL（平衡后）")
+    print(
+        f"\n✅ 阶段2完成：执行 {total_searches} 次搜索，找到 {len(top_results)} 个候选URL（平衡后）",
+    )
     print(f"💰 约消耗 {total_credits} xcrawl credits")
     if webreader_calls > 0:
-        print(f"🔧 webReader 兜底：{webreader_calls} 次调用，找到 {webreader_results} 个结果")
+        print(
+            f"🔧 webReader 兜底：{webreader_calls} 次调用，找到 {webreader_results} 个结果",
+        )
     print(f"📁 输出：{args.output}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

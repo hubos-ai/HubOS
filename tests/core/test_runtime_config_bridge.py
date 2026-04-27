@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Tests for runtime config bridge and integration helpers."""
 
 from __future__ import annotations
@@ -6,7 +7,11 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from hubos.core.infra.agent_registry import AgentRegistry, ModelProvider, RiskLevel
+from hubos.core.infra.agent_registry import (
+    AgentRegistry,
+    ModelProvider,
+    RiskLevel,
+)
 from hubos.core.infra.runtime_config import (
     apply_settings_to_registry,
     build_effective_runtime_config,
@@ -26,17 +31,38 @@ def _base_settings() -> dict:
                 "enabled": True,
                 "api_key_env": "OPENAI_API_KEY",
                 "timeout_seconds": 1,
-            }
+            },
         ],
         "channels": [
-            {"id": "webhook", "type": "webhook", "enabled": True, "endpoint": "/webhook", "auth": "api_key"}
+            {
+                "id": "webhook",
+                "type": "webhook",
+                "enabled": True,
+                "endpoint": "/webhook",
+                "auth": "api_key",
+            },
         ],
         "tools": [
-            {"id": "web_search", "enabled": True, "risk": "low", "approval_required": False},
-            {"id": "code_execute", "enabled": False, "risk": "high", "approval_required": True},
+            {
+                "id": "web_search",
+                "enabled": True,
+                "risk": "low",
+                "approval_required": False,
+            },
+            {
+                "id": "code_execute",
+                "enabled": False,
+                "risk": "high",
+                "approval_required": True,
+            },
         ],
         "workflows": [
-            {"id": "one_person_default", "enabled": True, "default": True, "max_parallel_subagents": 1}
+            {
+                "id": "one_person_default",
+                "enabled": True,
+                "default": True,
+                "max_parallel_subagents": 1,
+            },
         ],
     }
 
@@ -102,10 +128,14 @@ def test_permissions_matrix_uses_tool_policy() -> None:
         )
 
         matrix = build_permissions_matrix(registry, _base_settings())
-        row = next(r for r in matrix["rows"] if r["agent_id"] == agent.agent_id)
+        row = next(
+            r for r in matrix["rows"] if r["agent_id"] == agent.agent_id
+        )
         assert row["permissions"]["web_search"]["allowed"] is True
         assert row["permissions"]["code_execute"]["allowed"] is False
-        assert row["permissions"]["code_execute"]["error_code"] == "TOOL_DISABLED"
+        assert (
+            row["permissions"]["code_execute"]["error_code"] == "TOOL_DISABLED"
+        )
     finally:
         Path(db_path).unlink(missing_ok=True)
 
@@ -150,14 +180,24 @@ def test_model_connection_http_success() -> None:
 
 def test_channel_connection_local_endpoint() -> None:
     result = check_channel_connection(
-        {"id": "webhook", "type": "webhook", "enabled": True, "endpoint": "/webhook"}
+        {
+            "id": "webhook",
+            "type": "webhook",
+            "enabled": True,
+            "endpoint": "/webhook",
+        },
     )
     assert result["ok"] is True
 
 
 def test_channel_connection_invalid_endpoint() -> None:
     result = check_channel_connection(
-        {"id": "wechat", "type": "wechat", "enabled": True, "endpoint": "not-a-url"}
+        {
+            "id": "wechat",
+            "type": "wechat",
+            "enabled": True,
+            "endpoint": "not-a-url",
+        },
     )
     assert result["ok"] is False
     assert "Invalid endpoint format" in result["message"]

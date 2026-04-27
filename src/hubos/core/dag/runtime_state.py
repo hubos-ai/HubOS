@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """DAG runtime state management for Parallel Core V1.5 Step 5.
 
 Manages the runtime state of DAG executions, including node states,
@@ -31,7 +32,9 @@ class DagRuntimeState:
     plan: DagPlan
     run_state: DagRunState
     max_parallelism: int = 10
-    _ready_queue: list[str] = field(default_factory=list)  # node_ids ready to dispatch
+    _ready_queue: list[str] = field(
+        default_factory=list,
+    )  # node_ids ready to dispatch
 
     def __post_init__(self) -> None:
         self.run_state.set_plan_nodes(self.plan.nodes)
@@ -83,7 +86,8 @@ class DagRuntimeState:
             # Check if all predecessors are done
             predecessors = self.plan.get_predecessors(node_id)
             all_done = all(
-                self.run_state.nodes.get(pred_id, NodeRunState(pred_id)).status == NodeStatus.DONE
+                self.run_state.nodes.get(pred_id, NodeRunState(pred_id)).status
+                == NodeStatus.DONE
                 for pred_id in predecessors
             )
 
@@ -93,11 +97,18 @@ class DagRuntimeState:
 
         # Remove nodes that are no longer ready
         self._ready_queue = [
-            nid for nid in self._ready_queue
-            if self.run_state.nodes[nid].status in (NodeStatus.PENDING, NodeStatus.READY)
+            nid
+            for nid in self._ready_queue
+            if self.run_state.nodes[nid].status
+            in (NodeStatus.PENDING, NodeStatus.READY)
         ]
 
-    def dispatch_node(self, node_id: str, executor: str, dispatcher_id: str) -> bool:
+    def dispatch_node(
+        self,
+        node_id: str,
+        executor: str,
+        dispatcher_id: str,
+    ) -> bool:
         """Mark a node as dispatched.
 
         Returns True if successful, False if node cannot be dispatched.
@@ -112,7 +123,8 @@ class DagRuntimeState:
 
         # Check parallelism limit (count running nodes)
         running_count = sum(
-            1 for s in self.run_state.nodes.values()
+            1
+            for s in self.run_state.nodes.values()
             if s.status in (NodeStatus.DISPATCHED, NodeStatus.RUNNING)
         )
         if running_count >= self.max_parallelism:
@@ -184,7 +196,9 @@ class DagRuntimeState:
             # Exhausted retries - go to human gate or failed
             if node.retry_policy == RetryPolicy.HUMAN_GATE:
                 state.status = NodeStatus.HUMAN_GATE
-                state.human_gate_reason = f"Exhausted {state.max_attempts} attempts: {error}"
+                state.human_gate_reason = (
+                    f"Exhausted {state.max_attempts} attempts: {error}"
+                )
             else:
                 state.status = NodeStatus.FAILED
                 state.completed_at = time.time()
@@ -193,7 +207,9 @@ class DagRuntimeState:
         # Schedule retry
         state.status = NodeStatus.RETRYING
         state.retry_count += 1
-        delay_ms = node.retry_delay_ms * (2 ** (state.retry_count - 1))  # Exponential backoff
+        delay_ms = node.retry_delay_ms * (
+            2 ** (state.retry_count - 1)
+        )  # Exponential backoff
         state.next_retry_at = time.time() + (delay_ms / 1000)
 
         return True
@@ -224,7 +240,12 @@ class DagRuntimeState:
 
         return False
 
-    def resolve_human_gate(self, node_id: str, approved: bool, result: Any = None) -> bool:
+    def resolve_human_gate(
+        self,
+        node_id: str,
+        approved: bool,
+        result: Any = None,
+    ) -> bool:
         """Resolve a human gate by approving or rejecting."""
         state = self.run_state.nodes.get(node_id)
         if state is None:
@@ -236,7 +257,11 @@ class DagRuntimeState:
         if approved:
             state.status = NodeStatus.DONE
             state.completed_at = time.time()
-            state.result = result if result is not None else {"approved": True, "node_id": node_id}
+            state.result = (
+                result
+                if result is not None
+                else {"approved": True, "node_id": node_id}
+            )
             if self.plan.merge_node_id:
                 self.run_state.merge_state.inputs[node_id] = state.result
             self._refresh_ready_queue()
@@ -257,20 +282,26 @@ class DagRuntimeState:
 
         # Count required predecessors
         required_predecessors = [
-            pred_id for pred_id in predecessors
+            pred_id
+            for pred_id in predecessors
             if self.plan.get_node(pred_id) and self.plan.get_node(pred_id).required  # type: ignore
         ]
 
         # Check all required are done
         all_required_done = all(
-            self.run_state.nodes.get(pred_id, NodeRunState(pred_id)).status == NodeStatus.DONE
+            self.run_state.nodes.get(pred_id, NodeRunState(pred_id)).status
+            == NodeStatus.DONE
             for pred_id in required_predecessors
         )
 
-        self.run_state.merge_state.total_required_nodes = len(required_predecessors)
+        self.run_state.merge_state.total_required_nodes = len(
+            required_predecessors,
+        )
         self.run_state.merge_state.required_nodes_complete = sum(
-            1 for pred_id in required_predecessors
-            if self.run_state.nodes.get(pred_id, NodeRunState(pred_id)).status == NodeStatus.DONE
+            1
+            for pred_id in required_predecessors
+            if self.run_state.nodes.get(pred_id, NodeRunState(pred_id)).status
+            == NodeStatus.DONE
         )
 
         if all_required_done:
@@ -303,17 +334,28 @@ class DagRuntimeState:
         for node in self.plan.nodes:
             if node.required:
                 state = self.run_state.nodes.get(node.node_id)
-                if state is None or state.status not in (NodeStatus.DONE, NodeStatus.FAILED):
+                if state is None or state.status not in (
+                    NodeStatus.DONE,
+                    NodeStatus.FAILED,
+                ):
                     return False
 
         # Merge must be complete if it exists
         if self.plan.merge_node_id:
-            if self.run_state.merge_state.status not in ("completed", "failed", "timeout"):
+            if self.run_state.merge_state.status not in (
+                "completed",
+                "failed",
+                "timeout",
+            ):
                 return False
 
         return True
 
-    def get_executor_for_node(self, node_id: str, default_executor: str = "native") -> str:
+    def get_executor_for_node(
+        self,
+        node_id: str,
+        default_executor: str = "native",
+    ) -> str:
         """Determine which executor should run a node."""
         node = self.plan.get_node(node_id)
         if node and node.executor_hint:
@@ -323,7 +365,8 @@ class DagRuntimeState:
     def get_running_count(self) -> int:
         """Count currently running nodes."""
         return sum(
-            1 for s in self.run_state.nodes.values()
+            1
+            for s in self.run_state.nodes.values()
             if s.status in (NodeStatus.DISPATCHED, NodeStatus.RUNNING)
         )
 
@@ -358,7 +401,11 @@ class DagRuntimeState:
         }
 
     @classmethod
-    def from_dict(cls, plan: DagPlan, data: dict[str, Any]) -> "DagRuntimeState":
+    def from_dict(
+        cls,
+        plan: DagPlan,
+        data: dict[str, Any],
+    ) -> "DagRuntimeState":
         """Restore runtime state from persisted dict."""
         run_state = DagRunState(
             run_id=data["run_id"],
@@ -385,7 +432,10 @@ class DagRuntimeState:
         merge_data = data.get("merge_state", {})
         run_state.merge_state = MergeState(
             status=merge_data.get("status", "waiting"),
-            required_nodes_complete=merge_data.get("required_nodes_complete", 0),
+            required_nodes_complete=merge_data.get(
+                "required_nodes_complete",
+                0,
+            ),
             total_required_nodes=merge_data.get("total_required_nodes", 0),
             inputs=merge_data.get("inputs", {}),
         )

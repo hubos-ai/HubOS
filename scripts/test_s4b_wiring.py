@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """S4b — wiring integrity checks for the admin sessions page.
 
 These are cheap structural checks that catch the class of bugs that slip
@@ -59,7 +60,8 @@ print("\n[1] Backend router wiring")
 routers_init = read(SRC_BE / "hubos" / "app" / "routers" / "__init__.py")
 check(
     "routers/__init__.py imports admin_sessions",
-    "from .admin_sessions import router as admin_sessions_router" in routers_init,
+    "from .admin_sessions import router as admin_sessions_router"
+    in routers_init,
 )
 check(
     "routers/__init__.py include_router(admin_sessions_router)",
@@ -104,11 +106,13 @@ print("\n[3] Frontend wiring")
 main_layout = read(SRC_FE / "layouts" / "MainLayout" / "index.tsx")
 check(
     "MainLayout imports AdminSessionsPage",
-    'import AdminSessionsPage from "../../pages/Admin/Sessions"' in main_layout,
+    'import AdminSessionsPage from "../../pages/Admin/Sessions"'
+    in main_layout,
 )
 check(
     "MainLayout routes /admin/sessions → AdminSessionsPage",
-    '<Route path="/admin/sessions" element={<AdminSessionsPage />}' in main_layout,
+    '<Route path="/admin/sessions" element={<AdminSessionsPage />}'
+    in main_layout,
 )
 check(
     'MainLayout pathToKey has "/admin/sessions"',
@@ -132,7 +136,8 @@ check(
 sidebar = read(SRC_FE / "layouts" / "Sidebar.tsx")
 check(
     "Sidebar imports useIsAdmin + clearAdminProbe",
-    'import { clearAdminProbe, useIsAdmin } from "../hooks/useIsAdmin"' in sidebar,
+    'import { clearAdminProbe, useIsAdmin } from "../hooks/useIsAdmin"'
+    in sidebar,
 )
 check(
     "Sidebar reads isAdmin from hook",

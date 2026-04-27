@@ -32,7 +32,8 @@ async def create_mcp_service(ws: "Workspace", mcp):
     if ws._config.mcp:
         mcp.schedule_init_from_config(ws._config.mcp)
         logger.debug(
-            "MCP background init scheduled for agent: %s", ws.agent_id
+            "MCP background init scheduled for agent: %s",
+            ws.agent_id,
         )
     ws._service_manager.services["runner"].set_mcp_manager(mcp)
     # pylint: enable=protected-access

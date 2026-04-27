@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Stage B step 1: end-to-end test for HostAgentWorker.
 
 Verifies the new generic worker:
@@ -86,12 +87,20 @@ async def _run() -> int:
         r = await w.execute(uuid4(), {key: f"via-{key}"}, timeout_seconds=5)
         if not (r.success and r.data["content"].endswith(f"via-{key}")):
             bad_aliases.append(key)
-    report("T2 all prompt key aliases accepted", not bad_aliases, f"failed: {bad_aliases}")
+    report(
+        "T2 all prompt key aliases accepted",
+        not bad_aliases,
+        f"failed: {bad_aliases}",
+    )
 
     # ---------- T3: missing prompt ----------
     try:
         await w.execute(uuid4(), {"unrelated": "x"}, timeout_seconds=5)
-        report("T3 missing prompt raises WorkerExecutionError", False, "no exception raised")
+        report(
+            "T3 missing prompt raises WorkerExecutionError",
+            False,
+            "no exception raised",
+        )
     except WorkerExecutionError as e:
         report("T3 missing prompt raises WorkerExecutionError", True, "")
         if "prompt" not in str(e).lower():
@@ -99,7 +108,11 @@ async def _run() -> int:
         else:
             report("T3a error message hints at prompt keys", True, "")
     except Exception as e:  # noqa: BLE001
-        report("T3 missing prompt raises WorkerExecutionError", False, f"got {type(e).__name__}: {e}")
+        report(
+            "T3 missing prompt raises WorkerExecutionError",
+            False,
+            f"got {type(e).__name__}: {e}",
+        )
 
     # ---------- T4: None response ----------
     async def runner_none(agent_id, prompt, context):
@@ -108,11 +121,19 @@ async def _run() -> int:
     w_none = HostAgentWorker(agent_id="gm", runner=runner_none)  # type: ignore[arg-type]
     try:
         await w_none.execute(uuid4(), {"prompt": "x"}, timeout_seconds=5)
-        report("T4 None response wrapped as WorkerExecutionError", False, "no exception")
+        report(
+            "T4 None response wrapped as WorkerExecutionError",
+            False,
+            "no exception",
+        )
     except WorkerExecutionError:
         report("T4 None response wrapped as WorkerExecutionError", True, "")
     except Exception as e:  # noqa: BLE001
-        report("T4 None response wrapped as WorkerExecutionError", False, f"got {type(e).__name__}: {e}")
+        report(
+            "T4 None response wrapped as WorkerExecutionError",
+            False,
+            f"got {type(e).__name__}: {e}",
+        )
 
     # ---------- T5: runner raises ----------
     async def runner_raises(agent_id, prompt, context):
@@ -121,12 +142,24 @@ async def _run() -> int:
     w_raise = HostAgentWorker(agent_id="gm", runner=runner_raises)
     try:
         await w_raise.execute(uuid4(), {"prompt": "x"}, timeout_seconds=5)
-        report("T5 runner exception wrapped as WorkerExecutionError", False, "no exception")
+        report(
+            "T5 runner exception wrapped as WorkerExecutionError",
+            False,
+            "no exception",
+        )
     except WorkerExecutionError as e:
         ok = "kaboom" in str(e) or "RuntimeError" in str(e)
-        report("T5 runner exception wrapped as WorkerExecutionError", ok, str(e))
+        report(
+            "T5 runner exception wrapped as WorkerExecutionError",
+            ok,
+            str(e),
+        )
     except Exception as e:  # noqa: BLE001
-        report("T5 runner exception wrapped as WorkerExecutionError", False, f"got {type(e).__name__}: {e}")
+        report(
+            "T5 runner exception wrapped as WorkerExecutionError",
+            False,
+            f"got {type(e).__name__}: {e}",
+        )
 
     # ---------- T6: timeout ----------
     async def runner_slow(agent_id, prompt, context):
@@ -136,11 +169,23 @@ async def _run() -> int:
     w_slow = HostAgentWorker(agent_id="gm", runner=runner_slow)
     try:
         await w_slow.execute(uuid4(), {"prompt": "x"}, timeout_seconds=1)
-        report("T6 slow runner triggers WorkerTimeoutError", False, "no exception")
+        report(
+            "T6 slow runner triggers WorkerTimeoutError",
+            False,
+            "no exception",
+        )
     except WorkerTimeoutError as e:
-        report("T6 slow runner triggers WorkerTimeoutError", "timed out" in str(e).lower(), str(e))
+        report(
+            "T6 slow runner triggers WorkerTimeoutError",
+            "timed out" in str(e).lower(),
+            str(e),
+        )
     except Exception as e:  # noqa: BLE001
-        report("T6 slow runner triggers WorkerTimeoutError", False, f"got {type(e).__name__}: {e}")
+        report(
+            "T6 slow runner triggers WorkerTimeoutError",
+            False,
+            f"got {type(e).__name__}: {e}",
+        )
 
     # ---------- T7: cancellation propagates ----------
     started = asyncio.Event()
@@ -158,7 +203,11 @@ async def _run() -> int:
     w_cancel = HostAgentWorker(agent_id="gm", runner=runner_cancellable)
 
     async def _run_cancel():
-        return await w_cancel.execute(uuid4(), {"prompt": "x"}, timeout_seconds=30)
+        return await w_cancel.execute(
+            uuid4(),
+            {"prompt": "x"},
+            timeout_seconds=30,
+        )
 
     task = asyncio.create_task(_run_cancel())
     await started.wait()
@@ -169,7 +218,11 @@ async def _run() -> int:
     except asyncio.CancelledError:
         cancelled_propagated = True
     except Exception as e:  # noqa: BLE001
-        report("T7 cancellation propagates as CancelledError", False, f"got {type(e).__name__}: {e}")
+        report(
+            "T7 cancellation propagates as CancelledError",
+            False,
+            f"got {type(e).__name__}: {e}",
+        )
     report(
         "T7 cancellation propagates as CancelledError",
         cancelled_propagated and cancelled_inside.is_set(),
@@ -184,10 +237,20 @@ async def _run() -> int:
         and not w_default.supports("nonsense")
         and not w_default.supports("")
     )
-    report("T8 default supports() covers known + rejects unknown/empty", s_default_ok, "")
+    report(
+        "T8 default supports() covers known + rejects unknown/empty",
+        s_default_ok,
+        "",
+    )
 
-    w_custom = HostAgentWorker(agent_id="gm", runner=runner_ok, supported_tasks={"only_this"})
-    s_custom_ok = w_custom.supports("only_this") and not w_custom.supports("research")
+    w_custom = HostAgentWorker(
+        agent_id="gm",
+        runner=runner_ok,
+        supported_tasks={"only_this"},
+    )
+    s_custom_ok = w_custom.supports("only_this") and not w_custom.supports(
+        "research",
+    )
     report("T8b custom supported_tasks restricts the set", s_custom_ok, "")
 
     # ---------- T9: name_override + default_confidence ----------
@@ -211,12 +274,18 @@ async def _run() -> int:
     # legacy or sibling projects that must NOT leak into the in-process
     # worker adapter — it stays neutral so the subpackage can be lifted
     # out and reused independently.
-    src = (SRC / "hubos" / "core" / "workers" / "providers" / "host_agent.py").read_text(encoding="utf-8")
+    src = (
+        SRC / "hubos" / "core" / "workers" / "providers" / "host_agent.py"
+    ).read_text(encoding="utf-8")
     banned = []
     for term in ("openclaw", "copaw", "solo_hub", "hermes", "xclaw"):
         if re.search(rf"\b{term}\b", src, re.IGNORECASE):
             banned.append(term)
-    report("T10 host_agent.py contains no banned project names", not banned, f"hits: {banned}")
+    report(
+        "T10 host_agent.py contains no banned project names",
+        not banned,
+        f"hits: {banned}",
+    )
 
     print("")
     if failed:

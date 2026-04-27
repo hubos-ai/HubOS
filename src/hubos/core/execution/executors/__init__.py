@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Executor abstraction layer for Parallel Core V1.5 Step 5.
 
 This module provides a pluggable executor interface that decouples

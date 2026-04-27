@@ -36,12 +36,7 @@ def test_copy_builtin_skills_includes_ecommerce_price_search(tmp_path):
     """New workspaces should receive the ecommerce price search builtin."""
     agents_router._copy_builtin_skills(tmp_path)
 
-    skill_file = (
-        tmp_path
-        / "skills"
-        / "ecommerce_price_search"
-        / "SKILL.md"
-    )
+    skill_file = tmp_path / "skills" / "ecommerce_price_search" / "SKILL.md"
     assert skill_file.exists()
     content = skill_file.read_text(encoding="utf-8")
     assert "name: ecommerce_price_search" in content

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """LLM Runtime - unified interface for model execution.
 
 Provides a single entry point for executing prompts through configured LLM providers.
@@ -66,6 +67,7 @@ BAD example (don't do this):
 @dataclass
 class GenerationResult:
     """Result from LLM generation."""
+
     text: str
     success: bool
     error: Optional[str] = None
@@ -121,7 +123,9 @@ class LLMRuntime:
         """
         if not self._provider.is_configured:
             if self._enable_fallback:
-                logger.warning(f"LLM provider not configured, using fallback for stage {stage}")
+                logger.warning(
+                    f"LLM provider not configured, using fallback for stage {stage}",
+                )
                 return self._fallback_response(stage, input_text)
             return GenerationResult(
                 text="",
@@ -130,7 +134,10 @@ class LLMRuntime:
             )
 
         stage_config = STAGE_PROMPTS.get(stage.lower(), {})
-        system_prompt = stage_config.get("system", "You are a helpful assistant.")
+        system_prompt = stage_config.get(
+            "system",
+            "You are a helpful assistant.",
+        )
         user_template = stage_config.get("user_template", "{input}")
 
         user_prompt = user_template.format(input=input_text)
@@ -157,10 +164,20 @@ class LLMRuntime:
                 success=True,
                 finish_reason=response.finish_reason,
                 usage={
-                    "prompt_tokens": response.usage.get("prompt_tokens") if response.usage else None,
-                    "completion_tokens": response.usage.get("completion_tokens") if response.usage else None,
-                    "total_tokens": response.usage.get("total_tokens") if response.usage else None,
-                } if response.usage else None,
+                    "prompt_tokens": response.usage.get("prompt_tokens")
+                    if response.usage
+                    else None,
+                    "completion_tokens": response.usage.get(
+                        "completion_tokens",
+                    )
+                    if response.usage
+                    else None,
+                    "total_tokens": response.usage.get("total_tokens")
+                    if response.usage
+                    else None,
+                }
+                if response.usage
+                else None,
                 model=response.model,
             )
 
@@ -276,10 +293,20 @@ class LLMRuntime:
                 success=True,
                 finish_reason=response.finish_reason,
                 usage={
-                    "prompt_tokens": response.usage.get("prompt_tokens") if response.usage else None,
-                    "completion_tokens": response.usage.get("completion_tokens") if response.usage else None,
-                    "total_tokens": response.usage.get("total_tokens") if response.usage else None,
-                } if response.usage else None,
+                    "prompt_tokens": response.usage.get("prompt_tokens")
+                    if response.usage
+                    else None,
+                    "completion_tokens": response.usage.get(
+                        "completion_tokens",
+                    )
+                    if response.usage
+                    else None,
+                    "total_tokens": response.usage.get("total_tokens")
+                    if response.usage
+                    else None,
+                }
+                if response.usage
+                else None,
                 model=response.model,
             )
 
@@ -305,77 +332,95 @@ class LLMRuntime:
         import re
 
         # Step 0: Remove AI thinking tags like <think>...</think>
-        text = re.sub(r'<think>[\s\S]*?</think>', '', text)
+        text = re.sub(r"<think>[\s\S]*?</think>", "", text)
 
         # Step 1: Basic cleanup
         text = text.strip()
 
         # Step 2: Remove leading stage labels like [REVIEW], [CEO], [INFO], etc.
         # Remove repeated labels like [REVIEW]\n[REVIEW] and labels followed by content
-        text = re.sub(r'^\[[A-Z]+\]\s*', '', text, flags=re.IGNORECASE | re.MULTILINE)
-        text = re.sub(r'^\[[A-Z]+\]\s*\n\s*', '', text, flags=re.IGNORECASE | re.MULTILINE)
-        text = re.sub(r'\n\[[A-Z]+\]\s*', '\n', text, flags=re.IGNORECASE)
+        text = re.sub(
+            r"^\[[A-Z]+\]\s*",
+            "",
+            text,
+            flags=re.IGNORECASE | re.MULTILINE,
+        )
+        text = re.sub(
+            r"^\[[A-Z]+\]\s*\n\s*",
+            "",
+            text,
+            flags=re.IGNORECASE | re.MULTILINE,
+        )
+        text = re.sub(r"\n\[[A-Z]+\]\s*", "\n", text, flags=re.IGNORECASE)
 
         # Step 3: Remove section headers that indicate internal analysis
         internal_headers = [
-            r'^##\s*战略分析',
-            r'^##\s*用户意图',
-            r'^##\s*关键考量',
-            r'^##\s*执行建议',
-            r'^##\s*思路',
-            r'^##\s*分析',
-            r'^##\s*总结',
-            r'^###\s*',
-            r'^#\s*',
+            r"^##\s*战略分析",
+            r"^##\s*用户意图",
+            r"^##\s*关键考量",
+            r"^##\s*执行建议",
+            r"^##\s*思路",
+            r"^##\s*分析",
+            r"^##\s*总结",
+            r"^###\s*",
+            r"^#\s*",
         ]
         for pattern in internal_headers:
-            text = re.sub(pattern, '', text, flags=re.MULTILINE)
+            text = re.sub(pattern, "", text, flags=re.MULTILINE)
 
         # Step 4: Remove lines that start with internal content indicators
-        lines = text.split('\n')
+        lines = text.split("\n")
         cleaned_lines = []
         for line in lines:
             # Skip lines that are clearly internal notes
-            if re.match(r'^用户意图[：:]\s*', line):
+            if re.match(r"^用户意图[：:]\s*", line):
                 continue
-            if re.match(r'^关键考量[：:]\s*', line):
+            if re.match(r"^关键考量[：:]\s*", line):
                 continue
-            if re.match(r'^战略分析[：:]\s*', line):
+            if re.match(r"^战略分析[：:]\s*", line):
                 continue
-            if re.match(r'^执行建议[：:]\s*', line):
+            if re.match(r"^执行建议[：:]\s*", line):
                 continue
-            if re.match(r'^思路[：:]\s*', line):
+            if re.match(r"^思路[：:]\s*", line):
                 continue
-            if re.match(r'^\*\*.*\*\*$', line) and len(line) < 20:
+            if re.match(r"^\*\*.*\*\*$", line) and len(line) < 20:
                 # Skip short bold lines that are likely labels
                 continue
-            if re.match(r'^\*\*', line) and '**\n' not in line and '**.' not in line:
+            if (
+                re.match(r"^\*\*", line)
+                and "**\n" not in line
+                and "**." not in line
+            ):
                 # Skip bold lines that are labels without proper sentence ending
                 continue
             cleaned_lines.append(line)
 
-        text = '\n'.join(cleaned_lines)
+        text = "\n".join(cleaned_lines)
 
         # Step 5: Remove multiple blank lines
-        text = re.sub(r'\n{3,}', '\n\n', text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
 
         # Step 6: Final trim
         text = text.strip()
 
         # Step 7: If text still looks like internal analysis (has ## or ### anywhere), do aggressive cleanup
-        if '##' in text or '###' in text:
+        if "##" in text or "###" in text:
             # Remove everything from ## onwards
-            text = re.sub(r'\n##.*', '', text, flags=re.DOTALL)
+            text = re.sub(r"\n##.*", "", text, flags=re.DOTALL)
             text = text.strip()
 
         # Step 8: Remove any remaining markdown bold/headers at the start
-        text = re.sub(r'^#+\s*', '', text)
-        text = re.sub(r'^\*\*+\s*', '', text)
-        text = re.sub(r'\*\*+$', '', text)
+        text = re.sub(r"^#+\s*", "", text)
+        text = re.sub(r"^\*\*+\s*", "", text)
+        text = re.sub(r"\*\*+$", "", text)
 
         return text.strip()
 
-    def _fallback_response(self, stage: str, input_text: str) -> GenerationResult:
+    def _fallback_response(
+        self,
+        stage: str,
+        input_text: str,
+    ) -> GenerationResult:
         """Generate fallback response when LLM is unavailable.
 
         Returns a helpful but honest response indicating the system state.
@@ -389,7 +434,10 @@ class LLMRuntime:
         }
 
         return GenerationResult(
-            text=fallbacks.get(stage.lower(), f"Processing: {input_text[:50]}..."),
+            text=fallbacks.get(
+                stage.lower(),
+                f"Processing: {input_text[:50]}...",
+            ),
             success=True,
             error="Fallback response (LLM unavailable)",
         )

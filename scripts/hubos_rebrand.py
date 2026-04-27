@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """One-shot rebrand: copaw / solo_hub → hubos / hubos.core.
 
 Mechanical text rewrite across the repo. Run from repo root:
@@ -45,21 +46,48 @@ REPO = Path(__file__).resolve().parents[1]
 
 # File extensions we rewrite.
 TEXT_EXTS = {
-    ".py", ".pyi",
-    ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
-    ".json", ".jsonc",
-    ".md", ".mdx", ".rst",
-    ".yml", ".yaml", ".toml", ".cfg", ".ini",
-    ".less", ".css", ".scss", ".html",
-    ".sh", ".env",
-    ".dockerfile", ".Dockerfile",
+    ".py",
+    ".pyi",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".json",
+    ".jsonc",
+    ".md",
+    ".mdx",
+    ".rst",
+    ".yml",
+    ".yaml",
+    ".toml",
+    ".cfg",
+    ".ini",
+    ".less",
+    ".css",
+    ".scss",
+    ".html",
+    ".sh",
+    ".env",
+    ".dockerfile",
+    ".Dockerfile",
 }
 
 # Directories to skip entirely.
 SKIP_DIRS = {
-    ".git", ".venv", "venv", "__pycache__", ".pytest_cache",
-    "node_modules", "dist", "build", ".next",
-    ".mypy_cache", ".ruff_cache", ".tox",
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    "node_modules",
+    "dist",
+    "build",
+    ".next",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".tox",
 }
 
 # Files to skip (absolute or relative to repo root).
@@ -84,29 +112,54 @@ def _rules() -> list[tuple[re.Pattern[str], str, str]]:
 
     # (A) solo_hub subpackage renames — MUST come before the bare `solo_hub`
     # rule so that e.g. `solo_hub.core` doesn't collapse to `hubos.core.core`.
-    r.append((r"\bsolo_hub\.core\b", "hubos.core.orchestrator",
-              "solo_hub.core → hubos.core.orchestrator"))
+    r.append(
+        (
+            r"\bsolo_hub\.core\b",
+            "hubos.core.orchestrator",
+            "solo_hub.core → hubos.core.orchestrator",
+        ),
+    )
 
     # (B) Generic solo_hub → hubos.core (at word boundaries, so
     # `solo_hub_something` stays intact).
-    r.append((r"\bsolo_hub\b", "hubos.core",
-              "solo_hub → hubos.core"))
+    r.append(
+        (
+            r"\bsolo_hub\b",
+            "hubos.core",
+            "solo_hub → hubos.core",
+        ),
+    )
 
     # (C) copaw package → hubos. Careful: must not eat `copaw-data` in a
     # volume name that's been manually left, but here we actively WANT to
     # rewrite those, so a plain word-boundary substitution is fine.
     # Case-sensitive: we match lowercase `copaw` here and brand `CoPaw`
     # separately below.
-    r.append((r"\bcopaw\b", "hubos",
-              "copaw → hubos"))
+    r.append(
+        (
+            r"\bcopaw\b",
+            "hubos",
+            "copaw → hubos",
+        ),
+    )
 
     # (D) Brand string "CoPaw" → "HubOS" (UI, docstrings, marketing).
-    r.append((r"\bCoPaw\b", "HubOS",
-              "CoPaw → HubOS"))
+    r.append(
+        (
+            r"\bCoPaw\b",
+            "HubOS",
+            "CoPaw → HubOS",
+        ),
+    )
 
     # (E) Env var prefix COPAW_ → HUBOS_  (uppercase only).
-    r.append((r"\bCOPAW_", "HUBOS_",
-              "COPAW_* env prefix → HUBOS_*"))
+    r.append(
+        (
+            r"\bCOPAW_",
+            "HUBOS_",
+            "COPAW_* env prefix → HUBOS_*",
+        ),
+    )
 
     # (F) Config directory ~/.copaw/ → ~/.hubos/  (already covered by C
     # because the leading `~/.` is just context, but keep an explicit
@@ -137,7 +190,12 @@ def _iter_files(root: Path) -> Iterable[Path]:
         # Skip unknown binary-ish extensions.
         if p.suffix and p.suffix.lower() not in TEXT_EXTS:
             # Also accept well-known extensionless config files.
-            if p.name not in ("Dockerfile", "dockerfile", ".env", ".gitignore"):
+            if p.name not in (
+                "Dockerfile",
+                "dockerfile",
+                ".env",
+                ".gitignore",
+            ):
                 continue
         yield p
 
@@ -160,10 +218,16 @@ def _rewrite_one(text: str) -> tuple[str, list[str]]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--apply", action="store_true",
-                    help="write changes (default: dry-run).")
-    ap.add_argument("--root", default=str(REPO),
-                    help="repo root (default: script parent).")
+    ap.add_argument(
+        "--apply",
+        action="store_true",
+        help="write changes (default: dry-run).",
+    )
+    ap.add_argument(
+        "--root",
+        default=str(REPO),
+        help="repo root (default: script parent).",
+    )
     ns = ap.parse_args()
 
     root = Path(ns.root).resolve()

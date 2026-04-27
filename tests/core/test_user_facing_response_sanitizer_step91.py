@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Test user facing response sanitizer - Step 9.1.
 
 Tests that the sanitizer removes internal headers like
@@ -106,7 +107,9 @@ class TestReviewPromptStrict:
         review_prompt = STAGE_PROMPTS["review"]["system"]
 
         # Should mention thinking tags
-        assert "<think>" in review_prompt or "thinking" in review_prompt.lower()
+        assert (
+            "<think>" in review_prompt or "thinking" in review_prompt.lower()
+        )
 
         # Should mention no headers
         assert "##" in review_prompt
