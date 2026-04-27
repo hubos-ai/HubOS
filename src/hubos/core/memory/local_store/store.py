@@ -195,7 +195,7 @@ class LocalMemoryStore:
             try:
                 metadata = json.loads(
                     (session_dir / "metadata.json").read_text(
-                        encoding="utf-8"
+                        encoding="utf-8",
                     ),
                 )
                 started = datetime.fromisoformat(metadata["started_at"])

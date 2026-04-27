@@ -197,7 +197,6 @@ class ReflectionEngine:
 
         # Incorporate human feedback if available
         if context.human_feedback:
-            report_has_human_feedback = True
             feedback_worked = context.human_feedback.get("worked", [])
             feedback_failed = context.human_feedback.get("failed", [])
 
@@ -319,7 +318,7 @@ class ReflectionEngine:
         self,
         context: TaskContext,
         what_worked: list[str],
-        what_failed: list[str],
+        what_failed: list[str],  # noqa: W0613
         confidence: float,
     ) -> list[dict[str, Any]]:
         """Generate policy suggestions from reflection."""

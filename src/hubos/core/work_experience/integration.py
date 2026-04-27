@@ -598,7 +598,9 @@ class WorkExperienceInterceptor:
         for i, t in enumerate(turns[-10:]):  # last 10 turns max
             q = (t.get("user_input") or "")[:200]
             r = (t.get("assistant_response") or "")[:500]
-            context_parts.append(f"Round {i+1}:\nUser: {q}\nAssistant: {r}\n")
+            context_parts.append(
+                f"Round {i + 1}:\nUser: {q}\nAssistant: {r}\n"
+            )
         context_text = "\n".join(context_parts)
 
         prompt = (

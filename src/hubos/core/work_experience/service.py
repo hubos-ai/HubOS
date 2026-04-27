@@ -585,7 +585,7 @@ class WorkExperienceService:
         existing_guidance: str,
         new_strategy: str,
         what_worked: list[str],
-        what_failed: list[str],
+        what_failed: list[str],  # noqa: W0613
         max_len: int = 120,
     ) -> str:
         """
@@ -739,9 +739,9 @@ class WorkExperienceService:
             tool = step.get("tool") or step.get("worker") or f"step_{i}"
             success = step.get("success", True)
             step_desc = (
-                f"{len(result)+1}. {tool}"
+                f"{len(result) + 1}. {tool}"
                 if success
-                else f"{len(result)+1}. {tool} (failed)"
+                else f"{len(result) + 1}. {tool} (failed)"
             )
             if step_desc not in seen:
                 seen.add(step_desc)

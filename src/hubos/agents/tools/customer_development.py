@@ -643,7 +643,7 @@ async def _phase3_5_enrich_emails(
 
     enriched = 0
     needs_email = [
-        l for l in leads if not l.get("email_pattern") and not l.get("emails")
+        lead for lead in leads if not lead.get("email_pattern") and not lead.get("emails")
     ]
 
     if not needs_email:
@@ -1158,7 +1158,7 @@ async def find_customer_leads(
     # ---- Phase 1-3: OpenClaw pipeline ----
     for idx, cmd in enumerate(phases, 1):
         yield _progress_response(
-            f"Phase {idx}/3：{phase_names[idx]}，开始执行。"
+            f"Phase {idx}/3：{phase_names[idx]}，开始执行。",
         )
         phase_result: dict[str, Any] | None = None
         async for event, payload in _run_command_events(
@@ -1240,7 +1240,7 @@ async def find_customer_leads(
             existing_leads = _load_json(leads_path, [])
             if not existing_leads:
                 yield _progress_response(
-                    "Phase 3：使用补充后的搜索结果重新爬取..."
+                    "Phase 3：使用补充后的搜索结果重新爬取...",
                 )
                 cmd = phases[2]  # phase3
                 phase_result = None
@@ -1270,7 +1270,7 @@ async def find_customer_leads(
     elif not isinstance(search_results, list) or len(search_results) == 0:
         # phase2 completely failed, try tavily-only search
         yield _progress_response(
-            "Phase 2.5：xcrawl 完全失败，使用 Tavily 搜索所有候选..."
+            "Phase 2.5：xcrawl 完全失败，使用 Tavily 搜索所有候选...",
         )
         tavily_count = await _phase2_5_tavily_enrich(
             config,
@@ -1279,7 +1279,7 @@ async def find_customer_leads(
             country_codes,
         )
         yield _progress_response(
-            f"Phase 2.5：Tavily 找到 {tavily_count} 个候选URL。"
+            f"Phase 2.5：Tavily 找到 {tavily_count} 个候选URL。",
         )
 
         if tavily_count > 0:
@@ -1309,7 +1309,7 @@ async def find_customer_leads(
     raw_leads = _load_json(leads_path, [])
     leads = raw_leads if isinstance(raw_leads, list) else []
     no_email_count = sum(
-        1 for l in leads if not l.get("email_pattern") and not l.get("emails")
+        1 for lead in leads if not lead.get("email_pattern") and not lead.get("emails")
     )
 
     if no_email_count > 0:
@@ -1332,9 +1332,9 @@ async def find_customer_leads(
     )
 
     has_email = sum(
-        1 for l in leads if l.get("email_pattern") or l.get("emails")
+        1 for lead in leads if lead.get("email_pattern") or lead.get("emails")
     )
-    a_count = sum(1 for l in leads if l.get("grade") == "A")
+    a_count = sum(1 for lead in leads if lead.get("grade") == "A")
 
     summary_path = run_dir / "summary.md"
     summary_path.write_text(
