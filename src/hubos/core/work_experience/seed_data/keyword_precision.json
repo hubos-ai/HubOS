@@ -1,0 +1,85 @@
+{
+  "applicability_tags": [
+    "customer_development",
+    "keyword_strategy",
+    "search_optimization"
+  ],
+  "applicable_task_types": [
+    "customer_development",
+    "keyword_generation",
+    "search_optimization"
+  ],
+  "avoidance": "泛词搜索质量差。不要用英文学名+中文国名的搭配。DDG对精准词和泛词无区分度。政府/学校/机构页面必须过滤掉。",
+  "confidence": 0.9,
+  "created_at": "2026-04-27T04:00:00+00:00",
+  "disabled": false,
+  "effective_count": 0,
+  "experience_id": "b1fe4f59-4a4d-440a-bfe5-cc34f1809d21",
+  "experience_level": "mature",
+  "guidance": "基于阿里店铺实际产品线(12大类)生成精准词：产品词×角色修饰词(distributor/supplier/importer/wholesaler/dealer)×地理模式({country}/{city}/import {country})。当地语言搜索词优先于英文。搜索结果需三层过滤：①域名黑名单排除政府/教育机构②内容惩罚含学校/政府关键词的降分③邮箱质量降权排除公共邮箱。",
+  "hit_count": 1,
+  "last_retrieved_at": "2026-04-27T11:24:34.625127+00:00",
+  "last_used_at": null,
+  "maturity_score": 80.0,
+  "recommended_tool_order": [
+    "phase1_generate_terms",
+    "phase2_xcrawl_search",
+    "phase3_4_super_crawler"
+  ],
+  "recommended_workflow": [
+    "1.从阿里店铺产品线提取12大类产品词",
+    "2.组合产品词×角色修饰词×地理模式",
+    "3.当地语言搜索词优先(如葡语/西语/俄语)",
+    "4.三层质量过滤：域名+内容+邮箱",
+    "5.提取最终商业客户清单"
+  ],
+  "scope": "global",
+  "source_session_id": "manual",
+  "source_task_id": "manual",
+  "source_trace_id": "manual",
+  "status": "approved",
+  "success_rate_estimate": 0.85,
+  "supersedes_experience_id": null,
+  "title": "客户开发搜索关键词精准化：产品线×角色×地理三维组合",
+  "trigger_hint": "input_text:搜索词|input_text:关键词|input_text:keyword|input_text:怎么搜|input_text:搜索策略|input_text:search_terms",
+  "trigger_keywords": [
+    "搜索词",
+    "关键词",
+    "keyword",
+    "search_terms",
+    "产品线",
+    "distributor",
+    "supplier",
+    "精准",
+    "搜索策略",
+    "广撒网",
+    "搜索",
+    "search",
+    "客户",
+    "开发",
+    "泛词",
+    "产品",
+    "教学设备",
+    "teaching",
+    "education",
+    "equipment",
+    "怎么搜"
+  ],
+  "updated_at": "2026-04-27T11:24:34.625128+00:00",
+  "usage_pattern_summary": "客户开发搜索关键词生成策略。核心：具体产品词+角色修饰词+地理定位，而非泛泛的distributor搜索",
+  "what_failed": [
+    "泛词如teaching equipment distributor效果差60%噪音",
+    "DDG不区分精准词和泛词返回类似结果",
+    "政府/学校/机构页面占比高需三层过滤排除",
+    "英文学名+中文国名的搜索词搭配效果极差",
+    "搜索词不带当地语言只带英语在非英语国家效果差"
+  ],
+  "what_happened": "从泛词搜索(distributor)进化到基于阿里店铺12大产品线的精准三维组合关键词",
+  "what_worked": [
+    "产品线×角色修饰词×地理模式三维组合精准度高(如anatomical model distributor Brazil)",
+    "当地语言搜索词优先于英文效果更好",
+    "三层质量过滤从40%有用提升到100%：域名黑名单(排除.gov/.edu)+内容惩罚(含学校/政府关键词降分)+邮箱质量降权(排除@gmail等公共邮箱)",
+    "阿里店铺实际产品线(12大类)直接映射到搜索关键词规则",
+    "5条产品线关键词规则：medical_teaching/education_lab/stem_education/measuring_instruments/math_teaching"
+  ]
+}

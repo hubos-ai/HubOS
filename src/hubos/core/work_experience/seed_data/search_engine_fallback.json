@@ -1,0 +1,81 @@
+{
+  "applicability_tags": [
+    "web_search",
+    "search_fallback",
+    "tool_selection"
+  ],
+  "applicable_task_types": [
+    "web_search",
+    "content_scraping",
+    "information_retrieval"
+  ],
+  "avoidance": "不要直连Google/Bing搜索会触发CAPTCHA。不要直连DDG HTML会被限流返回空。webReader不接受搜索URL含问号q等格式会报错。菲律宾政府网站从国内极慢需120秒加超时。",
+  "confidence": 0.95,
+  "created_at": "2026-04-27T04:00:00+00:00",
+  "disabled": false,
+  "effective_count": 0,
+  "experience_id": "f3948241-6712-432e-8db5-7e709e3ee670",
+  "experience_level": "mature",
+  "guidance": "搜索工具优先级：1.webReader(免费无额度限制可渲染JS) 2.tavily(AI优化搜索有月额度) 3.xcrawl(深度搜索加抓取有月额度)。webReader直连URL抓内容。DDG直连被限流时走webReader代理。webReader不接受加号和Google/Bing/DDG搜索URL。对于政府数据直接爬政府网站或API比搜索引擎更有效。",
+  "hit_count": 9,
+  "last_retrieved_at": "2026-04-27T11:26:34.406560+00:00",
+  "last_used_at": null,
+  "maturity_score": 90.0,
+  "recommended_tool_order": [
+    "webReader",
+    "tavily_search",
+    "xcrawl",
+    "web_search_prime"
+  ],
+  "recommended_workflow": [
+    "1.优先用webReader直连目标URL抓内容",
+    "2.需要搜索时用tavily(有额度时)",
+    "3.额度用完时用webReader加DDG兜底",
+    "4.政府数据直接爬政府网站或API",
+    "5.企业信息用企业注册API如cnpj.ws"
+  ],
+  "scope": "global",
+  "source_session_id": "manual",
+  "source_task_id": "manual",
+  "source_trace_id": "manual",
+  "status": "approved",
+  "success_rate_estimate": 0.85,
+  "supersedes_experience_id": null,
+  "title": "搜索引擎多级兜底策略：webReader→Tavily→xcrawl",
+  "trigger_hint": "input_text:搜索|input_text:联网|input_text:查一下|input_text:web_search",
+  "trigger_keywords": [
+    "搜索",
+    "联网",
+    "search",
+    "crawl",
+    "scrape",
+    "xcrawl",
+    "tavily",
+    "webReader",
+    "DDG",
+    "DuckDuckGo",
+    "搜索引擎",
+    "找一下",
+    "web_search",
+    "网络搜索",
+    "抓取",
+    "网页"
+  ],
+  "updated_at": "2026-04-27T11:26:34.406560+00:00",
+  "usage_pattern_summary": "所有需要联网搜索场景的通用兜底策略。webReader是万能免费工具但需直接URL。搜索引擎不索引政府数据。",
+  "what_failed": [
+    "Google/Bing自动化搜索触发CAPTCHA无法使用",
+    "DDG从国内直连返回空结果",
+    "webReader不接受搜索URL格式含+号报-400错误",
+    "Bing/Yahoo curl直连exit code 3连接失败",
+    "web_search_prime返回空结果原因不明"
+  ],
+  "what_happened": "xcrawl和Tavily月额度同时用完后，建立了免费无额度限制的webReader+DDG终极兜底方案",
+  "what_worked": [
+    "webReader(智谱MCP)免费无额度限制可渲染JS页面，是终极兜底",
+    "AgentScope HttpStatefulClient可直连智谱MCP调webReader",
+    "WordPress RSS feed可直接搜索返回结构化XML",
+    "webReader可抓取任意URL的页面内容包括SPA页面",
+    "Compras.gov.br API完全公开无需认证"
+  ]
+}

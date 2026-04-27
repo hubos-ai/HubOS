@@ -1,0 +1,93 @@
+{
+  "applicability_tags": [
+    "agent_management",
+    "task_routing",
+    "multi_agent"
+  ],
+  "applicable_task_types": [
+    "task_routing",
+    "agent_collaboration",
+    "multi_agent"
+  ],
+  "avoidance": "不要自己包揽执行类工作。不要对简单Q&A委派。delegate_task需要Runtime有对应agent配置才能用。不要让子Agent写其他Agent的workspace。",
+  "confidence": 0.9,
+  "created_at": "2026-04-27T04:00:00+00:00",
+  "disabled": false,
+  "effective_count": 0,
+  "experience_id": "40d936a9-d9a4-4cb0-b790-955401d2d608",
+  "experience_level": "mature",
+  "guidance": "8个部门Agent各有专长。执行类任务必须委派：写方案→marketing/sales，开发客户→sales+research，写代码→rd，财务→finance，用户投诉→cs，流程安排→operations。判断规则：问答/解释/建议自己来，执行类(超过2分钟或有专业要求)委派。独立并行用spawn_subagents，有依赖串行用coordinate_workflow。",
+  "hit_count": 2,
+  "last_retrieved_at": "2026-04-27T11:26:34.407122+00:00",
+  "last_used_at": null,
+  "maturity_score": 75.0,
+  "recommended_tool_order": [
+    "spawn_subagents",
+    "coordinate_workflow",
+    "delegate_task"
+  ],
+  "recommended_workflow": [
+    "1.判断任务类型：问答→自己来，执行类→委派",
+    "2.判断归属：单部门→spawn单agent，多部门→判断依赖关系",
+    "3.独立并行→spawn_subagents，有依赖串行→coordinate_workflow",
+    "4.长时间后台任务→delegate_task",
+    "5.整合结果加判断建议向用户汇报"
+  ],
+  "scope": "global",
+  "source_session_id": "manual",
+  "source_task_id": "manual",
+  "source_trace_id": "manual",
+  "status": "approved",
+  "success_rate_estimate": 0.85,
+  "supersedes_experience_id": null,
+  "title": "HubOS多Agent协作架构：执行委派+并行串行选择",
+  "trigger_hint": "input_text:agent|input_text:子agent|input_text:委派|input_text:多agent|input_text:沙箱|input_text:sandbox|input_text:spawn|input_text:coordinate",
+  "trigger_keywords": [
+    "agent",
+    "沙箱",
+    "sandbox",
+    "委派",
+    "delegate",
+    "spawn",
+    "coordinate",
+    "workspace",
+    "子agent",
+    "多agent",
+    "团队",
+    "sales",
+    "marketing",
+    "research",
+    "finance",
+    "rd",
+    "operations",
+    "hr",
+    "cs",
+    "协作",
+    "分工",
+    "部门",
+    "一起",
+    "sam",
+    "mavis",
+    "oscar",
+    "felix",
+    "rex",
+    "harper",
+    "clara",
+    "iris"
+  ],
+  "updated_at": "2026-04-27T11:26:34.407123+00:00",
+  "usage_pattern_summary": "HubOS多Agent协作决策框架。核心：总经理决策调度，专业Agent执行，不是一个人包揽所有事",
+  "what_failed": [
+    "自己包揽执行类工作质量不如专业Agent",
+    "delegate_task在Runtime里没有agent配置时会crash(ValueError: no agent)",
+    "coordinate_workflow步骤间需用{{step_id.result}}传结果容易忘记格式"
+  ],
+  "what_happened": "建立了8部门Agent团队(sales/marketing/operations/finance/rd/hr/cs/research)并制定了任务路由规则",
+  "what_worked": [
+    "并行独立任务用spawn_subagents效率高(如sales+research同时出发)",
+    "有依赖的多步用coordinate_workflow传结果(如research→marketing→sales)",
+    "子Agent沙箱scope到workspace根但保护身份文件(PROFILE/SOUL/AGENTS.md不可写)",
+    "8个Agent人格化初始化各有PROFILE+SOUL提升专业度",
+    "产品知识库data/product_catalog.md通过符号链接共享到所有agent workspace"
+  ]
+}

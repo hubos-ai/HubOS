@@ -309,6 +309,13 @@ class WorkExperienceInterceptor:
         self._turn_buffer: list[dict[str, str]] = []
         self._last_summary_time: float = 0.0  # epoch seconds
 
+        # Seed bundled methodology cards on first run (idempotent)
+        try:
+            from hubos.core.work_experience.seed import seed_work_experience_cards
+            seed_work_experience_cards(store=self._store)
+        except Exception:
+            logger.debug("Seed loading skipped", exc_info=True)
+
     def pre_execute(self, task: Task) -> list[dict]:
         """
         Retrieve work experience cards before task execution.
@@ -616,6 +623,9 @@ class WorkExperienceInterceptor:
         if not self._turn_buffer:
             return None
 
+        # Extract keywords BEFORE clearing the buffer
+        keywords_from_turns = self._extract_keywords_from_turns()
+
         summary = self._summarize_methodology_with_llm(self._turn_buffer)
         self._last_summary_time = time.time()
 
@@ -653,7 +663,7 @@ class WorkExperienceInterceptor:
             source_session_id=session_id,
             source_task_id=f"methodology-summary-{uuid4().hex[:8]}",
             source_trace_id="periodic",
-            trigger_keywords=self._extract_keywords_from_turns(),
+            trigger_keywords=keywords_from_turns,
             trigger_hint="input_text:" + (summary["title"][:20].lower().replace(" ", "_")),
         )
 
