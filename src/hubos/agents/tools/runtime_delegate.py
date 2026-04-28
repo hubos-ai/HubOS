@@ -23,6 +23,7 @@
 - 通过 :func:`set_runtime_request_context` 由 HubOSAgent 在 __init__ 时注入
   当前 session_id / user_id / channel，让 Runtime 能做审计与多租户隔离
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -30,8 +31,10 @@ import json
 import logging
 import os
 import threading
+import time
 from contextvars import ContextVar
 from typing import Any
+from uuid import uuid4
 
 import httpx
 from agentscope.message import TextBlock
@@ -59,9 +62,28 @@ _TERMINAL_TASK_STATUSES = {"done", "failed", "cancelled"}
 
 
 def _get_runtime_mode() -> str:
-    """``inprocess`` (default) | ``http``. Read on every call so flag can be
-    flipped at runtime without restarting the process."""
-    return os.environ.get("HUBOS_RUNTIME_MODE", "inprocess").strip().lower()
+    """``agent_bridge`` | ``inprocess`` (default) | ``http``.
+
+    Priority: ``HUBOS_DELEGATE_AGENT_BRIDGE`` > ``HUBOS_RUNTIME_MODE``.
+    Read on every call so flag can be flipped at runtime.
+    """
+    if os.environ.get(
+        "HUBOS_DELEGATE_AGENT_BRIDGE",
+        "",
+    ).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
+        return "agent_bridge"
+    return (
+        os.environ.get(
+            "HUBOS_RUNTIME_MODE",
+            "inprocess",
+        )
+        .strip()
+        .lower()
+    )
 
 
 # ==================== In-process 单例 ====================
@@ -118,6 +140,13 @@ def _get_inprocess_components() -> tuple[Any, Any, Any]:
             type(_inproc_event_store).__name__,
         )
     return _inproc_orchestrator, _inproc_task_store, _inproc_event_store
+
+
+# ==================== Agent Bridge 状态 ====================
+
+_bridge_lock = threading.Lock()
+_bridge_tasks: dict[str, dict[str, Any]] = {}
+_BRIDGE_FALLBACK_AGENT = "rd"
 
 
 # ==================== Runtime 请求上下文 ====================
@@ -236,6 +265,15 @@ async def delegate_task(
         return _err("delegate_task: goal cannot be empty")
 
     mode = _get_runtime_mode()
+    if mode == "agent_bridge":
+        return await _delegate_task_agent_bridge(
+            goal,
+            priority,
+            workflow,
+            wait,
+            timeout_seconds,
+            extra_context,
+        )
     if mode == "inprocess":
         return await _delegate_task_inprocess(
             goal,
@@ -255,7 +293,8 @@ async def delegate_task(
             extra_context,
         )
     return _err(
-        f"❌ Unknown HUBOS_RUNTIME_MODE: {mode!r} (expected 'inprocess' | 'http')",
+        f"❌ Unknown HUBOS_RUNTIME_MODE: {mode!r} "
+        f"(expected 'agent_bridge' | 'inprocess' | 'http')",
     )
 
 
@@ -459,6 +498,12 @@ async def track_task(
         return _err("track_task: task_id is required")
 
     mode = _get_runtime_mode()
+    if mode == "agent_bridge":
+        return await _track_task_agent_bridge(
+            task_id,
+            follow,
+            timeout_seconds,
+        )
     if mode == "inprocess":
         return await _track_task_inprocess(task_id, follow, timeout_seconds)
     if mode == "http":
@@ -573,6 +618,8 @@ async def cancel_task(task_id: str) -> ToolResponse:
         return _err("cancel_task: task_id is required")
 
     mode = _get_runtime_mode()
+    if mode == "agent_bridge":
+        return await _cancel_task_agent_bridge(task_id)
     if mode == "inprocess":
         return await _cancel_task_inprocess(task_id)
     if mode == "http":
@@ -831,3 +878,371 @@ async def _aiter_lines_with_timeout(
         except StopAsyncIteration:
             return
         yield line
+
+
+# ==================== Agent Bridge 实现 ====================
+
+
+async def _delegate_task_agent_bridge(
+    goal: str,
+    priority: str,
+    workflow: str,
+    wait: bool,
+    timeout_seconds: int,
+    extra_context: dict[str, Any] | None,
+) -> ToolResponse:
+    """Agent Bridge: route delegate_task through AgentScope agents.
+
+    When ``HUBOS_DELEGATE_AGENT_BRIDGE=1``, instead of trying hubos.core
+    Runtime (which requires registered agent roles), we delegate to the
+    AgentScope agent pool via ``spawn_subagents`` / ``coordinate_workflow``.
+
+    ``extra_context`` hints:
+        - ``agent_id`` (str)        → single-agent task
+        - ``assignments`` (list)    → multi-agent parallel
+        - ``steps`` (list)          → coordinate_workflow DAG
+        - none of the above         → single-agent, fallback to ``rd``
+    """
+    from hubos.agents.tools.agent_workforce import (
+        coordinate_workflow as _coordinate_workflow,
+        spawn_subagents as _spawn_subagents,
+    )
+
+    ctx = extra_context or {}
+    task_id = f"bridge-{uuid4().hex[:12]}"
+
+    # Determine execution mode from extra_context hints
+    agent_id = ctx.get("agent_id")
+    assignments = ctx.get("assignments")
+    steps = ctx.get("steps")
+
+    if steps:
+        # DAG workflow
+        exec_type = "workflow"
+        record = _bridge_task_create(
+            task_id,
+            exec_type=exec_type,
+            agent_id=None,
+        )
+        coro = _bridge_run_workflow(
+            task_id,
+            steps,
+            timeout_seconds,
+        )
+    elif assignments:
+        # Multi-agent parallel
+        exec_type = "parallel"
+        record = _bridge_task_create(
+            task_id,
+            exec_type=exec_type,
+            agent_id=None,
+        )
+        coro = _bridge_run_parallel(
+            task_id,
+            assignments,
+            timeout_seconds,
+        )
+    else:
+        # Single agent (explicit or fallback)
+        target = agent_id or _BRIDGE_FALLBACK_AGENT
+        exec_type = "single"
+        record = _bridge_task_create(
+            task_id,
+            exec_type=exec_type,
+            agent_id=target,
+        )
+        coro = _bridge_run_single(
+            task_id,
+            target,
+            goal,
+            timeout_seconds,
+        )
+
+    if not wait:
+        # Fire and forget — run in background
+        _bridge_task_update(task_id, status="running")
+        asyncio.create_task(
+            _bridge_bg_wrapper(task_id, coro),
+            name=f"agent-bridge-{task_id}",
+        )
+        return _ok(
+            f"✅ Task delegated via Agent Bridge.\n"
+            f"Task ID: {task_id}\n"
+            f"Mode: {exec_type}\n"
+            f'Use track_task(task_id="{task_id}") to check progress.',
+        )
+
+    # wait=True: run synchronously
+    _bridge_task_update(task_id, status="running")
+    try:
+        result = await asyncio.wait_for(coro, timeout=timeout_seconds)
+        return _ok(
+            f"Task ID: {task_id}\n"
+            f"Status: done\n"
+            f"Mode: {exec_type}\n\n"
+            f"{result}",
+        )
+    except asyncio.TimeoutError:
+        _bridge_task_update(
+            task_id,
+            status="timeout",
+            error=f"Timed out after {timeout_seconds}s",
+        )
+        return _ok(
+            f"Task ID: {task_id}\n"
+            f"Status: TIMEOUT\n"
+            f"⏰ Wait timed out after {timeout_seconds}s. Task may still "
+            f'be running. Use track_task("{task_id}") later.',
+        )
+    except Exception as e:  # noqa: BLE001
+        _bridge_task_update(task_id, status="failed", error=str(e))
+        return _err(f"❌ Agent Bridge task failed: {e}")
+
+
+def _bridge_task_create(
+    task_id: str,
+    exec_type: str,
+    agent_id: str | None,
+) -> dict[str, Any]:
+    """Create a bridge task record."""
+    record: dict[str, Any] = {
+        "task_id": task_id,
+        "status": "pending",
+        "exec_type": exec_type,
+        "agent_id": agent_id,
+        "result": None,
+        "error": None,
+        "created_at": time.time(),
+        "finished_at": None,
+        "workflow_id": None,
+    }
+    with _bridge_lock:
+        _bridge_tasks[task_id] = record
+    return record
+
+
+def _bridge_task_update(
+    task_id: str,
+    *,
+    status: str | None = None,
+    result: str | None = None,
+    error: str | None = None,
+    workflow_id: str | None = None,
+) -> None:
+    """Update a bridge task record (thread-safe)."""
+    with _bridge_lock:
+        rec = _bridge_tasks.get(task_id)
+        if rec is None:
+            return
+        if status is not None:
+            rec["status"] = status
+        if result is not None:
+            rec["result"] = result
+        if error is not None:
+            rec["error"] = error
+        if workflow_id is not None:
+            rec["workflow_id"] = workflow_id
+        if status in _TERMINAL_TASK_STATUSES | {"timeout"}:
+            rec["finished_at"] = time.time()
+
+
+async def _bridge_run_single(
+    task_id: str,
+    agent_id: str,
+    goal: str,
+    timeout_seconds: int,
+) -> str:
+    """Run a single-agent task via spawn_subagents."""
+    from hubos.agents.tools.agent_workforce import (
+        spawn_subagents as _spawn_subagents,
+    )
+
+    result = await _spawn_subagents(
+        assignments=[{"agent_id": agent_id, "prompt": goal}],
+        timeout_seconds=timeout_seconds,
+    )
+    # spawn_subagents returns a dict with results
+    results = result.get("results", [])
+    if results:
+        content = results[0].get("content", "")
+        _bridge_task_update(task_id, status="done", result=content)
+        return content
+    error = result.get("error", "No results returned")
+    _bridge_task_update(task_id, status="failed", error=error)
+    raise RuntimeError(error)
+
+
+async def _bridge_run_parallel(
+    task_id: str,
+    assignments: list[dict[str, Any]],
+    timeout_seconds: int,
+) -> str:
+    """Run a multi-agent parallel task via spawn_subagents."""
+    from hubos.agents.tools.agent_workforce import (
+        spawn_subagents as _spawn_subagents,
+    )
+
+    result = await _spawn_subagents(
+        assignments=assignments,
+        timeout_seconds=timeout_seconds,
+    )
+    results = result.get("results", [])
+    parts = []
+    for r in results:
+        label = r.get("label", r.get("agent_id", "?"))
+        content = r.get("content", "")
+        success = r.get("success", False)
+        if success:
+            parts.append(f"## {label}\n{content}")
+        else:
+            parts.append(f"## {label} (FAILED)\n{r.get('error', '')}")
+    summary = "\n\n".join(parts)
+    _bridge_task_update(task_id, status="done", result=summary)
+    return summary
+
+
+async def _bridge_run_workflow(
+    task_id: str,
+    steps: list[dict[str, Any]],
+    timeout_seconds: int,
+) -> str:
+    """Run a DAG workflow via coordinate_workflow."""
+    from hubos.agents.tools.agent_workforce import (
+        coordinate_workflow as _coordinate_workflow,
+    )
+
+    result = await _coordinate_workflow(
+        steps=steps,
+        timeout_seconds=timeout_seconds,
+    )
+    workflow_id = result.get("workflow_id", "")
+    status = result.get("status", "unknown")
+    if workflow_id:
+        _bridge_task_update(task_id, workflow_id=workflow_id)
+
+    if status == "done":
+        parts = []
+        for step in result.get("steps", []):
+            sid = step.get("id", "?")
+            step_status = step.get("status", "?")
+            step_result = step.get("result", "")
+            parts.append(
+                f"### Step: {sid} ({step_status})\n{step_result}",
+            )
+        summary = "\n\n".join(parts)
+        _bridge_task_update(task_id, status="done", result=summary)
+        return summary
+
+    _bridge_task_update(
+        task_id,
+        status="failed",
+        error=f"Workflow ended with status: {status}",
+    )
+    raise RuntimeError(f"Workflow failed: {status}")
+
+
+async def _bridge_bg_wrapper(
+    task_id: str,
+    coro: Any,
+) -> None:
+    """Background wrapper: run coroutine and update task record."""
+    try:
+        await coro
+    except Exception as e:  # noqa: BLE001
+        logger.exception("Agent Bridge background task %s failed", task_id)
+        _bridge_task_update(task_id, status="failed", error=str(e))
+
+
+async def _track_task_agent_bridge(
+    task_id: str,
+    follow: bool,
+    timeout_seconds: int,
+) -> ToolResponse:
+    """Check status of an Agent Bridge task."""
+    with _bridge_lock:
+        rec = _bridge_tasks.get(task_id)
+
+    if rec is None:
+        return _err(f"❌ Task not found (agent_bridge): {task_id}")
+
+    status = rec["status"]
+    is_terminal = status in _TERMINAL_TASK_STATUSES | {"timeout"}
+
+    if is_terminal or not follow:
+        lines = [
+            f"Task ID: {task_id}",
+            f"Status: {status}",
+            f"Mode: {rec.get('exec_type', '?')}",
+        ]
+        if rec.get("agent_id"):
+            lines.append(f"Agent: {rec['agent_id']}")
+        if rec.get("result"):
+            lines.append(f"\nResult:\n{rec['result']}")
+        if rec.get("error"):
+            lines.append(f"\nError: {rec['error']}")
+        return _ok("\n".join(lines))
+
+    # follow=True but not yet terminal — poll
+    elapsed = 0.0
+    poll_interval = 2.0
+    while elapsed < timeout_seconds:
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+        with _bridge_lock:
+            rec = _bridge_tasks.get(task_id)
+        if rec is None:
+            return _err(
+                f"❌ Task disappeared (agent_bridge): {task_id}",
+            )
+        status = rec["status"]
+        if status in _TERMINAL_TASK_STATUSES | {"timeout"}:
+            lines = [
+                f"Task ID: {task_id}",
+                f"Status: {status}",
+                f"Mode: {rec.get('exec_type', '?')}",
+            ]
+            if rec.get("result"):
+                lines.append(f"\nResult:\n{rec['result']}")
+            if rec.get("error"):
+                lines.append(f"\nError: {rec['error']}")
+            return _ok("\n".join(lines))
+
+    return _ok(
+        f"Task ID: {task_id}\n"
+        f"Status: {status} (still running)\n"
+        f"⏰ Follow timed out after {timeout_seconds}s. "
+        f'Use track_task("{task_id}") later.',
+    )
+
+
+async def _cancel_task_agent_bridge(task_id: str) -> ToolResponse:
+    """Cancel an Agent Bridge task (best-effort)."""
+    with _bridge_lock:
+        rec = _bridge_tasks.get(task_id)
+
+    if rec is None:
+        return _err(f"❌ Task not found (agent_bridge): {task_id}")
+
+    status = rec["status"]
+    if status in _TERMINAL_TASK_STATUSES:
+        return _ok(
+            f"Task {task_id} already in terminal state: {status}",
+        )
+
+    # If it's a workflow, try to cancel via coordinate_workflow
+    if rec.get("workflow_id"):
+        try:
+            from hubos.agents.tools.agent_workforce import (
+                cancel_workflow as _cancel_workflow,
+            )
+
+            await _cancel_workflow(rec["workflow_id"])
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                "Failed to cancel workflow %s: %s",
+                rec["workflow_id"],
+                e,
+            )
+
+    _bridge_task_update(task_id, status="cancelled")
+    return _ok(f"✅ Cancel requested for bridge task {task_id}")
