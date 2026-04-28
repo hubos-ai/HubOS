@@ -159,21 +159,35 @@ _runtime_available: object = _RUNTIME_AVAILABLE_NONE_SENTINEL
 
 
 def _is_runtime_available() -> bool:
-    """Check if hubos.core Runtime has agents configured.
+    """Check if hubos.core Runtime has agents configured for execution.
 
-    Cached after first check (thread-safe). Returns False if the
-    orchestrator crashes with 'no agent' errors, meaning we should
-    fall back to agent_bridge.
+    Two-level check:
+    1. Can we initialize the orchestrator?
+    2. Does the 'ceo' role (required by one_person_default) have an agent?
+
+    Cached after first check (thread-safe).
     """
     global _runtime_available
     if _runtime_available is not _RUNTIME_AVAILABLE_NONE_SENTINEL:
         return bool(_runtime_available)
     try:
-        _get_inprocess_components()
-        _runtime_available = True
+        orchestrator, _ts, _es = _get_inprocess_components()
+        # Deep check: does agent_registry have a 'ceo' role agent?
+        registry = orchestrator.agent_registry
+        ceo_agents = registry.list_agents(role="ceo", status="enabled")
+        if not ceo_agents:
+            logger.info(
+                "hubos.core Runtime has no 'ceo' agent, "
+                "will use agent_bridge"
+            )
+            _runtime_available = False
+        else:
+            _runtime_available = True
     except Exception:  # noqa: BLE001
         _runtime_available = False
-        logger.info("hubos.core Runtime unavailable, will use agent_bridge")
+        logger.info(
+            "hubos.core Runtime unavailable, will use agent_bridge"
+        )
     return bool(_runtime_available)
 
 
