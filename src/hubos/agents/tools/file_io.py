@@ -26,6 +26,41 @@ class SubAgentWriteDenied(Exception):
     """Raised internally when a sub-agent tries to write outside its scope."""
 
 
+# Agent-specific write whitelist: agent_id → list of extra allowed dirs.
+# Configured via HUBOS_AGENT_WRITE_WHITELIST env var:
+#   "rd=/Users/allen/HubOS;operations=/tmp/backups"
+# Or programmatically via _register_agent_write_dir().
+_AGENT_WRITE_WHITELIST: dict[str, list[Path]] = {}
+
+
+def _init_agent_write_whitelist() -> None:
+    """Parse HUBOS_AGENT_WRITE_WHITELIST env var on first access."""
+    raw = os.environ.get("HUBOS_AGENT_WRITE_WHITELIST", "").strip()
+    if not raw:
+        return
+    for entry in raw.split(";"):
+        entry = entry.strip()
+        if "=" not in entry:
+            continue
+        agent_id, dir_path = entry.split("=", 1)
+        agent_id = agent_id.strip()
+        dir_path = dir_path.strip()
+        if agent_id and dir_path:
+            dirs = _AGENT_WRITE_WHITELIST.setdefault(agent_id, [])
+            resolved = Path(dir_path).expanduser().resolve()
+            if resolved not in dirs:
+                dirs.append(resolved)
+
+
+def _get_agent_id_from_scope(scope: Path) -> str | None:
+    """Extract agent_id from scope path like .../workspaces/{agent_id}/."""
+    parts = scope.parts
+    for i, part in enumerate(parts):
+        if part == "workspaces" and i + 1 < len(parts):
+            return parts[i + 1]
+    return None
+
+
 def _download_link(abs_path: str) -> str:
     """Return a markdown ``[name](/api/files/preview/...)`` link.
 
@@ -73,6 +108,10 @@ def _resolve_write_path(file_path: str) -> str:
     ``config.context.current_subagent_write_scope``), writes are allowed
     anywhere under the agent's **own** workspace root, except for protected
     identity files (AGENTS.md, PROFILE.md, SOUL.md, agent.json, etc.).
+
+    Additionally, agents listed in ``HUBOS_AGENT_WRITE_WHITELIST`` may
+    write to their designated extra directories (e.g. rd → ~/HubOS/).
+
     Returns the resolved absolute path; raises :class:`SubAgentWriteDenied`
     if the request would escape the scope or targets a protected file.
     """
@@ -88,33 +127,56 @@ def _resolve_write_path(file_path: str) -> str:
     else:
         candidate = (scope / raw).resolve()
 
-    # Check 1: must stay within the agent's own workspace
+    # Check 1: must stay within the agent's own workspace OR
+    # a whitelisted extra directory
+    in_workspace = True
     try:
         candidate.relative_to(scope)
     except ValueError:
-        raise SubAgentWriteDenied(
-            f"sub-agent write denied: {file_path!r} resolves outside the "
-            f"allowed scope {scope!s}. Sub-agents can only write within "
-            f"their own workspace.",
+        in_workspace = False
+
+    if not in_workspace:
+        # Check whitelist for extra allowed directories
+        _init_agent_write_whitelist()
+        agent_id = _get_agent_id_from_scope(scope)
+        extra_dirs = (
+            _AGENT_WRITE_WHITELIST.get(agent_id, []) if agent_id else []
         )
+        in_extra = False
+        for extra_dir in extra_dirs:
+            try:
+                candidate.relative_to(extra_dir)
+                in_extra = True
+                break
+            except ValueError:
+                pass
+        if not in_extra:
+            raise SubAgentWriteDenied(
+                f"sub-agent write denied: {file_path!r} resolves outside "
+                f"the allowed scope {scope!s}. Sub-agents can only write "
+                f"within their own workspace.",
+            )
 
     # Check 2: protect identity/config files from being overwritten
-    _PROTECTED_FILES = frozenset(
-        {
-            "AGENTS.md",
-            "SOUL.md",
-            "PROFILE.md",
-            "BOOTSTRAP.md",
-            "agent.json",
-            "skill.json",
-            "skills.json",
-        },
-    )
-    if candidate.name in _PROTECTED_FILES:
-        raise SubAgentWriteDenied(
-            f"sub-agent write denied: {candidate.name!r} is a protected "
-            f"identity file. Only the GM or a human can modify it.",
+    # (only applies to workspace writes, not extra dirs like repos)
+    if in_workspace:
+        _PROTECTED_FILES = frozenset(
+            {
+                "AGENTS.md",
+                "SOUL.md",
+                "PROFILE.md",
+                "BOOTSTRAP.md",
+                "agent.json",
+                "skill.json",
+                "skills.json",
+            },
         )
+        if candidate.name in _PROTECTED_FILES:
+            raise SubAgentWriteDenied(
+                f"sub-agent write denied: {candidate.name!r} is a "
+                f"protected identity file. Only the GM or a human can "
+                f"modify it.",
+            )
 
     # Ensure parent directory exists
     candidate.parent.mkdir(parents=True, exist_ok=True)
