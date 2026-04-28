@@ -64,26 +64,33 @@ _TERMINAL_TASK_STATUSES = {"done", "failed", "cancelled"}
 def _get_runtime_mode() -> str:
     """``agent_bridge`` | ``inprocess`` (default) | ``http``.
 
-    Priority: ``HUBOS_DELEGATE_AGENT_BRIDGE`` > ``HUBOS_RUNTIME_MODE``.
+    Priority:
+        1. ``HUBOS_DELEGATE_AGENT_BRIDGE=1`` → force agent_bridge
+        2. ``HUBOS_RUNTIME_MODE=http`` → HTTP mode
+        3. Auto-detect: if Runtime has no agents → agent_bridge
+        4. Default → inprocess
+
     Read on every call so flag can be flipped at runtime.
     """
-    if os.environ.get(
-        "HUBOS_DELEGATE_AGENT_BRIDGE",
-        "",
-    ).strip().lower() in (
-        "1",
-        "true",
-        "yes",
-    ):
-        return "agent_bridge"
-    return (
-        os.environ.get(
-            "HUBOS_RUNTIME_MODE",
-            "inprocess",
-        )
-        .strip()
-        .lower()
+    bridge_env = (
+        os.environ.get("HUBOS_DELEGATE_AGENT_BRIDGE", "").strip().lower()
     )
+    if bridge_env in ("1", "true", "yes"):
+        return "agent_bridge"
+
+    runtime_mode = (
+        os.environ.get("HUBOS_RUNTIME_MODE", "inprocess").strip().lower()
+    )
+
+    if runtime_mode == "http":
+        return "http"
+
+    # Auto-detect: if Runtime is inprocess but has no agents,
+    # fall back to agent_bridge
+    if runtime_mode == "inprocess" and not _is_runtime_available():
+        return "agent_bridge"
+
+    return runtime_mode
 
 
 # ==================== In-process 单例 ====================
@@ -147,6 +154,26 @@ def _get_inprocess_components() -> tuple[Any, Any, Any]:
 _bridge_lock = threading.Lock()
 _bridge_tasks: dict[str, dict[str, Any]] = {}
 _BRIDGE_FALLBACK_AGENT = "rd"
+_runtime_available: bool | None = None
+
+
+def _is_runtime_available() -> bool:
+    """Check if hubos.core Runtime has agents configured.
+
+    Cached after first check (thread-safe). Returns False if the
+    orchestrator crashes with 'no agent' errors, meaning we should
+    fall back to agent_bridge.
+    """
+    global _runtime_available
+    if _runtime_available is not None:
+        return _runtime_available
+    try:
+        _get_inprocess_components()
+        _runtime_available = True
+    except Exception:  # noqa: BLE001
+        _runtime_available = False
+        logger.info("hubos.core Runtime unavailable, will use agent_bridge")
+    return _runtime_available
 
 
 # ==================== Runtime 请求上下文 ====================
@@ -432,8 +459,21 @@ async def _delegate_task_inprocess(
             f'running. Use track_task("{task_id}") later.',
         )
     except Exception as e:  # noqa: BLE001
-        logger.exception("execute_task crashed in in-process mode")
-        return _err(f"❌ Task execution crashed: {type(e).__name__}: {e}")
+        logger.warning(
+            "In-process execute_task failed (%s: %s), "
+            "falling back to agent_bridge",
+            type(e).__name__,
+            e,
+        )
+        # Auto-fallback to agent_bridge when Runtime has no agent configured
+        return await _delegate_task_agent_bridge(
+            goal,
+            priority,
+            workflow,
+            wait,
+            timeout_seconds,
+            extra_context,
+        )
 
     final_task = task_store.get_task(task_id)
     return _ok(_render_inprocess_task(final_task))
