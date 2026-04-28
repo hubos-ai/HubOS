@@ -154,7 +154,8 @@ def _get_inprocess_components() -> tuple[Any, Any, Any]:
 _bridge_lock = threading.Lock()
 _bridge_tasks: dict[str, dict[str, Any]] = {}
 _BRIDGE_FALLBACK_AGENT = "rd"
-_runtime_available: bool | None = None
+_RUNTIME_AVAILABLE_NONE_SENTINEL = object()
+_runtime_available: object = _RUNTIME_AVAILABLE_NONE_SENTINEL
 
 
 def _is_runtime_available() -> bool:
@@ -165,15 +166,23 @@ def _is_runtime_available() -> bool:
     fall back to agent_bridge.
     """
     global _runtime_available
-    if _runtime_available is not None:
-        return _runtime_available
+    if _runtime_available is not _RUNTIME_AVAILABLE_NONE_SENTINEL:
+        return bool(_runtime_available)
     try:
         _get_inprocess_components()
         _runtime_available = True
     except Exception:  # noqa: BLE001
         _runtime_available = False
         logger.info("hubos.core Runtime unavailable, will use agent_bridge")
-    return _runtime_available
+    return bool(_runtime_available)
+
+
+def _parse_tool_response(resp: Any) -> dict[str, Any]:
+    """Parse a ToolResponse from agent_workforce into a dict."""
+    if isinstance(resp, dict):
+        return resp
+    text = resp.content[0].text
+    return json.loads(text)
 
 
 # ==================== Runtime 请求上下文 ====================
@@ -1101,13 +1110,13 @@ async def _bridge_run_single(
         assignments=[{"agent_id": agent_id, "prompt": goal}],
         timeout_seconds=timeout_seconds,
     )
-    # spawn_subagents returns a dict with results
-    results = result.get("results", [])
+    data = _parse_tool_response(result)
+    results = data.get("results", [])
     if results:
         content = results[0].get("content", "")
         _bridge_task_update(task_id, status="done", result=content)
         return content
-    error = result.get("error", "No results returned")
+    error = data.get("error", "No results returned")
     _bridge_task_update(task_id, status="failed", error=error)
     raise RuntimeError(error)
 
@@ -1126,7 +1135,8 @@ async def _bridge_run_parallel(
         assignments=assignments,
         timeout_seconds=timeout_seconds,
     )
-    results = result.get("results", [])
+    data = _parse_tool_response(result)
+    results = data.get("results", [])
     parts = []
     for r in results:
         label = r.get("label", r.get("agent_id", "?"))
@@ -1155,14 +1165,15 @@ async def _bridge_run_workflow(
         steps=steps,
         timeout_seconds=timeout_seconds,
     )
-    workflow_id = result.get("workflow_id", "")
-    status = result.get("status", "unknown")
+    data = _parse_tool_response(result)
+    workflow_id = data.get("workflow_id", "")
+    status = data.get("status", "unknown")
     if workflow_id:
         _bridge_task_update(task_id, workflow_id=workflow_id)
 
     if status == "done":
         parts = []
-        for step in result.get("steps", []):
+        for step in data.get("steps", []):
             sid = step.get("id", "?")
             step_status = step.get("status", "?")
             step_result = step.get("result", "")
