@@ -88,9 +88,7 @@ export interface SkillAdapter {
   disableSkill: (skillName: string) => Promise<SkillSpec>;
   batchEnableSkills: (skillNames: string[]) => Promise<void>;
   batchDisableSkills: (skillNames: string[]) => Promise<void>;
-  batchDeleteSkills: (
-    skillNames: string[],
-  ) => Promise<{
+  batchDeleteSkills: (skillNames: string[]) => Promise<{
     results: Record<string, { success: boolean; reason?: string }>;
   }>;
   deleteSkill: (skillName: string) => Promise<{ deleted: boolean }>;
@@ -205,9 +203,7 @@ export interface SkillAdapter {
   }>;
   getSkillScanner: () => Promise<unknown>;
   listSkillWorkspaces: () => Promise<WorkspaceSkillSummary[]>;
-  batchDeletePoolSkills: (
-    skillNames: string[],
-  ) => Promise<{
+  batchDeletePoolSkills: (skillNames: string[]) => Promise<{
     results: Record<string, { success: boolean; reason?: string }>;
   }>;
   importPoolSkillFromHub: (payload: {

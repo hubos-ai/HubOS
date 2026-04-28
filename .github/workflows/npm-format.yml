@@ -6,6 +6,7 @@ jobs:
   website:
     name: website format check
     runs-on: ubuntu-latest
+    if: false  # website directory does not exist yet
     defaults:
       run:
         working-directory: website
