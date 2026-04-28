@@ -178,7 +178,7 @@ def _is_runtime_available() -> bool:
         if not ceo_agents:
             logger.info(
                 "hubos.core Runtime has no 'ceo' agent, "
-                "will use agent_bridge"
+                "will use agent_bridge",
             )
             _runtime_available = False
         else:
@@ -186,7 +186,7 @@ def _is_runtime_available() -> bool:
     except Exception:  # noqa: BLE001
         _runtime_available = False
         logger.info(
-            "hubos.core Runtime unavailable, will use agent_bridge"
+            "hubos.core Runtime unavailable, will use agent_bridge",
         )
     return bool(_runtime_available)
 
