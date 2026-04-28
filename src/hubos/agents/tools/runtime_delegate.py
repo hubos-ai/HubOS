@@ -181,8 +181,9 @@ def _parse_tool_response(resp: Any) -> dict[str, Any]:
     """Parse a ToolResponse from agent_workforce into a dict."""
     if isinstance(resp, dict):
         return resp
-    text = resp.content[0].text
-    return json.loads(text)
+    content = resp.content[0]
+    raw = content["text"] if isinstance(content, dict) else content.text
+    return json.loads(raw)
 
 
 # ==================== Runtime 请求上下文 ====================
