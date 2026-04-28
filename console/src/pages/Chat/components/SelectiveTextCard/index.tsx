@@ -9,6 +9,13 @@ type MarkdownCodeProps = {
   children?: ReactNode;
 };
 
+function normalizeMarkdownLayout(content: string): string {
+  return content.replace(
+    /([^\n])\s+(方案[一二三四五六七八九十A-Z]：)/g,
+    "$1\n\n$2",
+  );
+}
+
 const COPYABLE_LANGS = new Set([
   "bash",
   "sh",
@@ -130,10 +137,7 @@ function CopyOnlyHeader({ content, lang }: { content: string; lang: string }) {
         {copied ? (
           <SparkTrueLine className={`${prefixCls}-copied`} />
         ) : (
-          <SparkCopyLine
-            className={`${prefixCls}-icon`}
-            onClick={handleCopy}
-          />
+          <SparkCopyLine className={`${prefixCls}-icon`} onClick={handleCopy} />
         )}
       </div>
     </div>
@@ -162,21 +166,33 @@ function SelectiveCodeBlock(props: MarkdownCodeProps) {
 
 export default function SelectiveTextCard(props: any) {
   const cursor = props.data.msgStatus === "generating";
+  const markdownData = useMemo(() => {
+    if (typeof props.data?.content !== "string") {
+      return props.data;
+    }
+
+    return {
+      ...props.data,
+      content: normalizeMarkdownLayout(props.data.content),
+    };
+  }, [props.data]);
 
   const components = useMemo(
     () => ({
       code: SelectiveCodeBlock,
-      ...(props.data?.components ?? {}),
+      ...(markdownData?.components ?? {}),
     }),
-    [props.data?.components],
+    [markdownData?.components],
   );
 
   return (
     <Markdown
       cursor={cursor}
-      {...props.data}
+      {...markdownData}
       components={components}
-      typing={props.data.msgStatus === "generating" ? props.data.typing : false}
+      typing={
+        markdownData.msgStatus === "generating" ? markdownData.typing : false
+      }
     />
   );
 }

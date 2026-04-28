@@ -51,13 +51,10 @@ export const providerAdapter = {
   listProviders: () => request<ProviderInfo[]>("/models"),
 
   configureProvider: (providerId: string, body: ProviderConfigRequest) =>
-    request<ProviderInfo>(
-      `/models/${encodeURIComponent(providerId)}/config`,
-      {
-        method: "PUT",
-        body: JSON.stringify(body),
-      },
-    ),
+    request<ProviderInfo>(`/models/${encodeURIComponent(providerId)}/config`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
 
   getActiveModels: (params?: GetActiveModelsRequest) =>
     request<ActiveModelsInfo>(`/models/active${buildActiveQuery(params)}`),
@@ -81,17 +78,16 @@ export const providerAdapter = {
     ),
 
   addModel: (providerId: string, body: AddModelRequest) =>
-    request<ProviderInfo>(
-      `/models/${encodeURIComponent(providerId)}/models`,
-      {
-        method: "POST",
-        body: JSON.stringify(body),
-      },
-    ),
+    request<ProviderInfo>(`/models/${encodeURIComponent(providerId)}/models`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   removeModel: (providerId: string, modelId: string) =>
     request<ProviderInfo>(
-      `/models/${encodeURIComponent(providerId)}/models/${encodeURIComponent(modelId)}`,
+      `/models/${encodeURIComponent(providerId)}/models/${encodeURIComponent(
+        modelId,
+      )}`,
       { method: "DELETE" },
     ),
 
@@ -124,7 +120,9 @@ export const providerAdapter = {
 
   probeMultimodal: (providerId: string, modelId: string) =>
     request<ProbeMultimodalResponse>(
-      `/models/${encodeURIComponent(providerId)}/models/${encodeURIComponent(modelId)}/probe-multimodal`,
+      `/models/${encodeURIComponent(providerId)}/models/${encodeURIComponent(
+        modelId,
+      )}/probe-multimodal`,
       {
         method: "POST",
       },

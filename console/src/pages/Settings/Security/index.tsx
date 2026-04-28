@@ -125,13 +125,10 @@ function SecurityPage() {
     setEditModal(true);
   }, []);
 
-  const openEditRule = useCallback(
-    (rule: MergedRule) => {
-      setEditingRule(rule);
-      setEditModal(true);
-    },
-    [],
-  );
+  const openEditRule = useCallback((rule: MergedRule) => {
+    setEditingRule(rule);
+    setEditModal(true);
+  }, []);
 
   const handleEditSave = useCallback(async () => {
     try {

@@ -46,9 +46,7 @@ export function useTools() {
         );
         // Update with server response, preserving current tool fields not returned by backend
         setTools((prev) =>
-          prev.map((t) =>
-            t.name === result.name ? { ...t, ...result } : t,
-          ),
+          prev.map((t) => (t.name === result.name ? { ...t, ...result } : t)),
         );
       } catch (error) {
         // Revert optimistic update on error
@@ -86,9 +84,7 @@ export function useTools() {
         );
         // Update with server response, preserving current tool fields not returned by backend
         setTools((prev) =>
-          prev.map((t) =>
-            t.name === result.name ? { ...t, ...result } : t,
-          ),
+          prev.map((t) => (t.name === result.name ? { ...t, ...result } : t)),
         );
       } catch (error) {
         // Revert optimistic update on error

@@ -60,33 +60,41 @@ const CHANNELS_WITH_ACCESS_CONTROL: ChannelKey[] = [
 // Official platform developer documentation for each channel type.
 // Both EN and ZH maps are kept so the button logic (which checks both) still works.
 const CHANNEL_DOC_EN_URLS: Partial<Record<ChannelKey, string>> = {
-  dingtalk: "https://open.dingtalk.com/document/orgapp/overview-of-development-process",
-  feishu: "https://open.feishu.cn/document/home/develop-a-bot-in-3-minutes/create-an-app",
+  dingtalk:
+    "https://open.dingtalk.com/document/orgapp/overview-of-development-process",
+  feishu:
+    "https://open.feishu.cn/document/home/develop-a-bot-in-3-minutes/create-an-app",
   imessage: "https://support.apple.com/guide/messages/welcome/mac",
   discord: "https://discord.com/developers/docs/getting-started",
   qq: "https://bot.q.qq.com/wiki/",
   telegram: "https://core.telegram.org/bots/tutorial",
   mqtt: "https://mqtt.org/getting-started/",
-  mattermost: "https://developers.mattermost.com/integrate/reference/bot-accounts/",
+  mattermost:
+    "https://developers.mattermost.com/integrate/reference/bot-accounts/",
   matrix: "https://spec.matrix.org/latest/client-server-api/",
   wecom: "https://developer.work.weixin.qq.com/document/path/90665",
   weixin: "https://github.com/lich0821/WeChatFerry",
-  xiaoyi: "https://developer.huawei.com/consumer/cn/doc/service/openclaw-0000002518410344",
+  xiaoyi:
+    "https://developer.huawei.com/consumer/cn/doc/service/openclaw-0000002518410344",
 };
 
 const CHANNEL_DOC_ZH_URLS: Partial<Record<ChannelKey, string>> = {
-  dingtalk: "https://open.dingtalk.com/document/orgapp/overview-of-development-process",
-  feishu: "https://open.feishu.cn/document/home/develop-a-bot-in-3-minutes/create-an-app",
+  dingtalk:
+    "https://open.dingtalk.com/document/orgapp/overview-of-development-process",
+  feishu:
+    "https://open.feishu.cn/document/home/develop-a-bot-in-3-minutes/create-an-app",
   imessage: "https://support.apple.com/zh-cn/guide/messages/welcome/mac",
   discord: "https://discord.com/developers/docs/getting-started",
   qq: "https://bot.q.qq.com/wiki/",
   telegram: "https://core.telegram.org/bots/tutorial",
   mqtt: "https://mqtt.org/getting-started/",
-  mattermost: "https://developers.mattermost.com/integrate/reference/bot-accounts/",
+  mattermost:
+    "https://developers.mattermost.com/integrate/reference/bot-accounts/",
   matrix: "https://spec.matrix.org/latest/client-server-api/",
   wecom: "https://developer.work.weixin.qq.com/document/path/90665",
   weixin: "https://github.com/lich0821/WeChatFerry",
-  xiaoyi: "https://developer.huawei.com/consumer/cn/doc/service/openclaw-0000002518410344",
+  xiaoyi:
+    "https://developer.huawei.com/consumer/cn/doc/service/openclaw-0000002518410344",
 };
 
 const TWILIO_CONSOLE_URL = "https://console.twilio.com";
@@ -581,11 +589,7 @@ export function ChannelDrawer({
             >
               <Switch defaultChecked />
             </Form.Item>
-            <Form.Item
-              name="qos"
-              label="QoS"
-              rules={[{ required: true }]}
-            >
+            <Form.Item name="qos" label="QoS" rules={[{ required: true }]}>
               <Select>
                 <Select.Option value="0">At Most Once (0)</Select.Option>
                 <Select.Option value="1">At Least Once (1)</Select.Option>
@@ -935,8 +939,10 @@ export function ChannelDrawer({
             onClick={() => {
               const finalUrl =
                 currentLang === "zh"
-                  ? (CHANNEL_DOC_ZH_URLS[activeKey] ?? CHANNEL_DOC_EN_URLS[activeKey]!)
-                  : (CHANNEL_DOC_EN_URLS[activeKey] ?? CHANNEL_DOC_ZH_URLS[activeKey]!);
+                  ? CHANNEL_DOC_ZH_URLS[activeKey] ??
+                    CHANNEL_DOC_EN_URLS[activeKey]!
+                  : CHANNEL_DOC_EN_URLS[activeKey] ??
+                    CHANNEL_DOC_ZH_URLS[activeKey]!;
               window.open(finalUrl, "_blank", "noopener,noreferrer");
             }}
             className={styles.dingtalkDocBtn}
@@ -984,11 +990,7 @@ export function ChannelDrawer({
       footer={drawerFooter}
     >
       {activeKey && (
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={onSubmit}
-        >
+        <Form form={form} layout="vertical" onFinish={onSubmit}>
           <Form.Item
             name="enabled"
             label={t("common.enabled")}

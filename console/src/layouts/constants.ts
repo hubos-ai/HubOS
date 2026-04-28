@@ -74,8 +74,7 @@ export const getFaqMdUrl = (lang: string, baseUrl: string): string =>
   `${baseUrl}faq.${lang.startsWith("zh") ? "zh" : "en"}.md`;
 
 // External links
-export const getDocsUrl = (_lang: string): string =>
-  `${GITHUB_URL}#readme`;
+export const getDocsUrl = (_lang: string): string => `${GITHUB_URL}#readme`;
 
 export const getReleaseNotesUrl = (_lang: string): string =>
   `${GITHUB_URL}/releases`;

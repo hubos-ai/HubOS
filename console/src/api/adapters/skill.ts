@@ -90,7 +90,9 @@ export interface SkillAdapter {
   batchDisableSkills: (skillNames: string[]) => Promise<void>;
   batchDeleteSkills: (
     skillNames: string[],
-  ) => Promise<{ results: Record<string, { success: boolean; reason?: string }> }>;
+  ) => Promise<{
+    results: Record<string, { success: boolean; reason?: string }>;
+  }>;
   deleteSkill: (skillName: string) => Promise<{ deleted: boolean }>;
   getBlockedHistory: () => Promise<BlockedSkillRecord[]>;
   streamOptimizeSkill: (
@@ -110,7 +112,11 @@ export interface SkillAdapter {
     content: string;
     source_name?: string;
     config?: Record<string, unknown>;
-  }) => Promise<{ success: boolean; mode: "edit" | "rename" | "noop"; name: string }>;
+  }) => Promise<{
+    success: boolean;
+    mode: "edit" | "rename" | "noop";
+    name: string;
+  }>;
   updateSkillChannels: (
     skillName: string,
     channels: string[],
@@ -136,7 +142,11 @@ export interface SkillAdapter {
     imported: string[];
     count: number;
     enabled: boolean;
-    conflicts?: Array<{ reason: string; skill_name: string; suggested_name: string }>;
+    conflicts?: Array<{
+      reason: string;
+      skill_name: string;
+      suggested_name: string;
+    }>;
   }>;
   startHubSkillInstall: (payload: {
     bundle_url: string;
@@ -146,7 +156,9 @@ export interface SkillAdapter {
     target_name?: string;
   }) => Promise<HubInstallTaskResponse>;
   getHubSkillInstallStatus: (taskId: string) => Promise<HubInstallTaskResponse>;
-  cancelHubSkillInstall: (taskId: string) => Promise<{ task_id: string; status: string }>;
+  cancelHubSkillInstall: (
+    taskId: string,
+  ) => Promise<{ task_id: string; status: string }>;
   listSkillPoolSkills: () => Promise<PoolSkillSpec[]>;
   refreshSkillPool: () => Promise<PoolSkillSpec[]>;
   searchHubSkills: (q: string, limit?: number) => Promise<unknown>;
@@ -179,7 +191,11 @@ export interface SkillAdapter {
     all_workspaces?: boolean;
     overwrite?: boolean;
   }) => Promise<{
-    downloaded: Array<{ workspace_id: string; workspace_name?: string; name: string }>;
+    downloaded: Array<{
+      workspace_id: string;
+      workspace_name?: string;
+      name: string;
+    }>;
     conflicts?: Array<{
       reason?: string;
       workspace_id?: string;
@@ -191,7 +207,9 @@ export interface SkillAdapter {
   listSkillWorkspaces: () => Promise<WorkspaceSkillSummary[]>;
   batchDeletePoolSkills: (
     skillNames: string[],
-  ) => Promise<{ results: Record<string, { success: boolean; reason?: string }> }>;
+  ) => Promise<{
+    results: Record<string, { success: boolean; reason?: string }>;
+  }>;
   importPoolSkillFromHub: (payload: {
     bundle_url: string;
     version?: string;
@@ -243,10 +261,7 @@ function buildUploadHeaders(): Record<string, string> {
   return headers;
 }
 
-async function postMultipart<T>(
-  path: string,
-  form: FormData,
-): Promise<T> {
+async function postMultipart<T>(path: string, form: FormData): Promise<T> {
   const res = await fetch(getApiUrl(path), {
     method: "POST",
     headers: buildUploadHeaders(),
@@ -272,16 +287,14 @@ export const skillAdapter: SkillAdapter = {
   },
 
   enableSkill: (skillName) =>
-    request<SkillSpec>(
-      `/skills/${encodeURIComponent(skillName)}/enable`,
-      { method: "POST" },
-    ),
+    request<SkillSpec>(`/skills/${encodeURIComponent(skillName)}/enable`, {
+      method: "POST",
+    }),
 
   disableSkill: (skillName) =>
-    request<SkillSpec>(
-      `/skills/${encodeURIComponent(skillName)}/disable`,
-      { method: "POST" },
-    ),
+    request<SkillSpec>(`/skills/${encodeURIComponent(skillName)}/disable`, {
+      method: "POST",
+    }),
 
   batchEnableSkills: async (skillNames) => {
     await request("/skills/batch-enable", {
@@ -307,10 +320,9 @@ export const skillAdapter: SkillAdapter = {
     ),
 
   deleteSkill: (skillName) =>
-    request<{ deleted: boolean }>(
-      `/skills/${encodeURIComponent(skillName)}`,
-      { method: "DELETE" },
-    ),
+    request<{ deleted: boolean }>(`/skills/${encodeURIComponent(skillName)}`, {
+      method: "DELETE",
+    }),
 
   getBlockedHistory: () =>
     request<BlockedSkillRecord[]>(
@@ -326,13 +338,14 @@ export const skillAdapter: SkillAdapter = {
     }),
 
   saveSkill: (payload) =>
-    request<{ success: boolean; mode: "edit" | "rename" | "noop"; name: string }>(
-      "/skills/save",
-      {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      },
-    ),
+    request<{
+      success: boolean;
+      mode: "edit" | "rename" | "noop";
+      name: string;
+    }>("/skills/save", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
 
   updateSkillChannels: (skillName, channels) =>
     request<{ updated: boolean; channels: string[] }>(
@@ -369,10 +382,13 @@ export const skillAdapter: SkillAdapter = {
   uploadSkill: async (file, options = {}) => {
     const form = new FormData();
     form.append("file", file);
-    if (options.enable !== undefined) form.append("enable", String(options.enable));
-    if (options.overwrite !== undefined) form.append("overwrite", String(options.overwrite));
+    if (options.enable !== undefined)
+      form.append("enable", String(options.enable));
+    if (options.overwrite !== undefined)
+      form.append("overwrite", String(options.overwrite));
     if (options.target_name) form.append("target_name", options.target_name);
-    if (options.rename_map) form.append("rename_map", JSON.stringify(options.rename_map));
+    if (options.rename_map)
+      form.append("rename_map", JSON.stringify(options.rename_map));
     return postMultipart("/skills/upload", form);
   },
 
@@ -443,7 +459,11 @@ export const skillAdapter: SkillAdapter = {
 
   downloadSkillPoolSkill: (payload) =>
     request<{
-      downloaded: Array<{ workspace_id: string; workspace_name?: string; name: string }>;
+      downloaded: Array<{
+        workspace_id: string;
+        workspace_name?: string;
+        name: string;
+      }>;
       conflicts?: Array<{
         reason?: string;
         workspace_id?: string;
@@ -483,9 +503,11 @@ export const skillAdapter: SkillAdapter = {
   uploadSkillPoolZip: async (file, options = {}) => {
     const form = new FormData();
     form.append("file", file);
-    if (options.overwrite !== undefined) form.append("overwrite", String(options.overwrite));
+    if (options.overwrite !== undefined)
+      form.append("overwrite", String(options.overwrite));
     if (options.target_name) form.append("target_name", options.target_name);
-    if (options.rename_map) form.append("rename_map", JSON.stringify(options.rename_map));
+    if (options.rename_map)
+      form.append("rename_map", JSON.stringify(options.rename_map));
     return postMultipart("/skills/pool/upload-zip", form);
   },
 

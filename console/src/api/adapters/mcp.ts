@@ -21,9 +21,10 @@ import type { MCPClientInfo } from "../types/mcp";
 export interface MCPAdapter {
   listMCPClients: () => Promise<MCPClientInfo[]>;
   getMCPClient: (clientKey: string) => Promise<MCPClientInfo>;
-  createMCPClient: (
-    body: { client_key: string; client: Partial<MCPClientInfo> },
-  ) => Promise<MCPClientInfo>;
+  createMCPClient: (body: {
+    client_key: string;
+    client: Partial<MCPClientInfo>;
+  }) => Promise<MCPClientInfo>;
   updateMCPClient: (
     clientKey: string,
     body: Partial<MCPClientInfo>,
@@ -51,14 +52,12 @@ export const mcpAdapter: MCPAdapter = {
     }),
 
   toggleMCPClient: (clientKey: string) =>
-    request<MCPClientInfo>(
-      `/mcp/${encodeURIComponent(clientKey)}/toggle`,
-      { method: "PATCH" },
-    ),
+    request<MCPClientInfo>(`/mcp/${encodeURIComponent(clientKey)}/toggle`, {
+      method: "PATCH",
+    }),
 
   deleteMCPClient: (clientKey: string) =>
-    request<{ message: string }>(
-      `/mcp/${encodeURIComponent(clientKey)}`,
-      { method: "DELETE" },
-    ),
+    request<{ message: string }>(`/mcp/${encodeURIComponent(clientKey)}`, {
+      method: "DELETE",
+    }),
 };

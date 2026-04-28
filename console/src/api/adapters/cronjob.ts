@@ -44,16 +44,14 @@ export const cronJobAdapter = {
     }),
 
   deleteCronJob: (jobId: string) =>
-    request<{ deleted: boolean }>(
-      `${JOBS}/${encodeURIComponent(jobId)}`,
-      { method: "DELETE" },
-    ),
+    request<{ deleted: boolean }>(`${JOBS}/${encodeURIComponent(jobId)}`, {
+      method: "DELETE",
+    }),
 
   pauseCronJob: (jobId: string) =>
-    request<{ paused: boolean }>(
-      `${JOBS}/${encodeURIComponent(jobId)}/pause`,
-      { method: "POST" },
-    ),
+    request<{ paused: boolean }>(`${JOBS}/${encodeURIComponent(jobId)}/pause`, {
+      method: "POST",
+    }),
 
   resumeCronJob: (jobId: string) =>
     request<{ resumed: boolean }>(
@@ -62,16 +60,14 @@ export const cronJobAdapter = {
     ),
 
   runCronJob: (jobId: string) =>
-    request<{ started: boolean }>(
-      `${JOBS}/${encodeURIComponent(jobId)}/run`,
-      { method: "POST" },
-    ),
+    request<{ started: boolean }>(`${JOBS}/${encodeURIComponent(jobId)}/run`, {
+      method: "POST",
+    }),
 
   triggerCronJob: (jobId: string) =>
-    request<{ started: boolean }>(
-      `${JOBS}/${encodeURIComponent(jobId)}/run`,
-      { method: "POST" },
-    ),
+    request<{ started: boolean }>(`${JOBS}/${encodeURIComponent(jobId)}/run`, {
+      method: "POST",
+    }),
 
   getCronJobState: (jobId: string) =>
     request<unknown>(`${JOBS}/${encodeURIComponent(jobId)}/state`),

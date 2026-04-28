@@ -343,12 +343,14 @@ export function createSseChunkParser(): (raw: string) => RuntimeStreamChunk {
           typeof r.role === "string"
             ? (r.role as string)
             : typeof r.type === "string"
-              ? (r.type as string)
-              : "ai";
+            ? (r.type as string)
+            : "ai";
         const mapped = mapLangchainTypeToAgentscope(rawType);
         if (mapped.role === "user" || mapped.role === "system") continue;
         const id =
-          typeof r.id === "string" && r.id ? (r.id as string) : `final-${next.length}`;
+          typeof r.id === "string" && r.id
+            ? (r.id as string)
+            : `final-${next.length}`;
         next.push({
           object: "message",
           id,
@@ -390,12 +392,10 @@ export function createSseChunkParser(): (raw: string) => RuntimeStreamChunk {
         typeof data.content === "string"
           ? data.content
           : Array.isArray(data.content)
-            ? data.content
-                .map((p: any) =>
-                  typeof p?.text === "string" ? p.text : "",
-                )
-                .join("")
-            : "";
+          ? data.content
+              .map((p: any) => (typeof p?.text === "string" ? p.text : ""))
+              .join("")
+          : "";
 
       // Tool messages arrive whole, not as deltas – overwrite, don't append.
       const accumulated =

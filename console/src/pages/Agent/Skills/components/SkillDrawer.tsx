@@ -114,8 +114,8 @@ export function SkillDrawer({
       const channels = Array.isArray(editingSkill.channels)
         ? editingSkill.channels
         : editingSkill.channels
-          ? [String(editingSkill.channels)]
-          : ["all"];
+        ? [String(editingSkill.channels)]
+        : ["all"];
       const fallbackConfigText = JSON.stringify(
         editingSkill.config || {},
         null,

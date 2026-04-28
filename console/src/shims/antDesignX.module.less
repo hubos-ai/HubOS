@@ -52,45 +52,103 @@
 }
 
 .panel {
+  position: relative;
   overflow: hidden;
-  border: 1px solid rgba(5, 5, 5, 0.08);
-  border-radius: 12px;
-  background: #fff;
+  max-width: min(760px, 100%);
+  margin: 12px 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: #f4f4f5;
+  box-shadow: none;
+}
+
+.panelCompact {
+  display: inline-flex;
+  max-width: 100%;
+  margin: 3px 0 5px;
+  border: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.075);
+  box-shadow: none;
+  vertical-align: baseline;
 }
 
 .panelHeader {
+  position: absolute;
+  top: 9px;
+  left: 10px;
+  right: 10px;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(5, 5, 5, 0.06);
-  background: rgba(0, 0, 0, 0.02);
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(15, 23, 42, 0.52);
+  font-size: 12px;
+}
+
+.panelHeader > *:last-child {
+  margin-left: auto;
 }
 
 .panelBody {
   overflow-x: auto;
-  padding: 14px 16px;
+  padding: 40px 12px 12px;
+  background: transparent;
+}
+
+.panelCompact .panelBody {
+  padding: 3px 8px;
+  background: transparent;
 }
 
 .codeBlock {
   margin: 0;
-  font-family:
-    "SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
+  font-family: "SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
   font-size: 13px;
-  line-height: 1.65;
+  line-height: 1.58;
   white-space: pre-wrap;
   word-break: break-word;
+  color: rgba(17, 24, 39, 0.92);
+  background: transparent;
+}
+
+.panelCompact .codeBlock {
+  font-size: 12.5px;
+  line-height: 1.35;
+  white-space: pre;
+  word-break: normal;
+}
+
+.inlineCodeBlock {
+  display: inline;
+  margin: 0 2px;
+  padding: 3px 7px;
+  border-radius: 7px;
+  font-family: "SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 12.5px;
+  line-height: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: rgba(15, 23, 42, 0.88);
+  background: rgba(15, 23, 42, 0.055);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 .mermaidFallback {
   margin: 0;
-  font-family:
-    "SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
+  font-family: "SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
   font-size: 13px;
   line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-word;
+  color: rgba(15, 23, 42, 0.88);
+  background: #f4f4f5;
 }

@@ -143,7 +143,8 @@ export default function Header() {
       .then((res) => (res.ok ? res.text() : Promise.reject()))
       .then((text) => {
         const zhPattern = /###\s*HubOS如何更新[\s\S]*?(?=\n###|\n---|\n##|$)/;
-        const enPattern = /###\s*How do I update HubOS[\s\S]*?(?=\n###|\n---|\n##|$)/;
+        const enPattern =
+          /###\s*How do I update HubOS[\s\S]*?(?=\n###|\n---|\n##|$)/;
         const match = text.match(faqLang === "zh" ? zhPattern : enPattern);
         setUpdateMarkdown(
           match && lang !== "ru"
@@ -173,7 +174,9 @@ export default function Header() {
     fetch(getChangelogUrl(import.meta.env.BASE_URL), { cache: "no-cache" })
       .then((res) => (res.ok ? res.text() : Promise.reject()))
       .then((text) => setChangelogMarkdown(text))
-      .catch(() => setChangelogMarkdown("# HubOS Changelog\n\nNo changelog available."));
+      .catch(() =>
+        setChangelogMarkdown("# HubOS Changelog\n\nNo changelog available."),
+      );
   };
 
   const handleOpenFaqModal = () => {

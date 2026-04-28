@@ -76,8 +76,11 @@ function messageToText(content: unknown): string {
 function AdminSessionsPage() {
   const { t } = useTranslation();
   const { message } = useAppMessage();
-  const { status: adminStatus, refetch: refetchAdmin, errorKind } =
-    useIsAdmin();
+  const {
+    status: adminStatus,
+    refetch: refetchAdmin,
+    errorKind,
+  } = useIsAdmin();
 
   const [rows, setRows] = useState<AdminSessionSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -97,9 +100,7 @@ function AdminSessionsPage() {
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [detail, setDetail] = useState<AdminSessionDetailResponse | null>(
-    null,
-  );
+  const [detail, setDetail] = useState<AdminSessionDetailResponse | null>(null);
 
   const load = useCallback(
     async (nextPage: number, nextPageSize: number, nextFilters: Filters) => {
@@ -438,8 +439,8 @@ function AdminSessionsPage() {
           detail ? (
             <div className={styles.drawerHeader}>
               <Text strong>
-                {(detail.metadata as Record<string, unknown>).title as string ||
-                  detail.session_id}
+                {((detail.metadata as Record<string, unknown>)
+                  .title as string) || detail.session_id}
               </Text>
               <Text copyable={{ text: detail.session_id }}>
                 <code className={styles.sessionId}>{detail.session_id}</code>
@@ -507,10 +508,7 @@ function AdminSessionsPage() {
                   defaultValue: "Messages",
                 })}
                 {detail.truncated ? (
-                  <Text
-                    type="warning"
-                    style={{ marginLeft: 8, fontSize: 12 }}
-                  >
+                  <Text type="warning" style={{ marginLeft: 8, fontSize: 12 }}>
                     {t("adminSessions.detail.truncated", {
                       defaultValue:
                         "Showing last {{shown}} of {{total}} — use the API directly for full export",
@@ -539,8 +537,8 @@ function AdminSessionsPage() {
                           role === "user"
                             ? styles.user
                             : role === "assistant"
-                              ? styles.assistant
-                              : ""
+                            ? styles.assistant
+                            : ""
                         }`}
                       >
                         <span className={styles.role}>{role}</span>

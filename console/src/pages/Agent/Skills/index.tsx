@@ -228,8 +228,8 @@ function SkillsPage() {
     const normalizedChannels = Array.isArray(skill.channels)
       ? skill.channels
       : skill.channels
-        ? [String(skill.channels)]
-        : ["all"];
+      ? [String(skill.channels)]
+      : ["all"];
 
     setEditingSkill(skill);
     form.setFieldsValue({

@@ -149,9 +149,7 @@ export const workExperienceApi = {
     return request<WorkExperienceCard>(`/work-experience/cards/${cardId}`);
   },
 
-  getQualityScore: async (
-    cardId: string,
-  ): Promise<QualityScoreBreakdown> => {
+  getQualityScore: async (cardId: string): Promise<QualityScoreBreakdown> => {
     return request<QualityScoreBreakdown>(
       `/work-experience/cards/${cardId}/quality-score`,
     );
@@ -210,9 +208,7 @@ export const workExperienceApi = {
     );
   },
 
-  reactivateCard: async (
-    cardId: string,
-  ): Promise<StatusTransitionResponse> => {
+  reactivateCard: async (cardId: string): Promise<StatusTransitionResponse> => {
     return request<StatusTransitionResponse>(
       `/work-experience/cards/${cardId}/reactivate`,
       { method: "POST" },

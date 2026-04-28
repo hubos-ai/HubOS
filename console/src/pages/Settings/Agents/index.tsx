@@ -106,7 +106,9 @@ export default function AgentsPage() {
           } catch (skillError: any) {
             console.warn(`Failed to install skill "${skill}":`, skillError);
             message.warning(
-              `Skill "${skill}" installation failed: ${skillError.message || skillError}`,
+              `Skill "${skill}" installation failed: ${
+                skillError.message || skillError
+              }`,
             );
           }
         }

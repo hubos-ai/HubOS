@@ -46,6 +46,8 @@ export const channelAdapter = {
 
   getWeixinQrcodeStatus: (qrcode: string) =>
     request<{ status: string; bot_token: string; base_url: string }>(
-      `/config/channels/weixin/qrcode/status?qrcode=${encodeURIComponent(qrcode)}`,
+      `/config/channels/weixin/qrcode/status?qrcode=${encodeURIComponent(
+        qrcode,
+      )}`,
     ),
 };

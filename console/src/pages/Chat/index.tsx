@@ -599,9 +599,7 @@ export default function ChatPage() {
 
       if (
         !response.body ||
-        !response.headers
-          .get("content-type")
-          ?.includes("text/event-stream")
+        !response.headers.get("content-type")?.includes("text/event-stream")
       ) {
         return response;
       }
@@ -625,9 +623,7 @@ export default function ChatPage() {
               stopRuntimeLoading();
               message.error(t("chat.requestTimeout", "Reply timed out"));
               requestController.abort();
-              reader
-                .cancel("chat-stream-timeout")
-                .catch(() => {});
+              reader.cancel("chat-stream-timeout").catch(() => {});
               controller.error(new Error("Chat stream timed out"));
             }, CHAT_STREAM_IDLE_TIMEOUT_MS);
           };

@@ -118,8 +118,7 @@ interface ExtendedSession extends IAgentScopeRuntimeWebUISession {
 function isThreadNotFoundError(err: unknown): boolean {
   if (err instanceof Error) {
     return (
-      err.message.includes("Thread not found") ||
-      err.message.includes("404")
+      err.message.includes("Thread not found") || err.message.includes("404")
     );
   }
   return false;
@@ -541,7 +540,9 @@ class SessionApi implements IAgentScopeRuntimeWebUISessionAPI {
       | undefined;
     if (!existing) return false;
 
-    return Boolean(existing.realId && this.invalidSessionIds.has(existing.realId));
+    return Boolean(
+      existing.realId && this.invalidSessionIds.has(existing.realId),
+    );
   }
 
   /**
@@ -677,11 +678,9 @@ class SessionApi implements IAgentScopeRuntimeWebUISessionAPI {
     const newList = chats
       .filter((c) => c.id && c.id !== "undefined" && c.id !== "null")
       .filter((c) => !this.invalidSessionIds.has(c.id))
-      .map(chatSpecToSession)
-      // Keep backend order intact so the runtime selects the newest chat first.
-      // XClaw already returns chats in descending recency order.
-      ;
-
+      .map(chatSpecToSession);
+    // Keep backend order intact so the runtime selects the newest chat first.
+    // XClaw already returns chats in descending recency order.
     this.sessionList = newList.map((s) => {
       const existing = this.sessionList.find(
         (e) =>
@@ -851,8 +850,7 @@ class SessionApi implements IAgentScopeRuntimeWebUISessionAPI {
     // timestamp placeholder, its backend UUID lives in realId. If the URL has
     // already been promoted to the real UUID, we must find it via realId too.
     const matchSession = (s: IAgentScopeRuntimeWebUISession) =>
-      s.id === sessionId ||
-      (s as ExtendedSession).realId === sessionId;
+      s.id === sessionId || (s as ExtendedSession).realId === sessionId;
 
     let fromList = this.sessionList.find(matchSession) as
       | ExtendedSession
@@ -959,10 +957,16 @@ class SessionApi implements IAgentScopeRuntimeWebUISessionAPI {
     this.invalidSessionIds.add(resolvedId);
     this.invalidSessionIds.add(sessionId);
     this.sessionList = this.sessionList.filter((s) => s.id !== sessionId);
-    if (this.preferredChatId === sessionId || this.preferredChatId === resolvedId) {
+    if (
+      this.preferredChatId === sessionId ||
+      this.preferredChatId === resolvedId
+    ) {
       this.preferredChatId = null;
     }
-    if (this.lastSelectedSessionId === sessionId || this.lastSelectedSessionId === resolvedId) {
+    if (
+      this.lastSelectedSessionId === sessionId ||
+      this.lastSelectedSessionId === resolvedId
+    ) {
       this.lastSelectedSessionId = null;
     }
     this.onSessionRemoved?.(resolvedId);

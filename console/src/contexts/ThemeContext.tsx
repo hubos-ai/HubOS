@@ -48,6 +48,14 @@ function resolveIsDark(mode: ThemeMode): boolean {
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
 }
 
+function suppressThemeTransitions() {
+  const html = document.documentElement;
+  html.classList.add("theme-switching");
+  window.setTimeout(() => {
+    html.classList.remove("theme-switching");
+  }, 120);
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [themeMode, setThemeModeState] = useState<ThemeMode>(getInitialMode);
   const [isDark, setIsDark] = useState<boolean>(() =>
@@ -70,6 +78,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = (e: MediaQueryListEvent) => {
+      suppressThemeTransitions();
       setIsDark(e.matches);
     };
     mq.addEventListener("change", handler);
@@ -77,6 +86,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [themeMode]);
 
   const setThemeMode = useCallback((mode: ThemeMode) => {
+    suppressThemeTransitions();
     setThemeModeState(mode);
     setIsDark(resolveIsDark(mode));
     try {

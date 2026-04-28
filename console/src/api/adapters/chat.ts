@@ -18,17 +18,16 @@
 import { request } from "../request";
 import { getApiUrl, getApiToken } from "../config";
 import { buildAuthHeaders } from "../authHeaders";
-import type {
-  ChatSpec,
-  ChatHistory,
-  ChatDeleteResponse,
-} from "../types/chat";
+import type { ChatSpec, ChatHistory, ChatDeleteResponse } from "../types/chat";
 import type { ChatUploadResponse } from "../modules/chat";
 
 const FILES_PREVIEW = "/files/preview";
 
 export interface ChatAdapter {
-  listChats: (params?: { user_id?: string; channel?: string }) => Promise<ChatSpec[]>;
+  listChats: (params?: {
+    user_id?: string;
+    channel?: string;
+  }) => Promise<ChatSpec[]>;
   createChat: (chat: Partial<ChatSpec>) => Promise<ChatSpec>;
   getChat: (chatId: string) => Promise<ChatHistory>;
   updateChat: (chatId: string, chat: Partial<ChatSpec>) => Promise<ChatSpec>;
@@ -66,10 +65,9 @@ export const chatAdapter: ChatAdapter = {
     }),
 
   deleteChat: (chatId) =>
-    request<ChatDeleteResponse>(
-      `/chats/${encodeURIComponent(chatId)}`,
-      { method: "DELETE" },
-    ),
+    request<ChatDeleteResponse>(`/chats/${encodeURIComponent(chatId)}`, {
+      method: "DELETE",
+    }),
 
   batchDeleteChats: async (chatIds) => {
     const res = await request<{ deleted: number }>("/chats/batch-delete", {
@@ -97,7 +95,9 @@ export const chatAdapter: ChatAdapter = {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new Error(
-        `Upload failed: ${response.status} ${response.statusText}${text ? ` - ${text}` : ""}`,
+        `Upload failed: ${response.status} ${response.statusText}${
+          text ? ` - ${text}` : ""
+        }`,
       );
     }
     return response.json();

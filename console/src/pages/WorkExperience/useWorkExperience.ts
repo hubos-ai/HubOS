@@ -10,7 +10,12 @@ import type {
   MergeRequest,
 } from "@/api/modules/workExperience";
 
-export type StatusFilter = "all" | "candidate" | "approved" | "rejected" | "archived";
+export type StatusFilter =
+  | "all"
+  | "candidate"
+  | "approved"
+  | "rejected"
+  | "archived";
 export type LevelFilter = "all" | "new" | "observed" | "mature" | "deprecated";
 export type ScopeFilter = "all" | "global" | "user" | "project" | "session";
 
@@ -37,11 +42,14 @@ export function useWorkExperience() {
   const [topCards, setTopCards] = useState<WorkExperienceCard[]>([]);
 
   // Detail drawer
-  const [selectedCard, setSelectedCard] = useState<WorkExperienceCard | null>(null);
+  const [selectedCard, setSelectedCard] = useState<WorkExperienceCard | null>(
+    null,
+  );
   const [drawerLoading, setDrawerLoading] = useState(false);
 
   // Duplicates
-  const [duplicates, setDuplicates] = useState<DuplicateDetectionResponse | null>(null);
+  const [duplicates, setDuplicates] =
+    useState<DuplicateDetectionResponse | null>(null);
   const [duplicatesLoading, setDuplicatesLoading] = useState(false);
 
   // Merge
@@ -101,20 +109,23 @@ export function useWorkExperience() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, levelFilter, scopeFilter, includeDisabled]);
 
-  const fetchCardDetail = useCallback(async (cardId: string) => {
-    setDrawerLoading(true);
-    setSelectedCard(null);
-    setDuplicates(null);
-    try {
-      const card = await workExperienceApi.getCard(cardId);
-      setSelectedCard(card);
-    } catch (err) {
-      console.error("Failed to load card detail:", err);
-      messageApi.error(t("workExperience.loadCardDetailsFailed"));
-    } finally {
-      setDrawerLoading(false);
-    }
-  }, [messageApi, t]);
+  const fetchCardDetail = useCallback(
+    async (cardId: string) => {
+      setDrawerLoading(true);
+      setSelectedCard(null);
+      setDuplicates(null);
+      try {
+        const card = await workExperienceApi.getCard(cardId);
+        setSelectedCard(card);
+      } catch (err) {
+        console.error("Failed to load card detail:", err);
+        messageApi.error(t("workExperience.loadCardDetailsFailed"));
+      } finally {
+        setDrawerLoading(false);
+      }
+    },
+    [messageApi, t],
+  );
 
   const fetchDuplicates = useCallback(
     async (cardId: string, threshold: number = 0.5) => {
@@ -141,10 +152,10 @@ export function useWorkExperience() {
         action === "approve"
           ? workExperienceApi.approveCard
           : action === "reject"
-            ? workExperienceApi.rejectCard
-            : action === "archive"
-              ? workExperienceApi.archiveCard
-              : workExperienceApi.reactivateCard;
+          ? workExperienceApi.rejectCard
+          : action === "archive"
+          ? workExperienceApi.archiveCard
+          : workExperienceApi.reactivateCard;
       await method(cardId);
       await fetchWithFilters(page);
       await fetchStats();
@@ -158,16 +169,13 @@ export function useWorkExperience() {
   );
 
   const doLevelTransition = useCallback(
-    async (
-      cardId: string,
-      action: "promote" | "demote" | "deprecate",
-    ) => {
+    async (cardId: string, action: "promote" | "demote" | "deprecate") => {
       const method =
         action === "promote"
           ? workExperienceApi.promoteCard
           : action === "demote"
-            ? workExperienceApi.demoteCard
-            : workExperienceApi.deprecateCard;
+          ? workExperienceApi.demoteCard
+          : workExperienceApi.deprecateCard;
       await method(cardId);
       await fetchWithFilters(page);
       await fetchStats();
@@ -190,7 +198,9 @@ export function useWorkExperience() {
         await fetchWithFilters(page);
         await fetchStats();
         if (selectedCard) {
-          const updated = await workExperienceApi.getCard(selectedCard.experience_id);
+          const updated = await workExperienceApi.getCard(
+            selectedCard.experience_id,
+          );
           setSelectedCard(updated);
         }
       } catch (err) {

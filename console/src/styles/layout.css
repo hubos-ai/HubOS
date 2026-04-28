@@ -16,6 +16,12 @@ html.dark-mode {
   color-scheme: dark;
 }
 
+html.theme-switching,
+html.theme-switching * {
+  transition: none !important;
+  animation-duration: 0s !important;
+}
+
 html.dark-mode body {
   background: #141414;
   color: rgba(255, 255, 255, 0.85);
@@ -738,22 +744,104 @@ html.dark-mode [class*="chat-anywhere"] [class*="message"] a {
   color: #ff7f16 !important;
 }
 
+/* Markdown/code artifact cards inside chat messages: light mode */
+.hubos-markdown .hubos-codeHighlighter,
+.hubos-markdown .hubos-mermaid,
+[class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"],
+[class*="chat-anywhere"] [class*="message"] [class*="mermaid"] {
+  max-width: min(760px, 100%) !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: #f4f4f5 !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+}
+
+.hubos-markdown .hubos-code-header,
+[class*="chat-anywhere"] [class*="message"] [class*="code-header"] {
+  background: transparent !important;
+  border-bottom: 0 !important;
+  color: rgba(15, 23, 42, 0.52) !important;
+}
+
+.hubos-markdown .hubos-codeHighlighter-code,
+.hubos-markdown .hubos-mermaid-graph,
+[class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter-code"],
+[class*="chat-anywhere"] [class*="message"] [class*="mermaid-graph"],
+.hubos-markdown .hubos-codeHighlighter pre,
+.hubos-markdown .hubos-codeHighlighter code,
+.hubos-markdown .hubos-codeHighlighter textarea,
+[class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] pre,
+[class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] code,
+[class*="chat-anywhere"]
+  [class*="message"]
+  [class*="codeHighlighter"]
+  textarea {
+  background: #f6f7f9 !important;
+  color: rgba(15, 23, 42, 0.88) !important;
+}
+
+.hubos-markdown [class*="antDesignX-module__panel__"],
+[class*="chat-anywhere"]
+  [class*="message"]
+  [class*="antDesignX-module__panel__"] {
+  max-width: min(760px, 100%) !important;
+  background: #f4f4f5 !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+}
+
+.hubos-markdown [class*="antDesignX-module__panelHeader__"],
+[class*="chat-anywhere"]
+  [class*="message"]
+  [class*="antDesignX-module__panelHeader__"] {
+  background: transparent !important;
+  border-bottom: 0 !important;
+  color: rgba(15, 23, 42, 0.52) !important;
+}
+
+.hubos-markdown [class*="antDesignX-module__panelBody__"],
+[class*="chat-anywhere"]
+  [class*="message"]
+  [class*="antDesignX-module__panelBody__"],
+.hubos-markdown [class*="antDesignX-module__codeBlock__"],
+[class*="chat-anywhere"]
+  [class*="message"]
+  [class*="antDesignX-module__codeBlock__"],
+.hubos-markdown [class*="antDesignX-module__codeBlock__"] code,
+[class*="chat-anywhere"]
+  [class*="message"]
+  [class*="antDesignX-module__codeBlock__"]
+  code {
+  background: transparent !important;
+  color: rgba(15, 23, 42, 0.88) !important;
+}
+
 /* Markdown/code artifact cards inside chat messages */
 html.dark-mode .hubos-markdown .hubos-codeHighlighter,
 html.dark-mode .hubos-markdown .hubos-mermaid,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"],
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="codeHighlighter"],
 html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="mermaid"] {
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-radius: 14px !important;
-  background: #181818 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  background: #1e1e1e !important;
   overflow: hidden !important;
+  box-shadow: none !important;
 }
 
 html.dark-mode .hubos-markdown .hubos-code-header,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="code-header"] {
-  background: #202020 !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-  color: rgba(255, 255, 255, 0.82) !important;
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="code-header"] {
+  background: #252525 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.78) !important;
 }
 
 html.dark-mode .hubos-markdown .hubos-code-header-lang,
@@ -761,92 +849,244 @@ html.dark-mode .hubos-markdown .hubos-code-header-actions,
 html.dark-mode .hubos-markdown .hubos-code-header-download,
 html.dark-mode .hubos-markdown .hubos-code-header-icon,
 html.dark-mode .hubos-markdown .hubos-code-header-copied,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="code-header-lang"],
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="code-header-actions"],
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="code-header-download"],
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="code-header-icon"],
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="code-header-copied"] {
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="code-header-lang"],
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="code-header-actions"],
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="code-header-download"],
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="code-header-icon"],
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="code-header-copied"] {
   color: rgba(255, 255, 255, 0.78) !important;
 }
 
 html.dark-mode .hubos-markdown .hubos-codeHighlighter-code,
 html.dark-mode .hubos-markdown .hubos-mermaid-graph,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter-code"],
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="mermaid-graph"] {
-  background: #141414 !important;
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="codeHighlighter-code"],
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="mermaid-graph"] {
+  background: #1e1e1e !important;
   color: rgba(255, 255, 255, 0.88) !important;
 }
 
 html.dark-mode .hubos-markdown .hubos-codeHighlighter-code *,
 html.dark-mode .hubos-markdown .hubos-mermaid-graph *,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter-code"] *,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="mermaid-graph"] * {
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="codeHighlighter-code"]
+  *,
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="mermaid-graph"]
+  * {
   background: transparent !important;
 }
 
 html.dark-mode .hubos-markdown .hubos-codeHighlighter pre,
 html.dark-mode .hubos-markdown .hubos-codeHighlighter code,
 html.dark-mode .hubos-markdown .hubos-codeHighlighter textarea,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] pre,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] code,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] textarea {
-  background: #141414 !important;
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="codeHighlighter"]
+  pre,
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="codeHighlighter"]
+  code,
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="codeHighlighter"]
+  textarea {
+  background: #1e1e1e !important;
   color: rgba(255, 255, 255, 0.88) !important;
 }
 
 html.dark-mode .hubos-markdown .hubos-codeHighlighter pre,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] pre {
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="codeHighlighter"]
+  pre {
   margin: 0 !important;
-  border-radius: 0 0 14px 14px !important;
+  border-radius: 0 0 12px 12px !important;
 }
 
 html.dark-mode .hubos-markdown .hubos-codeHighlighter pre *,
 html.dark-mode .hubos-markdown .hubos-codeHighlighter code *,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] pre *,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] code * {
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="codeHighlighter"]
+  pre
+  *,
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="codeHighlighter"]
+  code
+  * {
   background: transparent !important;
 }
 
 html.dark-mode .hubos-markdown .hubos-codeHighlighter span,
 html.dark-mode .hubos-markdown .hubos-codeHighlighter div,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] span,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="codeHighlighter"] div {
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="codeHighlighter"]
+  span,
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="codeHighlighter"]
+  div {
   color: inherit !important;
 }
 
 /* @ant-design/x code panel internals */
 html.dark-mode .hubos-markdown [class*="antDesignX-module__panel__"],
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="antDesignX-module__panel__"] {
-  background: #181818 !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-radius: 14px !important;
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="antDesignX-module__panel__"] {
+  background: #1e1e1e !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
   overflow: hidden !important;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02) !important;
+  box-shadow: none !important;
 }
 
 html.dark-mode .hubos-markdown [class*="antDesignX-module__panelHeader__"],
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="antDesignX-module__panelHeader__"] {
-  background: #202020 !important;
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="antDesignX-module__panelHeader__"] {
+  background: #252525 !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
 html.dark-mode .hubos-markdown [class*="antDesignX-module__panelBody__"],
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="antDesignX-module__panelBody__"] {
-  background: #141414 !important;
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="antDesignX-module__panelBody__"] {
+  background: #1e1e1e !important;
 }
 
 html.dark-mode .hubos-markdown [class*="antDesignX-module__codeBlock__"],
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="antDesignX-module__codeBlock__"] {
-  background: #141414 !important;
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="antDesignX-module__codeBlock__"] {
+  background: #1e1e1e !important;
   color: rgba(255, 255, 255, 0.88) !important;
   margin: 0 !important;
 }
 
 html.dark-mode .hubos-markdown [class*="antDesignX-module__codeBlock__"] code,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] [class*="antDesignX-module__codeBlock__"] code {
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="antDesignX-module__codeBlock__"]
+  code {
   display: block !important;
-  background: #141414 !important;
+  background: #1e1e1e !important;
   color: rgba(255, 255, 255, 0.88) !important;
+}
+
+html.dark-mode .hubos-markdown [class*="antDesignX-module__panelCompact__"],
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="antDesignX-module__panelCompact__"] {
+  display: inline-flex !important;
+  width: auto !important;
+  margin: 3px 0 5px !important;
+  border: 0 !important;
+  border-radius: 7px !important;
+  background: rgba(255, 255, 255, 0.075) !important;
+  box-shadow: none !important;
+  vertical-align: baseline !important;
+}
+
+html.dark-mode
+  .hubos-markdown
+  [class*="antDesignX-module__panelCompact__"]
+  [class*="antDesignX-module__panelBody__"],
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="antDesignX-module__panelCompact__"]
+  [class*="antDesignX-module__panelBody__"] {
+  padding: 3px 8px !important;
+  background: transparent !important;
+}
+
+html.dark-mode
+  .hubos-markdown
+  [class*="antDesignX-module__panelCompact__"]
+  [class*="antDesignX-module__codeBlock__"],
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="antDesignX-module__panelCompact__"]
+  [class*="antDesignX-module__codeBlock__"],
+html.dark-mode
+  .hubos-markdown
+  [class*="antDesignX-module__panelCompact__"]
+  [class*="antDesignX-module__codeBlock__"]
+  code,
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="antDesignX-module__panelCompact__"]
+  [class*="antDesignX-module__codeBlock__"]
+  code {
+  display: inline !important;
+  background: transparent !important;
+  font-size: 12.5px !important;
+  line-height: 1.35 !important;
+  white-space: pre !important;
+  word-break: normal !important;
+}
+
+html.dark-mode .hubos-markdown [class*="antDesignX-module__inlineCodeBlock__"],
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  [class*="antDesignX-module__inlineCodeBlock__"] {
+  display: inline !important;
+  margin: 0 2px !important;
+  padding: 3px 7px !important;
+  border-radius: 7px !important;
+  background: rgba(255, 255, 255, 0.075) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  font-size: 12.5px !important;
+  line-height: inherit !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
 }
 
 html.dark-mode .hubos-markdown .hubos-code-header,
@@ -857,12 +1097,20 @@ html.dark-mode [class*="chat-anywhere"] [class*="message"] .hubos-code-header {
 }
 
 html.dark-mode .hubos-markdown .hubos-code-header-lang:empty,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] .hubos-code-header-lang:empty {
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  .hubos-code-header-lang:empty {
   display: none !important;
 }
 
-html.dark-mode .hubos-markdown .hubos-code-header:has(.hubos-code-header-lang:empty),
-html.dark-mode [class*="chat-anywhere"] [class*="message"] .hubos-code-header:has(.hubos-code-header-lang:empty) {
+html.dark-mode
+  .hubos-markdown
+  .hubos-code-header:has(.hubos-code-header-lang:empty),
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  .hubos-code-header:has(.hubos-code-header-lang:empty) {
   justify-content: flex-end !important;
 }
 
@@ -906,9 +1154,15 @@ html.dark-mode .hubos-chat-anywhere select {
 }
 
 html.dark-mode [class*="chat-anywhere"] [class*="message"] input::placeholder,
-html.dark-mode [class*="chat-anywhere"] [class*="message"] textarea::placeholder,
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="message"]
+  textarea::placeholder,
 html.dark-mode [class*="chat-anywhere"] [class*="content"] input::placeholder,
-html.dark-mode [class*="chat-anywhere"] [class*="content"] textarea::placeholder,
+html.dark-mode
+  [class*="chat-anywhere"]
+  [class*="content"]
+  textarea::placeholder,
 html.dark-mode .hubos-chat-anywhere input::placeholder,
 html.dark-mode .hubos-chat-anywhere textarea::placeholder {
   color: rgba(255, 255, 255, 0.42) !important;
@@ -954,17 +1208,35 @@ html.dark-mode .hubos-chat-anywhere hr {
   background: #fff !important;
 }
 
+/* Chat input area (light mode) — soft floating pill */
 .hubos-chat-anywhere-input {
-  background: #fff !important;
+  background: transparent !important;
+}
+
+.hubos-sender {
+  border-radius: 24px !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow:
+    0 10px 28px rgba(15, 23, 42, 0.1),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+}
+
+.hubos-sender:focus-within {
+  border-color: rgba(255, 127, 22, 0.42) !important;
+  box-shadow:
+    0 12px 32px rgba(15, 23, 42, 0.14),
+    0 0 0 1px rgba(255, 127, 22, 0.1) inset !important;
 }
 
 .hubos-chat-anywhere-message-list-welcome {
   background: #fff !important;
 }
 
-/* Chat bubble list max-width override */
+/* Chat bubble list max-width override — wider Codex-like reading canvas */
 .hubos-chat-anywhere-message-list .hubos-bubble-list {
-  max-width: 960px !important;
+  max-width: min(1120px, calc(100vw - 96px)) !important;
+  width: 100% !important;
 }
 
 /* Chat page background in dark mode */
@@ -979,11 +1251,22 @@ html.dark-mode .hubos-chat-anywhere-welcome-default {
   background: #141414 !important;
 }
 
-/* Chat input area in dark mode */
+/* Chat input area in dark mode — softer, pill-shaped */
 html.dark-mode .hubos-sender,
 html.dark-mode .hubos-sender-content {
-  background: #2a2a2a !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
+  background: rgba(36, 36, 36, 0.96) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  border-radius: 20px !important;
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.32),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset !important;
+}
+
+html.dark-mode .hubos-sender:focus-within {
+  border-color: rgba(255, 127, 22, 0.38) !important;
+  box-shadow:
+    0 16px 44px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(255, 127, 22, 0.12) inset !important;
 }
 
 /* Menu background in light mode */

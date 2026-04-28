@@ -11,7 +11,8 @@ import { setAuthToken } from "../config";
 
 declare const VITE_DEV_AUTH_BYPASS: string;
 
-const DEV_BYPASS = typeof VITE_DEV_AUTH_BYPASS === "string" && VITE_DEV_AUTH_BYPASS === "true";
+const DEV_BYPASS =
+  typeof VITE_DEV_AUTH_BYPASS === "string" && VITE_DEV_AUTH_BYPASS === "true";
 const DEV_TOKEN = "dev-bypass-token-0000";
 
 export const devAuthApi = {
@@ -47,7 +48,11 @@ export const devAuthApi = {
     if (!DEV_BYPASS) {
       throw new Error("Dev auth bypass not enabled");
     }
-    return { token: DEV_TOKEN, username: newUsername || "dev-user", message: "dev bypass" };
+    return {
+      token: DEV_TOKEN,
+      username: newUsername || "dev-user",
+      message: "dev bypass",
+    };
   },
 };
 

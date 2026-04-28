@@ -2,7 +2,7 @@ import { createGlobalStyle } from "antd-style";
 import { ConfigProvider, bailianTheme } from "@agentscope-ai/design";
 import { App as AntdApp } from "antd";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import zhCN from "antd/locale/zh_CN";
 import enUS from "antd/locale/en_US";
@@ -23,7 +23,12 @@ import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import LoginPage from "./pages/Login";
 import { authApi } from "./api/modules/auth";
 import { languageApi } from "./api/modules/language";
-import { getApiUrl, getApiToken, setAuthToken, clearAuthToken } from "./api/config";
+import {
+  getApiUrl,
+  getApiToken,
+  setAuthToken,
+  clearAuthToken,
+} from "./api/config";
 import "./styles/layout.css";
 import "./styles/form-override.css";
 
@@ -171,6 +176,17 @@ function AppInner() {
     };
   }, [i18n]);
 
+  const antdThemeConfig = useMemo(
+    () => ({
+      ...(bailianTheme as any)?.theme,
+      algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+      token: {
+        colorPrimary: "#FF7F16",
+      },
+    }),
+    [isDark],
+  );
+
   return (
     <BrowserRouter basename={basename}>
       <GlobalStyle />
@@ -179,15 +195,7 @@ function AppInner() {
         prefix="hubos"
         prefixCls="hubos"
         locale={antdLocale}
-        theme={{
-          ...(bailianTheme as any)?.theme,
-          algorithm: isDark
-            ? antdTheme.darkAlgorithm
-            : antdTheme.defaultAlgorithm,
-          token: {
-            colorPrimary: "#FF7F16",
-          },
-        }}
+        theme={antdThemeConfig}
       >
         <AntdApp>
           <Routes>

@@ -26,10 +26,9 @@ export const toolsAdapter: ToolsAdapter = {
   listTools: () => request<ToolInfo[]>("/tools"),
 
   toggleTool: (toolName) =>
-    request<ToolInfo>(
-      `/tools/${encodeURIComponent(toolName)}/toggle`,
-      { method: "PATCH" },
-    ),
+    request<ToolInfo>(`/tools/${encodeURIComponent(toolName)}/toggle`, {
+      method: "PATCH",
+    }),
 
   updateAsyncExecution: (toolName, asyncExecution) =>
     request<ToolInfo>(

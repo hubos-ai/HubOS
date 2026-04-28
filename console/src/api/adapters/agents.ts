@@ -69,12 +69,16 @@ export const agentsAdapter = {
 
   readAgentFile: (agentId: string, filename: string) =>
     request<MdFileContent>(
-      `/agents/${encodeURIComponent(agentId)}/files/${encodeURIComponent(filename)}`,
+      `/agents/${encodeURIComponent(agentId)}/files/${encodeURIComponent(
+        filename,
+      )}`,
     ),
 
   writeAgentFile: (agentId: string, filename: string, content: string) =>
     request<{ written: boolean; filename: string }>(
-      `/agents/${encodeURIComponent(agentId)}/files/${encodeURIComponent(filename)}`,
+      `/agents/${encodeURIComponent(agentId)}/files/${encodeURIComponent(
+        filename,
+      )}`,
       {
         method: "PUT",
         body: JSON.stringify({ content }),
@@ -82,7 +86,5 @@ export const agentsAdapter = {
     ),
 
   listAgentMemory: (agentId: string) =>
-    request<MdFileInfo[]>(
-      `/agents/${encodeURIComponent(agentId)}/memory-logs`,
-    ),
+    request<MdFileInfo[]>(`/agents/${encodeURIComponent(agentId)}/memory-logs`),
 };

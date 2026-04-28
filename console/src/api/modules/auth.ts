@@ -25,7 +25,10 @@ export interface AuthStatusResponse {
 }
 
 export const authApi = {
-  login: async (username: string, _password: string): Promise<LoginResponse> => {
+  login: async (
+    username: string,
+    _password: string,
+  ): Promise<LoginResponse> => {
     if (DEV_BYPASS) {
       setAuthToken(DEV_TOKEN);
       return { token: DEV_TOKEN, username, message: "dev bypass" };
@@ -77,7 +80,11 @@ export const authApi = {
     _newPassword?: string,
   ): Promise<LoginResponse> => {
     if (DEV_BYPASS) {
-      return { token: DEV_TOKEN, username: newUsername || "dev-user", message: "dev bypass" };
+      return {
+        token: DEV_TOKEN,
+        username: newUsername || "dev-user",
+        message: "dev bypass",
+      };
     }
     const token = localStorage.getItem("hubos_auth_token") || "";
     const res = await fetch(getApiUrl("/auth/update-profile"), {

@@ -75,9 +75,7 @@ function toQs(params: Record<string, string | number | undefined>): string {
   const parts: string[] = [];
   for (const [k, v] of Object.entries(params)) {
     if (v === undefined || v === null || v === "") continue;
-    parts.push(
-      `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`,
-    );
+    parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`);
   }
   return parts.length ? `?${parts.join("&")}` : "";
 }
@@ -148,6 +146,5 @@ export const adminSessionsApi = {
     ),
 
   /** Lightweight probe used by `useIsAdmin` — 200 ⇒ admin, 403 ⇒ not. */
-  probe: () =>
-    request<AdminSessionListResponse>("/admin/sessions?limit=1"),
+  probe: () => request<AdminSessionListResponse>("/admin/sessions?limit=1"),
 };

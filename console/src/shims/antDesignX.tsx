@@ -64,10 +64,7 @@ export function Suggestion({
   onSelect,
   children,
 }: SuggestionProps) {
-  const flattenedItems = useMemo(
-    () => flattenSuggestionItems(items),
-    [items],
-  );
+  const flattenedItems = useMemo(() => flattenSuggestionItems(items), [items]);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -174,11 +171,12 @@ export function Suggestion({
 type PanelProps = {
   header?: ReactNode;
   children?: ReactNode;
+  compact?: boolean;
 };
 
-function SimplePanel({ header, children }: PanelProps) {
+function SimplePanel({ header, children, compact }: PanelProps) {
   return (
-    <div className={styles.panel}>
+    <div className={`${styles.panel} ${compact ? styles.panelCompact : ""}`}>
       {header ? <div className={styles.panelHeader}>{header}</div> : null}
       <div className={styles.panelBody}>{children}</div>
     </div>
@@ -194,8 +192,24 @@ type CodeHighlighterProps = {
 function looksLikeExecutableBlock(content: string): boolean {
   const trimmed = content.trim();
   if (!trimmed) return false;
+  const isSingleLine = !trimmed.includes("\n");
 
-  if (/^\$?\s*(npm|pnpm|yarn|bun|node|python|python3|pip|uv|git|curl|wget|docker|kubectl|sqlcmd|psql)\b/m.test(trimmed)) {
+  if (/^\{\{[^}]+\}\}$/.test(trimmed)) {
+    return false;
+  }
+
+  if (isSingleLine && trimmed.length <= 80) {
+    const looksLikeShortToken = /^[\w./:@=+\-{}| ]+$/.test(trimmed);
+    if (looksLikeShortToken && !/[;&|]{2}|[`$()<>]/.test(trimmed)) {
+      return false;
+    }
+  }
+
+  if (
+    /^\$?\s*(npm|pnpm|yarn|bun|node|python|python3|pip|uv|git|curl|wget|docker|kubectl|sqlcmd|psql)\b/m.test(
+      trimmed,
+    )
+  ) {
     return true;
   }
 
@@ -207,7 +221,7 @@ function looksLikeExecutableBlock(content: string): boolean {
     return true;
   }
 
-  if (/[{}[\]();<>]/.test(trimmed)) {
+  if (!isSingleLine && /[{}[\]();<>]/.test(trimmed)) {
     return true;
   }
 
@@ -221,10 +235,15 @@ export function CodeHighlighter({
 }: CodeHighlighterProps) {
   const content =
     typeof children === "string" ? children : String(children ?? "");
-  const shouldShowHeader = Boolean(lang?.trim()) || looksLikeExecutableBlock(content);
+  const shouldShowHeader =
+    Boolean(lang?.trim()) || looksLikeExecutableBlock(content);
+
+  if (!shouldShowHeader) {
+    return <code className={styles.inlineCodeBlock}>{content.trim()}</code>;
+  }
 
   return (
-    <SimplePanel header={shouldShowHeader ? header : undefined}>
+    <SimplePanel header={header}>
       <pre className={styles.codeBlock}>
         <code>{content}</code>
       </pre>
@@ -241,7 +260,9 @@ export function Mermaid({ header, children }: MermaidProps) {
   return (
     <SimplePanel header={header}>
       <pre className={styles.mermaidFallback}>
-        <code>{typeof children === "string" ? children : String(children ?? "")}</code>
+        <code>
+          {typeof children === "string" ? children : String(children ?? "")}
+        </code>
       </pre>
     </SimplePanel>
   );
