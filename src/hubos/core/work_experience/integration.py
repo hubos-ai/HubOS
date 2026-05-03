@@ -397,11 +397,8 @@ class WorkExperienceInterceptor:
     - Entirely controlled by ENABLE_WORK_EXPERIENCE_LAYER flag
     """
 
-    # ---- Turn buffer for periodic methodology summarization ----
+    # ---- Turn buffer for task-completion-triggered reflection ----
     _MAX_BUFFER_SIZE = 50
-    _BUFFER_SUMMARIZE_THRESHOLD = 10  # turns before LLM summary
-    _BUFFER_TIME_THRESHOLD_SEC = 1800  # 30 minutes between summaries
-    _BUFFER_KEYWORD_THRESHOLD = 3  # turns with overlapping keywords
 
     def __init__(self) -> None:
         """Initialize the interceptor with a store, retriever, and reflection engine."""
@@ -420,10 +417,9 @@ class WorkExperienceInterceptor:
         self._service = WorkExperienceService(store=self._store)
         self._reflection_engine = ReflectionEngine()
 
-        # Turn buffer: accumulates conversation turns for periodic methodology
-        # summarization instead of generating a card from every single turn.
+        # Turn buffer: accumulates conversation turns within a single task.
+        # Flushed when the task completes (not on a timer).
         self._turn_buffer: list[dict[str, str]] = []
-        self._last_summary_time: float = 0.0  # epoch seconds
 
         # Seed bundled methodology cards on first run (idempotent)
         try:
@@ -734,17 +730,22 @@ class WorkExperienceInterceptor:
         context_text = "\n".join(context_parts)
 
         prompt = (
-            "你是一个工作经验总结专家。请分析以下多轮对话，判断是否包含值得记住的工作经验/方法论。\n\n"
+            "你是一个工作经验总结专家。以下是一段完整的工作过程（从开始到完成）。请分析这段工作，提取可复用的经验。\n\n"
             f"{context_text}\n"
-            "只有当对话包含以下之一时才提取：\n"
-            "1. 发现了更有效的工作方法（比如从A方法切换到B方法效果更好）\n"
-            "2. 踩了坑并找到了解决方案\n"
-            "3. 总结出了可复用的方法论或流程\n"
-            "4. 发现了关键信息会影响未来同类工作\n\n"
+            "请回答以下问题：\n"
+            "1. 这项工作遇到了什么问题/困难？\n"
+            "2. 中间哪些方法失败了？为什么失败？\n"
+            "3. 最终用什么方法成功的？\n"
+            "4. 有什么经验下次同类工作可以直接用？\n\n"
+            "只有当确实包含可复用经验时才提取。如果只是一次普通对话（闲聊/简单问答/查信息），输出 has_lessons: false。\n\n"
             "如果有经验，用JSON输出：\n"
-            '{"has_lessons": true, "what_worked": ["方法1"], "what_failed": ["失败1"], '
-            '"guidance": "下次怎么做的一句话总结", "title": "经验标题(20字内)"}\n\n'
-            "如果没有，输出：\n"
+            '{"has_lessons": true, '
+            '"problems": ["遇到的问题1"], '
+            '"what_failed": ["失败的方法1"], '
+            '"what_worked": ["成功的方法1"], '
+            '"guidance": "下次同类工作应该怎么做（一句话）", '
+            '"title": "经验标题(15字内，概括核心教训)"}\n\n'
+            "如果没有可复用经验：\n"
             '{"has_lessons": false}\n\n'
             "只输出JSON，不要解释。"
         )
@@ -796,45 +797,40 @@ class WorkExperienceInterceptor:
             )
             return None
 
-    def _should_trigger_periodic_summary(self) -> bool:
-        """Check if the turn buffer should trigger a periodic LLM summary."""
-        import time
+    # ------------------------------------------------------------------
+    # Task completion detection
+    # ------------------------------------------------------------------
 
-        buf = self._turn_buffer
-        if not buf:
-            return False
+    # Patterns that signal the assistant considers the work done.
+    _TASK_COMPLETE_IN_ASSISTANT = re.compile(
+        r"(搞定了|完成了|已解决|已修复|已实现|成功导入|全绿|已提交|已部署"
+        r"|commit|push|merged|部署完成|导入完成|测试通过|验证通过"
+        r"|done|completed|all tests passed|committed|deployed|fixed)",
+        re.IGNORECASE,
+    )
 
-        # 1. Buffer size threshold
-        if len(buf) >= self._BUFFER_SUMMARIZE_THRESHOLD:
+    # Patterns that signal the user acknowledges completion / moves on.
+    _TASK_COMPLETE_IN_USER = re.compile(
+        r"(好的|谢谢|OK|ok|收到|了解|明白|下一个|next|算了|不用了)",
+    )
+
+    @classmethod
+    def _detect_task_completion(
+        cls,
+        user_input: str,
+        assistant_response: str,
+    ) -> bool:
+        """Return True if the current turn signals a task completion boundary.
+
+        We detect two signals:
+        1. The assistant explicitly says the work is done (completed, committed, etc.)
+        2. The user acknowledges and moves on (ok, thanks, next topic)
+
+        Signal 1 alone is sufficient.  Signal 2 alone is NOT (user might say
+        "ok" mid-task).  We only flag completion when signal 1 is present.
+        """
+        if cls._TASK_COMPLETE_IN_ASSISTANT.search(assistant_response):
             return True
-
-        # 2. Time threshold (30 min since last summary)
-        now = time.time()
-        if (
-            self._last_summary_time > 0
-            and (now - self._last_summary_time)
-            >= self._BUFFER_TIME_THRESHOLD_SEC
-            and len(buf) >= 3
-        ):
-            return True
-
-        # 3. Keyword overlap threshold: >= N turns share significant keywords
-        if len(buf) >= self._BUFFER_KEYWORD_THRESHOLD:
-            # Quick check: do recent turns share keywords?
-            all_kw: list[str] = []
-            for t in buf[-6:]:
-                words = (t.get("user_input") or "").lower().split()
-                all_kw.extend(w for w in words if len(w) > 4)
-            if all_kw:
-                from collections import Counter
-
-                top_kw = Counter(all_kw).most_common(3)
-                if any(
-                    count >= self._BUFFER_KEYWORD_THRESHOLD
-                    for _, count in top_kw
-                ):
-                    return True
-
         return False
 
     def _flush_buffer_to_methodology_card(
@@ -845,10 +841,8 @@ class WorkExperienceInterceptor:
     ) -> Optional[dict[str, Any]]:
         """
         Summarize buffered turns into a methodology card via LLM.
-        Clears the buffer after summarization.
+        Called when task completion is detected. Clears the buffer after.
         """
-        import time
-
         if not self._turn_buffer:
             return None
 
@@ -856,7 +850,6 @@ class WorkExperienceInterceptor:
         keywords_from_turns = self._extract_keywords_from_turns()
 
         summary = self._summarize_methodology_with_llm(self._turn_buffer)
-        self._last_summary_time = time.time()
 
         # Clear buffer regardless of outcome
         buf_count = len(self._turn_buffer)
@@ -864,7 +857,7 @@ class WorkExperienceInterceptor:
 
         if summary is None:
             logger.debug(
-                "Periodic summary: no methodology extracted from %d turns",
+                "Task reflection: no methodology extracted from %d turns",
                 buf_count,
             )
             return None
@@ -885,13 +878,14 @@ class WorkExperienceInterceptor:
             experience_level=ExperienceLevel.NEW,
             title=summary["title"],
             what_worked=summary["what_worked"],
-            what_failed=summary["what_failed"],
+            what_failed=summary.get("what_failed", []),
             guidance=summary["guidance"],
+            avoidance=summary.get("problems", []),
             confidence=0.75,
             maturity_score=37.5,
             source_session_id=session_id,
-            source_task_id=f"methodology-summary-{uuid4().hex[:8]}",
-            source_trace_id="periodic",
+            source_task_id=f"task-reflection-{uuid4().hex[:8]}",
+            source_trace_id="task_completion",
             trigger_keywords=keywords_from_turns,
             trigger_hint="input_text:"
             + (summary["title"][:20].lower().replace(" ", "_")),
@@ -899,7 +893,7 @@ class WorkExperienceInterceptor:
 
         self._store.save(card)
         logger.info(
-            "WorkExperience methodology card created from periodic summary",
+            "WorkExperience card created from task reflection",
             extra={
                 "session_id": session_id,
                 "experience_id": str(card.experience_id),
@@ -950,12 +944,12 @@ class WorkExperienceInterceptor:
         execution_time_ms: int = 0,
     ) -> Optional[dict[str, Any]]:
         """
-        Reflect on a completed chat turn and optionally persist a card.
+        Accumulate chat turns and reflect when a task completes.
 
-        Strategy (v2):
-        1. Quick regex extraction → if actionable lessons found, create card immediately
-        2. Otherwise, buffer the turn for periodic LLM-based methodology summarization
-        3. Trigger LLM summary when buffer conditions are met
+        Strategy (v3 — task-completion-triggered):
+        1. Buffer every turn (no card per turn)
+        2. When task completion is detected → flush buffer through LLM reflection
+        3. LLM reflects on the entire journey: problems → failures → solutions
         """
         flags = get_feature_flags()
         if not flags.enable_work_experience_layer:
@@ -974,25 +968,7 @@ class WorkExperienceInterceptor:
             )
             return None
 
-        # ---- Quick regex extraction (fast path) ----
-        quick_lessons = _extract_lessons_from_response(response)
-        has_quick_lessons = bool(
-            quick_lessons["what_worked"] or quick_lessons["what_failed"],
-        )
-
-        result = None
-        if has_quick_lessons:
-            # Fast path: regex found actionable lessons, create card directly
-            result = self._create_card_from_lessons(
-                lessons=quick_lessons,
-                query=query,
-                response=response,
-                session_id=session_id,
-                channel=channel,
-                agent_id=agent_id,
-            )
-
-        # ---- Buffer turn for periodic summarization ----
+        # ---- Buffer this turn ----
         self._turn_buffer.append(
             {
                 "user_input": query,
@@ -1007,19 +983,18 @@ class WorkExperienceInterceptor:
         if len(self._turn_buffer) > self._MAX_BUFFER_SIZE:
             self._turn_buffer = self._turn_buffer[-self._MAX_BUFFER_SIZE :]
 
-        # ---- Check if periodic LLM summary should trigger ----
-        summary_result = None
-        if self._should_trigger_periodic_summary():
-            summary_result = self._flush_buffer_to_methodology_card(
+        # ---- Check if task just completed → trigger reflection ----
+        result = None
+        if self._detect_task_completion(query, response):
+            result = self._flush_buffer_to_methodology_card(
                 session_id=session_id,
                 agent_id=agent_id,
                 channel=channel,
             )
 
-        # Return whichever result is more interesting
         # Auto-promote cards in background (rate-limited internally)
         self._maybe_auto_promote()
-        return result or summary_result
+        return result
 
     def _create_card_from_lessons(
         self,
