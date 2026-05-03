@@ -139,6 +139,38 @@ def _truncate_lesson(text: str, max_len: int = 80) -> str:
     return text
 
 
+# ---------- Lesson quality filter ----------
+# Patterns that indicate a REAL methodology lesson (not a log/status update).
+_METHODICAL_PATTERNS = re.compile(
+    r"(如果|那么|应该|必须|务必|记得|下次|以后|避免|不要|切记"
+    r"|不能|无法|务必不|切忌|推荐|建议|关键|核心|重要"
+    r"|教训|经验|踩坑|注意|先.*再|一定|确保|verify"
+    r"|always|must|never|avoid|ensure|remember|key|critical"
+    r"|important|lesson|should|make sure|first.*then)",
+)
+
+# Patterns that indicate a mere status log — never methodology.
+_LOG_PATTERNS = re.compile(
+    r"(^(完成|成功|已|done|ok|✅\s*(导入|创建|更新|删除|发送|完成)"
+    r"|处理了?\d|全部|finished|processed))",
+    re.IGNORECASE,
+)
+
+
+def _is_methodological(text: str) -> bool:
+    """Return True if *text* looks like a reusable methodology lesson.
+
+    A methodological lesson contains prescriptive or cautionary language
+    (should/must/avoid/关键/必须/不要).  A status update or log entry
+    (✅ 导入完成 / 95/95 成功) does NOT.
+    """
+    if len(text) < 10:
+        return False
+    if _LOG_PATTERNS.search(text):
+        return False
+    return bool(_METHODICAL_PATTERNS.search(text))
+
+
 def _detect_scope_from_lessons(
     what_worked: list[str],
     what_failed: list[str],
@@ -335,6 +367,10 @@ def _extract_lessons_from_response(response: str) -> dict[str, list[str]]:
 
     # --- Tool mention extraction ---
     tools = _extract_tools_from_response(response)
+
+    # --- Quality filter: only keep methodological lessons, drop logs ---
+    what_worked = [w for w in what_worked if _is_methodological(w)]
+    what_failed = [w for w in what_failed if _is_methodological(w)]
 
     return {
         "what_worked": what_worked,
@@ -576,6 +612,100 @@ class WorkExperienceInterceptor:
                 )
 
     # ------------------------------------------------------------------
+    # Auto-promotion: candidate → approved → mature
+    # ------------------------------------------------------------------
+
+    def auto_promote_cards(self) -> dict[str, int]:
+        """
+        Promote cards that meet quality/usage thresholds.
+
+        Rules:
+        - candidate + hit_count >= 5 + score >= 50 → approved
+        - approved  + effective_count >= 3           → mature
+        - candidate + score < 30 + hit_count == 0   → deprecated (cleanup)
+
+        Returns:
+            {"promoted_to_approved": N, "promoted_to_mature": N, "deprecated": N}
+        """
+        from hubos.core.work_experience.schemas import (
+            WorkExperienceStatus,
+            ExperienceLevel,
+        )
+
+        result = {
+            "promoted_to_approved": 0,
+            "promoted_to_mature": 0,
+            "deprecated": 0,
+        }
+
+        try:
+            all_cards = self._store.list_all(include_disabled=False)
+        except Exception as exc:
+            logger.warning("auto_promote failed to list cards: %s", exc)
+            return result
+
+        for card in all_cards:
+            try:
+                status = card.status.value
+                level = card.experience_level.value
+                score = card.maturity_score or 0
+                hits = card.hit_count or 0
+                effective = card.effective_count or 0
+
+                # Candidate → approved
+                if status == "candidate" and hits >= 5 and score >= 50:
+                    card.status = WorkExperienceStatus.APPROVED
+                    card.experience_level = ExperienceLevel.OBSERVED
+                    self._store.save(card)
+                    result["promoted_to_approved"] += 1
+                    logger.info(
+                        "Auto-promoted card to approved",
+                        extra={
+                            "card_id": str(card.experience_id),
+                            "title": card.title[:60],
+                            "hit_count": hits,
+                            "score": score,
+                        },
+                    )
+
+                # Approved → mature
+                elif (
+                    status == "approved"
+                    and effective >= 3
+                    and level != "mature"
+                ):
+                    card.experience_level = ExperienceLevel.MATURE
+                    card.maturity_score = max(score, 75.0)
+                    self._store.save(card)
+                    result["promoted_to_mature"] += 1
+                    logger.info(
+                        "Auto-promoted card to mature",
+                        extra={
+                            "card_id": str(card.experience_id),
+                            "title": card.title[:60],
+                            "effective_count": effective,
+                        },
+                    )
+
+                # Garbage cleanup: low-score never-hit candidates → deprecated
+                elif status == "candidate" and score < 30 and hits == 0:
+                    card.status = WorkExperienceStatus.REJECTED
+                    self._store.save(card)
+                    result["deprecated"] += 1
+
+            except Exception as exc:
+                logger.debug(
+                    "Failed to process card %s during auto_promote: %s",
+                    getattr(card, "experience_id", "?"),
+                    exc,
+                )
+
+        if any(v > 0 for v in result.values()):
+            logger.info("Auto-promotion results: %s", result)
+
+        return result
+
+    # ------------------------------------------------------------------
     # Methodology summarization (LLM-based, periodic)
     # ------------------------------------------------------------------
 
@@ -785,6 +915,22 @@ class WorkExperienceInterceptor:
             "buffer_turns_consumed": buf_count,
         }
 
+    def _maybe_auto_promote(self) -> None:
+        """Run auto-promotion with rate limiting (at most once per 10 min)."""
+        import time
+
+        now = time.time()
+        # Only run every 10 minutes at most
+        if hasattr(self, "_last_promote_time") and (
+            now - getattr(self, "_last_promote_time", 0) < 600
+        ):
+            return
+        self._last_promote_time = now
+        try:
+            self.auto_promote_cards()
+        except Exception as exc:
+            logger.debug("auto_promote error (non-fatal): %s", exc)
+
     def _extract_keywords_from_turns(self) -> list[str]:
         """Extract keywords from buffered turns for trigger matching."""
         texts: list[str] = []
@@ -871,6 +1017,8 @@ class WorkExperienceInterceptor:
             )
 
         # Return whichever result is more interesting
+        # Auto-promote cards in background (rate-limited internally)
+        self._maybe_auto_promote()
         return result or summary_result
 
     def _create_card_from_lessons(

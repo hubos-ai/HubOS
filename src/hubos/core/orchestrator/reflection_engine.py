@@ -169,17 +169,20 @@ class ReflectionEngine:
         if context.task_result.status == TaskStatus.SUCCESS:
             confidence = 0.5  # Base confidence, will be boosted by enrichment
 
-            # NOTE: We intentionally do NOT add generic "Task completed" or
-            # "Worker X succeeded" to what_worked.  Those are vacuous filler
-            # that bypass the quality gate in the extractor.  Real lessons
-            # should come from enrichment (regex + LLM) in integration.py.
+            # NOTE: We intentionally do NOT extract lessons from the raw
+            # execution trace here.  Tool output fragments (e.g. "95/95
+            # records imported") are *logs*, not *methodology*.  Real
+            # lessons should come from the enrichment layer in
+            # integration.py (regex patterns + LLM summarization), which
+            # has the full response context and can distinguish
+            # "✅ 导入完成" (log) from "导入前必须先看源文件格式" (methodology).
 
-            # Analyze execution trace for meaningful patterns
+            # Analyze execution trace for structural patterns only
+            # (tool sequence, not content snippets).
             for step in context.execution_trace:
-                content = step.get("content", "")
-                if content and len(content) > 20:
-                    # Only add if the step has substantive content
-                    what_worked.append(content[:80])
+                # Intentionally NOT extracting step content into what_worked.
+                # The enrichment layer in WorkExperienceInterceptor handles this.
+                pass
 
         elif context.task_result.status == TaskStatus.FAILURE:
             confidence = 0.6

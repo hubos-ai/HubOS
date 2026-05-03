@@ -144,7 +144,14 @@ def extract_semantic_keywords(values: Iterable[object]) -> list[str]:
                     )
                 elif canonical == "distributor":
                     keywords.update(
-                        {"distributor", "importer", "buyer", "procurement", "supplier", "vendor"},
+                        {
+                            "distributor",
+                            "importer",
+                            "buyer",
+                            "procurement",
+                            "supplier",
+                            "vendor",
+                        },
                     )
 
         if "客户" in text and any(
