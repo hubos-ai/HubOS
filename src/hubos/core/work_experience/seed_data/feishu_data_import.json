@@ -1,0 +1,40 @@
+{
+  "applicability_tags": ["feishu", "bitable", "crm", "data_import", "batch_create", "skill_pool"],
+  "applicable_task_types": ["feishu_operation", "data_import", "crm", "skill_development"],
+  "avoidance": "不要用lark_oapi SDK的CreateApp（无RequestBody类会报9499）。不要用一个通用解析器处理所有格式的客户文件。不要假设batch_create成功=数据正确，飞书API写None不报错。",
+  "confidence": 0.9,
+  "created_at": "2026-05-03T08:00:00+00:00",
+  "disabled": false,
+  "effective_count": 3,
+  "experience_level": "mature",
+  "guidance": "飞书API操作统一用feishu_common.api_call(method,path,body)直接HTTP调用。数据导入三步法：①先head -30看源文件格式(JSON/竖排md/横排md)→②按格式写解析器→③导入后list_records读回3条验证。新skill开发完必须cp到~/.hubos/skill_pool/并更新skill.json。",
+  "hit_count": 5,
+  "last_retrieved_at": "2026-05-03T08:00:00+00:00",
+  "maturity_score": 85.0,
+  "recommended_tool_order": ["api_call", "list_records", "head"],
+  "recommended_workflow": [
+    "1.先看源文件格式(head -30)",
+    "2.按格式分类解析(JSON/竖排md/横排md)",
+    "3.批量导入(batch_create最多500/批)",
+    "4.读回验证(list_records检查前3条)",
+    "5.新skill注册到技能池(cp+更新skill.json)"
+  ],
+  "scope": "global",
+  "source_session_id": "manual",
+  "status": "approved",
+  "success_rate_estimate": 0.85,
+  "title": "飞书API操作+数据导入+技能池注册：验证比速度重要",
+  "trigger_hint": "input_text:飞书|input_text:导入|input_text:CRM|input_text:bitable|input_text:技能池|input_text:skill_pool|input_text:注册",
+  "trigger_keywords": ["飞书", "feishu", "bitable", "导入", "CRM", "api_call", "技能池", "skill_pool", "batch_create", "数据", "多维表格", "验证"],
+  "usage_pattern_summary": "飞书多维表格操作和数据导入的标准流程。核心教训：验证比速度重要。lark_oapi SDK有body注入bug，用urllib直接HTTP更可靠。不同来源的客户数据格式差异大，必须按格式分别解析。",
+  "what_failed": [
+    "lark_oapi SDK的CreateApp没有RequestBody类，调用报9499错误",
+    "通用markdown解析器把菲律宾竖排表格的表头当成了公司名，导致24条垃圾数据",
+    "batch_create返回code=0但实际数据可以是None，不验证就看不出问题"
+  ],
+  "what_worked": [
+    "urllib直接HTTP POST创建飞书多维表格，绕过SDK bug",
+    "按文件格式分三类解析(巴西JSON/菲律宾竖排md/其他横排md)",
+    "导入后list_records读回验证，发现空记录后删除重建"
+  ]
+}

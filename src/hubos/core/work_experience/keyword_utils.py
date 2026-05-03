@@ -46,6 +46,7 @@ _INTENT_ALIASES: dict[str, tuple[str, ...]] = {
         "教育设备",
         "教学用品",
         "教学仪器",
+        "教学设备",
         "实验室用品",
         "实验室设备",
         "教学模型",
@@ -61,13 +62,39 @@ _INTENT_ALIASES: dict[str, tuple[str, ...]] = {
         "进口商",
         "批发商",
         "采购商",
+        "供应商",
         "distributor",
         "importer",
         "wholesaler",
         "procurement",
         "buyer",
+        "supplier",
+        "vendor",
     ),
     "search": ("搜索", "查找", "搜", "search", "crawl", "web", "browser"),
+    "feishu": (
+        "飞书",
+        "feishu",
+        "lark",
+        "bitable",
+        "多维表格",
+        "多维文档",
+        "知识库",
+    ),
+    "data_import": (
+        "导入",
+        "导入数据",
+        "批量导入",
+        "数据导入",
+        "import",
+        "batch_create",
+    ),
+    "skill_registry": (
+        "技能池",
+        "skill_pool",
+        "注册技能",
+        "技能注册",
+    ),
 }
 
 
@@ -117,7 +144,7 @@ def extract_semantic_keywords(values: Iterable[object]) -> list[str]:
                     )
                 elif canonical == "distributor":
                     keywords.update(
-                        {"distributor", "importer", "buyer", "procurement"},
+                        {"distributor", "importer", "buyer", "procurement", "supplier", "vendor"},
                     )
 
         if "客户" in text and any(
