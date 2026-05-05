@@ -187,7 +187,7 @@ export function AgentModal({
     <Modal
       title={
         editingAgent
-          ? t("agent.editTitle", { name: getAgentDisplayName(editingAgent) })
+          ? t("agent.editTitle", { name: getAgentDisplayName(editingAgent, t) })
           : t("agent.createTitle")
       }
       open={open}
@@ -326,7 +326,7 @@ export function AgentModal({
         <div className={styles.skillGrid}>
           {poolSkills.map((skill) => {
             const isInstalled =
-              editingAgent && installedSkills.includes(skill.name);
+              !!editingAgent && installedSkills.includes(skill.name);
             const isSelected = selectedSkills.includes(skill.name);
             return (
               <Button
