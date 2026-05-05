@@ -1,0 +1,181 @@
+[
+  {
+    "card_id": "search-engine-fallback",
+    "task_type": "网络搜索与信息抓取",
+    "description": "联网搜索最新信息、从URL抓取内容、多搜索引擎兜底策略",
+    "workflow": [
+      "确定搜索目标，选择合适的关键词",
+      "优先使用 web_crawl/xcrawl 搜索",
+      "如果失败，用 tavily_search（多key轮询）",
+      "终极兜底：webReader + DuckDuckGo HTML（免费无额度限制）",
+      "备选兜底：webReader + Brave Search（独立索引）",
+      "从搜索结果中提取目标信息"
+    ],
+    "tools": {
+      "web_crawl": "xcrawl API驱动，支持深度搜索和JS渲染，月额度限制",
+      "tavily_search": "AI优化搜索，支持深度研究模式，3个API key轮询",
+      "webReader + DDG": "终极兜底，URL: https://html.duckduckgo.com/html/?q={keyword}，免费无限额",
+      "webReader + Brave": "备选兜底，URL: https://search.brave.com/search?q={keyword}，独立索引",
+      "browser_use": "最后手段，用无头浏览器渲染JS页面"
+    },
+    "pitfalls": [
+      "Google/Bing自动化搜索触发CAPTCHA，不可用",
+      "Startpage返回403 Forbidden，不可用",
+      "DDG HTML直接搜索被限流，需走webReader代理",
+      "webReader URL不接受+号和某些特殊字符",
+      "菲律宾/巴西等政府网站从国内访问极慢，需设120s+超时",
+      "xcrawl/tavily月额度可能用完，月中需检查剩余额度"
+    ],
+    "success_patterns": [
+      "多级兜底确保总能搜到结果",
+      "webReader + DDG是终极免费方案，永远可用",
+      "政府开放API优先于爬网页（如巴西Compras.gov.br无需认证）",
+      "WordPress RSS是采购公告最佳入口"
+    ],
+    "executions": 50,
+    "last_executed_at": "2026-05-05T08:00:00+00:00",
+    "source_sessions": []
+  },
+  {
+    "card_id": "gov-procurement-supplier",
+    "task_type": "政府采购供应商开发",
+    "description": "从目标国家教育部招标公告/开放API提取中标公司，反查联系方式，整理为客户线索",
+    "workflow": [
+      "确定目标国家的教育部采购网站或开放API入口",
+      "搜索招标公告，提取中标公司名称和注册号",
+      "用公司名/注册号反查联系方式（邮箱、电话、网站）",
+      "验证联系方式有效性（hunter_verify等）",
+      "整理客户清单，导入飞书CRM多维表格",
+      "准备开发信，联系目标客户"
+    ],
+    "tools": {
+      "webReader": "搜索政府招标公告，DDG HTML兜底",
+      "super_crawler": "hunter_domain深度邮箱挖掘，hunter_verify验证邮箱",
+      "cnpj.ws": "巴西CNPJ查公司信息，必须带标点格式 XX.XXX.XXX/XXXX-XX",
+      "Compras API": "巴西政府采购开放数据 dadosabertos.compras.gov.br，无需认证，/modulo-contratos/1_consultarContratos 最佳端点",
+      "飞书bitable": "数据导入用api_call()绕过SDK bug，导入后必须抽样验证",
+      "find_customer_leads": "批量多国客户开发管线，内置搜索词本地化+邮箱增强"
+    },
+    "pitfalls": [
+      "FNDE不在Comprasnet系统中，用自己的SIGARP",
+      "数据导入后必须抽样验证，batch_create返回code=0不代表数据正确",
+      "飞书SDK CreateApp无RequestBody，用api_call()绕过",
+      "Compras API日期范围限制365天，需分段查询",
+      "Contratos端点的供应商字段可能为空（数据不完整）",
+      "cnpj.ws必须带标点格式，纯数字不行",
+      "政府采购数据不被搜索引擎索引，需直接爬取政府网站"
+    ],
+    "success_patterns": [
+      "教育部中标公司 > 分销商搜索，中标公司手里有政府订单，200%完美匹配",
+      "政府开放API优先于爬网页（巴西Compras.gov.br无需认证）",
+      "WordPress RSS是采购公告最佳入口",
+      "按月遍历+客户端关键词过滤最高效",
+      "EduBid 6步法：确定入口→搜公告→提中标→查联系→验证→导入CRM"
+    ],
+    "executions": 30,
+    "last_executed_at": "2026-05-05T08:00:00+00:00",
+    "source_sessions": []
+  },
+  {
+    "card_id": "customer-search-keywords",
+    "task_type": "客户搜索关键词设计",
+    "description": "根据实际产品线动态生成精准搜索关键词，产品×角色×地理三维组合",
+    "workflow": [
+      "确认目标产品线（教学设备、实验室器材、教育家具等）",
+      "按产品类别生成具体产品关键词",
+      "按角色生成搜索词（distributor/importer/wholesaler/procurement）",
+      "按目标国家添加地理限定",
+      "组合成搜索查询，排除政府/学校/机构页面"
+    ],
+    "tools": {
+      "find_customer_leads": "内置search_terms_v3.json，支持多国搜索",
+      "web_crawl": "搜索用具体产品词而非泛词",
+      "webReader": "兜底搜索"
+    },
+    "pitfalls": [
+      "泛词搜索（educational equipment）匹配度低，噪音多",
+      "搜索结果中大量政府/学校/机构页面需要过滤",
+      "不同国家用不同语言搜索效果更好（如巴西用葡萄牙语）",
+      "搜索词需要精确到产品级别（如microscope比laboratory equipment好）"
+    ],
+    "success_patterns": [
+      "产品线×角色×地理三维组合最有效",
+      "具体产品词 > 泛行业词",
+      "搜索结果质量过滤：排除.gov/.edu/.org域名",
+      "本地化搜索词（西语搜拉美、葡语搜巴西）效果提升显著"
+    ],
+    "executions": 20,
+    "last_executed_at": "2026-05-05T08:00:00+00:00",
+    "source_sessions": []
+  },
+  {
+    "card_id": "hubos-multi-agent",
+    "task_type": "HubOS多Agent协作",
+    "description": "根据任务类型决定自己处理还是委派给部门Agent，选择正确的协作工具（并行/串行/后台）",
+    "workflow": [
+      "收到任务，判断类型：问答/解释→自己答，执行类→委派",
+      "执行类任务判断归属：单一部门→spawn_subagents单agent，多部门→选择并行或串行",
+      "互不依赖→spawn_subagents并行，有先后顺序→coordinate_workflow串行",
+      "委派prompt必须包含：明确交付物要求+格式要求+不要只说好的我来做",
+      "收到子Agent结果后先判断完整性，不完整就追问补完",
+      "汇总多个部门结果，加决策建议，向用户汇报"
+    ],
+    "tools": {
+      "spawn_subagents": "并行委派，各子任务互不依赖时用",
+      "coordinate_workflow": "串行/DAG委派，后任务依赖前任务结果时用，用{{step_<id>.result}}传递",
+      "delegate_task": "长时间后台任务，用track_task跟踪进度"
+    },
+    "pitfalls": [
+      "spawn_subagents只等agent第一轮text回复就返回（~10秒），不等工具调用完成",
+      "子Agent回'好的我来做'不等于完成，必须拿到最终交付物",
+      "delegate_task不能委派写代码任务，用spawn_subagents(agent_id='rd')",
+      "同一时间并行委派太多任务给同一Agent可能导致API 429限速",
+      "委派prompt不明确会导致子Agent只回复一句话就结束"
+    ],
+    "success_patterns": [
+      "委派prompt模板：给我一份X字的Y报告/分析/方案，直接输出最终结果",
+      "先判断类型再选工具，不要一上来就coordinate_workflow",
+      "结果验收标准：完整报告/可运行代码/具体数据 > '好的收到'",
+      "commit前必跑pre-commit run --all-files + cd console && npm run format:check"
+    ],
+    "executions": 40,
+    "last_executed_at": "2026-05-05T08:00:00+00:00",
+    "source_sessions": []
+  },
+  {
+    "card_id": "feishu-data-import",
+    "task_type": "飞书数据操作与导入",
+    "description": "使用飞书API操作多维表格/文档/知识库/云盘，包括数据导入、字段管理、记录增删改查",
+    "workflow": [
+      "确认操作类型（bitable/doc/wiki/drive）和目标资源ID",
+      "使用feishu_common.api_call()进行HTTP调用（绕过SDK bug）",
+      "批量操作前先用小数据集测试",
+      "执行批量操作",
+      "操作后抽样验证实际数据（不能只看API返回码）"
+    ],
+    "tools": {
+      "feishu_common": "公共模块，get_client()/call_api()/api_call()三种调用方式",
+      "api_call()": "直接HTTP调用，绕过SDK CreateApp bug，推荐方式",
+      "feishu_bitable": "多维表格13个命令，CRUD+字段管理",
+      "feishu_doc": "文档9个命令，创建/读取/Block操作",
+      "feishu_wiki": "知识库11个命令，空间/节点/成员管理",
+      "feishu_drive": "云盘11个命令，上传/下载/列表"
+    },
+    "pitfalls": [
+      "SDK CreateApp无RequestBody类，必须用api_call()绕过",
+      "resp.data不存在，必须json.loads(resp.raw.content.decode('utf-8'))或用api_call()",
+      "batch_create返回code=0不代表数据正确，可能写入None",
+      "数据导入前必须先看源文件格式（JSON/竖排md/横排md），不能用一个解析器覆盖全部",
+      "字段类型要匹配：单选值必须是已有选项，否则静默失败"
+    ],
+    "success_patterns": [
+      "统一用api_call()做所有飞书API调用",
+      "数据导入流程：看格式→小批量测试→全量导入→抽样验证",
+      "新skill开发完必须注册到技能池：cp -r skills/xxx ~/.hubos/skill_pool/ + 更新skill.json",
+      "响应解析用json.loads(resp.raw.content.decode('utf-8'))而非resp.data"
+    ],
+    "executions": 25,
+    "last_executed_at": "2026-05-05T08:00:00+00:00",
+    "source_sessions": []
+  }
+]

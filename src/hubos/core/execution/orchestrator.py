@@ -125,12 +125,9 @@ class ExecutionOrchestrator:
         """
         Phase 4: Retrieve work experience cards before task execution.
 
-        This is a bypass-read: experiences are retrieved and attached to the task
-        context but do NOT modify prompts, tools, or execution logic.
-
-        Controlled by ENABLE_WORK_EXPERIENCE_LAYER feature flag.
+        v4: Uses LLM-based matching to find a WorkflowCard.
         """
-        from hubos.core.work_experience.integration import (
+        from hubos.core.work_experience.integration_v4 import (
             get_work_experience_interceptor,
         )
 
@@ -140,20 +137,21 @@ class ExecutionOrchestrator:
 
         try:
             interceptor = get_work_experience_interceptor()
-            cards = interceptor.pre_execute(task)
+            card = interceptor.pre_execute(
+                user_message=task.input_text or "",
+                session_id=task.session_id or "",
+            )
 
-            # Emit event only when the layer is enabled (flag on, retrieval ran)
+            # Emit event only when the layer is enabled
             if get_feature_flags().enable_work_experience_layer:
                 self._event_store.add_event(
                     task_id=task.task_id,
                     trace_id=task.trace_id,
                     event_type=EventType.WORK_EXPERIENCE_RETRIEVED,
                     data={
-                        "card_count": len(cards),
-                        "card_ids": [c.get("experience_id") for c in cards],
-                        "top_titles": [
-                            c.get("title", "")[:60] for c in cards[:3]
-                        ],
+                        "card_count": 1 if card else 0,
+                        "card_ids": [card.card_id] if card else [],
+                        "top_titles": [card.task_type] if card else [],
                     },
                 )
         except Exception as exc:
@@ -179,13 +177,11 @@ class ExecutionOrchestrator:
 
     def _persist_work_experience_from_task(self, task: Task) -> None:
         """
-        Run post-execution reflection and candidate card extraction.
-
-        This is best-effort only: any learning failure is logged and ignored so
-        the user-facing task result is never affected.
+        Run post-execution reflection and card update (v4).
+        Best-effort: never blocks user-facing result.
         """
         try:
-            from hubos.core.work_experience.integration import (
+            from hubos.core.work_experience.integration_v4 import (
                 get_work_experience_interceptor,
             )
 
@@ -680,7 +676,7 @@ class ExecutionOrchestrator:
                         },
                     )
                     try:
-                        from hubos.core.work_experience.integration import (
+                        from hubos.core.work_experience.integration_v4 import (
                             get_work_experience_interceptor,
                         )
 

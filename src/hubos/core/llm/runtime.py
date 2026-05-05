@@ -142,7 +142,9 @@ class LLMRuntime:
 
         user_prompt = user_template.format(input=input_text)
 
-        # Phase 5-A: Inject compressed experience hints into user prompt
+        # Work Experience injection now happens in runner.py (v4),
+        # not here.  Keep the call for backward compat but it's a no-op
+        # unless context contains v3-style work_experience_cards.
         user_prompt = self._inject_work_experience(user_prompt, context)
 
         try:
