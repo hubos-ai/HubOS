@@ -4,6 +4,7 @@
 Provides a single entry point for executing prompts through configured LLM providers.
 """
 
+import json
 import logging
 import os
 from dataclasses import dataclass
@@ -93,8 +94,35 @@ class LLMRuntime:
             provider: LLM provider instance (creates MiniMaxProvider if not provided)
             enable_fallback: Enable fallback to mock if provider fails
         """
+        if provider is None:
+            provider = self._create_provider_from_hubos_config()
         self._provider = provider or MiniMaxProvider()
         self._enable_fallback = enable_fallback
+
+    @staticmethod
+    def _create_provider_from_hubos_config() -> Optional[MiniMaxProvider]:
+        """Try to create MiniMaxProvider from HubOS provider config.
+
+        Falls back to env-var based init if HubOS config is unavailable.
+        """
+        try:
+            from hubos.constant import SECRET_DIR
+
+            for name in ("minimax-cn", "minimax"):
+                path = SECRET_DIR / "providers" / "builtin" / f"{name}.json"
+                if path.exists():
+                    with open(path) as f:
+                        cfg = json.load(f)
+                    api_key = cfg.get("api_key", "")
+                    base_url = cfg.get("base_url", "")
+                    if api_key:
+                        return MiniMaxProvider(
+                            api_key=api_key,
+                            base_url=base_url or None,
+                        )
+        except Exception:  # noqa: BLE001
+            pass
+        return None
 
     @property
     def provider(self) -> MiniMaxProvider:
