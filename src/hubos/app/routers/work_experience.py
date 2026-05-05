@@ -7,12 +7,15 @@ UI, API, and prompt injection all look at the same source of truth.
 """
 from __future__ import annotations
 
+import json
 import logging
 from collections import Counter
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Path, Query
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException, Path as ApiPath, Query
 from pydantic import BaseModel, Field
 
 from hubos.core.work_experience.schemas_v4 import WorkflowCard
@@ -415,13 +418,13 @@ async def list_cards(
     summary="Get a v4 card",
 )
 async def get_card(
-    card_id: str = Path(..., description="V4 card slug"),
+    card_id: str = ApiPath(..., description="V4 card slug"),
 ) -> WorkExperienceCard:
     return _to_response(_card_or_404(_get_store(), card_id))
 
 
 @router.get("/cards/{card_id}/quality-score", summary="Get quality score")
-async def get_quality_score(card_id: str = Path(...)) -> dict[str, Any]:
+async def get_quality_score(card_id: str = ApiPath(...)) -> dict[str, Any]:
     card = _card_or_404(_get_store(), card_id)
     return {
         "experience_id": card.card_id,
@@ -434,7 +437,7 @@ async def get_quality_score(card_id: str = Path(...)) -> dict[str, Any]:
 
 
 @router.get("/cards/{card_id}/maturity", summary="Get maturity details")
-async def get_maturity(card_id: str = Path(...)) -> dict[str, Any]:
+async def get_maturity(card_id: str = ApiPath(...)) -> dict[str, Any]:
     card = _card_or_404(_get_store(), card_id)
     effective = _effective_count(card)
     ratio = 0.0 if card.executions == 0 else effective / card.executions
@@ -464,7 +467,7 @@ async def get_maturity(card_id: str = Path(...)) -> dict[str, Any]:
     response_model=StatusTransitionResponse,
 )
 async def transition_status(
-    card_id: str = Path(...),
+    card_id: str = ApiPath(...),
     body: StatusTransitionRequest = ...,
 ) -> StatusTransitionResponse:
     store = _get_store()
@@ -481,7 +484,7 @@ async def transition_status(
 
 @router.patch("/cards/{card_id}/level", response_model=LevelTransitionResponse)
 async def transition_level(
-    card_id: str = Path(...),
+    card_id: str = ApiPath(...),
     body: LevelTransitionRequest = ...,
 ) -> LevelTransitionResponse:
     store = _get_store()
@@ -500,7 +503,9 @@ async def transition_level(
     "/cards/{card_id}/approve",
     response_model=StatusTransitionResponse,
 )
-async def approve_card(card_id: str = Path(...)) -> StatusTransitionResponse:
+async def approve_card(
+    card_id: str = ApiPath(...),
+) -> StatusTransitionResponse:
     return await transition_status(
         card_id,
         StatusTransitionRequest(status="approved"),
@@ -511,7 +516,7 @@ async def approve_card(card_id: str = Path(...)) -> StatusTransitionResponse:
     "/cards/{card_id}/reject",
     response_model=StatusTransitionResponse,
 )
-async def reject_card(card_id: str = Path(...)) -> StatusTransitionResponse:
+async def reject_card(card_id: str = ApiPath(...)) -> StatusTransitionResponse:
     return await transition_status(
         card_id,
         StatusTransitionRequest(status="rejected"),
@@ -522,7 +527,9 @@ async def reject_card(card_id: str = Path(...)) -> StatusTransitionResponse:
     "/cards/{card_id}/archive",
     response_model=StatusTransitionResponse,
 )
-async def archive_card(card_id: str = Path(...)) -> StatusTransitionResponse:
+async def archive_card(
+    card_id: str = ApiPath(...),
+) -> StatusTransitionResponse:
     return await transition_status(
         card_id,
         StatusTransitionRequest(status="archived"),
@@ -534,7 +541,7 @@ async def archive_card(card_id: str = Path(...)) -> StatusTransitionResponse:
     response_model=StatusTransitionResponse,
 )
 async def reactivate_card(
-    card_id: str = Path(...),
+    card_id: str = ApiPath(...),
 ) -> StatusTransitionResponse:
     store = _get_store()
     card = _card_or_404(store, card_id)
@@ -554,7 +561,7 @@ async def reactivate_card(
     "/cards/{card_id}/promote",
     response_model=LevelTransitionResponse,
 )
-async def promote_card(card_id: str = Path(...)) -> LevelTransitionResponse:
+async def promote_card(card_id: str = ApiPath(...)) -> LevelTransitionResponse:
     store = _get_store()
     card = _card_or_404(store, card_id)
     order = ["new", "observed", "mature"]
@@ -579,7 +586,7 @@ async def promote_card(card_id: str = Path(...)) -> LevelTransitionResponse:
 
 
 @router.post("/cards/{card_id}/demote", response_model=LevelTransitionResponse)
-async def demote_card(card_id: str = Path(...)) -> LevelTransitionResponse:
+async def demote_card(card_id: str = ApiPath(...)) -> LevelTransitionResponse:
     store = _get_store()
     card = _card_or_404(store, card_id)
     order = ["new", "observed", "mature"]
@@ -606,7 +613,9 @@ async def demote_card(card_id: str = Path(...)) -> LevelTransitionResponse:
     "/cards/{card_id}/deprecate",
     response_model=LevelTransitionResponse,
 )
-async def deprecate_card(card_id: str = Path(...)) -> LevelTransitionResponse:
+async def deprecate_card(
+    card_id: str = ApiPath(...),
+) -> LevelTransitionResponse:
     return await transition_level(
         card_id,
         LevelTransitionRequest(level="deprecated"),
@@ -618,7 +627,7 @@ async def deprecate_card(card_id: str = Path(...)) -> LevelTransitionResponse:
     response_model=DuplicateDetectionResponse,
 )
 async def find_duplicates(
-    card_id: str = Path(...),
+    card_id: str = ApiPath(...),
     threshold: float = Query(0.5, ge=0.0, le=1.0),
 ) -> DuplicateDetectionResponse:
     store = _get_store()
