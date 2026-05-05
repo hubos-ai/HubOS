@@ -22,18 +22,22 @@ class CardRetriever:
     def __init__(self, store: CardStore) -> None:
         self._store = store
 
-    def match(
+    def _classify_and_match(
         self,
         user_message: str,
-    ) -> Optional[WorkflowCard]:
+    ) -> tuple[Optional[WorkflowCard], Optional[dict]]:
         """
-        Given a user message, find the best matching card.
+        Single LLM call: classify task → match card OR suggest new type.
 
-        Returns None if no match or if LLM is unavailable.
+        Returns:
+            (matched_card, None) if found
+            (None, suggestion_dict) if new type suggested
+            (None, None) if LLM unavailable / no useful output
         """
         cards_index = self._store.list_index()
+
         if not cards_index:
-            return None
+            return None, None
 
         # Build the classification prompt
         card_list = "\n".join(
@@ -55,7 +59,7 @@ class CardRetriever:
         try:
             result = self._call_llm(prompt)
             if not result:
-                return None
+                return None, None
 
             # Parse JSON
             text = result.strip()
@@ -81,14 +85,13 @@ class CardRetriever:
                             "user_msg_preview": user_message[:80],
                         },
                     )
-                    return card
+                    return card, None
                 logger.warning(
                     "LLM matched type '%s' but no card found in store",
                     matched_type,
                 )
-                return None
 
-            # No match — LLM suggests a new type
+            # No match — LLM suggests a new type (same call, no extra LLM)
             new_type = parsed.get("new_type")
             new_desc = parsed.get("description", "")
             if new_type:
@@ -99,14 +102,27 @@ class CardRetriever:
                         "description": new_desc,
                     },
                 )
-            return None
+                return None, {
+                    "new_type": new_type,
+                    "description": new_desc,
+                }
+
+            return None, None
 
         except json.JSONDecodeError:
             logger.warning("LLM returned invalid JSON for card matching")
-            return None
+            return None, None
         except Exception as exc:
             logger.warning("Card matching failed: %s", exc)
-            return None
+            return None, None
+
+    def match(
+        self,
+        user_message: str,
+    ) -> Optional[WorkflowCard]:
+        """Convenience wrapper: return matched card only (ignore suggestion)."""
+        card, _ = self._classify_and_match(user_message)
+        return card
 
     def get_or_suggest(
         self,
@@ -115,27 +131,27 @@ class CardRetriever:
         """
         Match a card OR return a suggestion for a new card.
 
+        Single LLM call — no double invocation.
+
         Returns:
             (matched_card, None) if found
             (None, suggestion_dict) if new type suggested
             (None, None) if LLM unavailable
         """
-        cards_index = self._store.list_index()
+        card, suggestion = self._classify_and_match(user_message)
 
-        if not cards_index:
-            # No cards at all — suggest based on user message
-            return None, self._suggest_new_type(user_message)
-
-        card = self.match(user_message)
         if card:
             return card, None
 
-        # No match — try to get suggestion from last LLM call result
-        # Re-call LLM specifically for new type suggestion
+        # If we already got a suggestion from the classify call, use it
+        if suggestion:
+            return None, suggestion
+
+        # No cards in store at all — ask LLM to suggest a new type
         return None, self._suggest_new_type(user_message)
 
     def _suggest_new_type(self, user_message: str) -> Optional[dict]:
-        """Ask LLM to suggest a new task type for this message."""
+        """Ask LLM to suggest a new task type (only when store is empty)."""
         prompt = (
             "你是一个任务分类器。根据用户任务，建议一个任务类型名和描述。\n\n"
             f"用户任务：{user_message[:500]}\n\n"

@@ -128,10 +128,12 @@ class FeatureFlags:
     #     effective_count: NEVER increments — _execute_stage_mock bypasses generate_for_stage
     #     → Cards accumulate hits but effective_count remains 0 in mock-only deployments
     #
-    enable_work_experience_layer: bool = False  # 启用经验沉淀层
+    enable_work_experience_layer: bool = True  # 启用经验沉淀层 (v4 active)
     # When enabled: compressed experience hints are injected into LLM prompt
     # When disabled: prompts are assembled without experience hints
-    enable_work_experience_prompt_injection: bool = False  # 启用经验注入prompt
+    enable_work_experience_prompt_injection: bool = (
+        True  # 启用经验注入prompt (v4 active)
+    )
 
     @classmethod
     def from_env(cls) -> "FeatureFlags":
@@ -374,12 +376,12 @@ class FeatureFlags:
             == "true",
             enable_work_experience_layer=os.environ.get(
                 "ENABLE_WORK_EXPERIENCE_LAYER",
-                "false",
+                "true",
             ).lower()
             == "true",
             enable_work_experience_prompt_injection=os.environ.get(
                 "ENABLE_WORK_EXPERIENCE_PROMPT_INJECTION",
-                "false",
+                "true",
             ).lower()
             == "true",
         )

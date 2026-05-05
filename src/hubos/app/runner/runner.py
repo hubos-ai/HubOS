@@ -8,7 +8,7 @@ import logging
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from uuid import uuid4
+
 
 from agentscope.message import Msg, TextBlock
 from agentscope.pipeline import stream_printing_messages
@@ -58,67 +58,6 @@ def _is_approval(text: str) -> bool:
     """
     normalized = " ".join(text.split()).lower()
     return normalized in _APPROVE_EXACT
-
-
-def _build_chat_work_experience_task(
-    *,
-    query: str,
-    session_id: str,
-    channel: str = DEFAULT_CHANNEL,
-):
-    """Build a lightweight chat task for legacy Work Experience tests."""
-    from ...core.execution.task_store import Task
-
-    task_id = f"chat-turn-{uuid4()}"
-    return Task(
-        task_id=task_id,
-        trace_id=f"chat-trace-{uuid4()}",
-        input_text=query,
-        session_id=session_id,
-        channel=channel,
-        requested_workflow="desktop_chat",
-    )
-
-
-def _build_chat_work_guidance(cards: list[dict[str, Any]]) -> str:
-    """Format retrieved Work Experience cards for chat prompt injection.
-
-    V4 injects directly from WorkflowCard.formatted_for_injection(), but this
-    helper is kept for older callers/tests that pass legacy dict cards.
-    """
-    from ...core.infra.feature_flags import get_feature_flags
-
-    flags = get_feature_flags()
-    if (
-        not flags.enable_work_experience_layer
-        or not flags.enable_work_experience_prompt_injection
-        or not cards
-    ):
-        return ""
-
-    parts = ["[Work Guidance]"]
-    for card in cards:
-        title = card.get("title") or card.get("experience_id") or "Experience"
-        parts.append(f"- {title}")
-        summary = card.get("usage_pattern_summary") or card.get("guidance")
-        if summary:
-            parts.append(f"  Summary: {summary}")
-        tools = card.get("recommended_tool_order") or []
-        if tools:
-            parts.append(f"  Tools: {', '.join(str(t) for t in tools)}")
-        workflow = card.get("recommended_workflow") or []
-        if workflow:
-            parts.append(
-                "  Workflow: " + " -> ".join(str(step) for step in workflow),
-            )
-        worked = card.get("what_worked") or []
-        if worked:
-            parts.append("  Worked: " + "; ".join(str(x) for x in worked[:3]))
-        failed = card.get("what_failed") or []
-        if failed:
-            parts.append("  Avoid: " + "; ".join(str(x) for x in failed[:3]))
-    parts.append("[/Work Guidance]")
-    return "\n".join(parts)
 
 
 class AgentRunner(Runner):
@@ -348,15 +287,21 @@ class AgentRunner(Runner):
             )
 
             try:
-                from ...core.work_experience.integration_v4 import (
-                    get_work_experience_interceptor,
-                )
+                from ...core.infra.feature_flags import get_feature_flags
 
-                interceptor = get_work_experience_interceptor()
-                matched_card = interceptor.pre_execute(
-                    user_message=query or "",
-                    session_id=session_id,
-                )
+                flags = get_feature_flags()
+                if flags.use_work_experience():
+                    from ...core.work_experience.integration_v4 import (
+                        get_work_experience_interceptor,
+                    )
+
+                    interceptor = get_work_experience_interceptor()
+                    matched_card = interceptor.pre_execute(
+                        user_message=query or "",
+                        session_id=session_id,
+                    )
+                else:
+                    matched_card = None
                 if matched_card:
                     card_guidance = matched_card.formatted_for_injection()
                     env_context = (
@@ -524,21 +469,24 @@ class AgentRunner(Runner):
         finally:
             if agent is not None and final_response_text.strip():
                 try:
-                    from ...core.work_experience.integration_v4 import (
-                        get_work_experience_interceptor,
-                    )
+                    from ...core.infra.feature_flags import get_feature_flags
 
-                    interceptor = get_work_experience_interceptor()
-                    interceptor.post_chat_turn(
-                        session_id=session_id,
-                        user_input=query or "",
-                        assistant_response=final_response_text,
-                        channel=channel,
-                        agent_id=self.agent_id,
-                        execution_time_ms=int(
-                            (time.time() - chat_turn_started_at) * 1000,
-                        ),
-                    )
+                    if get_feature_flags().use_work_experience():
+                        from ...core.work_experience.integration_v4 import (
+                            get_work_experience_interceptor,
+                        )
+
+                        interceptor = get_work_experience_interceptor()
+                        interceptor.post_chat_turn(
+                            session_id=session_id,
+                            user_input=query or "",
+                            assistant_response=final_response_text,
+                            channel=channel,
+                            agent_id=self.agent_id,
+                            execution_time_ms=int(
+                                (time.time() - chat_turn_started_at) * 1000,
+                            ),
+                        )
                 except Exception:
                     logger.warning(
                         "Failed to persist WorkExperience v4 from chat turn",
