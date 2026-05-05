@@ -52,7 +52,9 @@ export function AgentModal({
 
   // ── Model selector state ────────────────────────────────────────────
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
+    null,
+  );
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [loadingModels, setLoadingModels] = useState(false);
   const [followGlobal, setFollowGlobal] = useState(true);
@@ -224,7 +226,10 @@ export function AgentModal({
       {/* ── Default Model Section ─────────────────────────────────────── */}
       {editingAgent && (
         <>
-          <Divider orientation="left" style={{ marginTop: 8, marginBottom: 16 }}>
+          <Divider
+            orientation="left"
+            style={{ marginTop: 8, marginBottom: 16 }}
+          >
             {t("taskModes.agentModelTitle")}
           </Divider>
 
@@ -334,16 +339,10 @@ export function AgentModal({
                 ghost={isSelected && !isInstalled}
                 disabled={isInstalled}
                 onClick={() => toggleSkill(skill.name)}
-                icon={
-                  isSelected || isInstalled ? <CheckOutlined /> : undefined
-                }
+                icon={isSelected || isInstalled ? <CheckOutlined /> : undefined}
                 className={styles.skillTag}
               >
-                <Text
-                  ellipsis
-                  style={{ maxWidth: 100 }}
-                  disabled={isInstalled}
-                >
+                <Text ellipsis style={{ maxWidth: 100 }} disabled={isInstalled}>
                   {skill.name}
                 </Text>
               </Button>

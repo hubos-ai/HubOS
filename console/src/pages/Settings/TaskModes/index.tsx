@@ -108,11 +108,7 @@ export default function TaskModesPage() {
       <div className={styles.page}>
         <div className={styles.centerState}>
           <span className={styles.stateTextError}>{error}</span>
-          <Button
-            size="small"
-            onClick={fetchConfig}
-            style={{ marginTop: 12 }}
-          >
+          <Button size="small" onClick={fetchConfig} style={{ marginTop: 12 }}>
             {t("common.refresh")}
           </Button>
         </div>
