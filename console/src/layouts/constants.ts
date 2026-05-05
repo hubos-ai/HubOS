@@ -38,6 +38,7 @@ export const KEY_TO_PATH: Record<string, string> = {
   "token-usage": "/token-usage",
   "voice-transcription": "/voice-transcription",
   "admin-sessions": "/admin/sessions",
+  "task-modes": "/task-modes",
 };
 
 export const KEY_TO_LABEL: Record<string, string> = {
@@ -59,6 +60,7 @@ export const KEY_TO_LABEL: Record<string, string> = {
   "token-usage": "nav.tokenUsage",
   agents: "nav.agents",
   "admin-sessions": "nav.adminSessions",
+  "task-modes": "nav.taskModes",
 };
 
 // ── URL helpers ───────────────────────────────────────────────────────────

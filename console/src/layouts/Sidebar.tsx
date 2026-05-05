@@ -213,6 +213,12 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
       label: t("nav.agents"),
     },
     {
+      key: "task-modes",
+      icon: <SparkModifyLine size={18} />,
+      path: "/task-modes",
+      label: t("nav.taskModes"),
+    },
+    {
       key: "models",
       icon: <SparkModePlazaLine size={18} />,
       path: "/models",
@@ -241,6 +247,12 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
       icon: <SparkMicLine size={18} />,
       path: "/voice-transcription",
       label: t("nav.voiceTranscription"),
+    },
+    {
+      key: "task-modes",
+      icon: <SparkDataLine size={18} />,
+      path: "/task-modes",
+      label: t("nav.taskModes", "Task Modes"),
     },
     ...(isAdmin
       ? [
@@ -334,6 +346,11 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
           icon: <SparkAgentLine size={16} />,
         },
         {
+          key: "task-modes",
+          label: collapsed ? null : t("nav.taskModes"),
+          icon: <SparkModifyLine size={16} />,
+        },
+        {
           key: "models",
           label: collapsed ? null : t("nav.models"),
           icon: <SparkModePlazaLine size={16} />,
@@ -362,6 +379,11 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
           key: "voice-transcription",
           label: collapsed ? null : t("nav.voiceTranscription"),
           icon: <SparkMicLine size={16} />,
+        },
+        {
+          key: "task-modes",
+          label: collapsed ? null : t("nav.taskModes", "Task Modes"),
+          icon: <SparkDataLine size={16} />,
         },
       ],
     },

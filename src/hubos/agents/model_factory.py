@@ -946,6 +946,44 @@ def _create_formatter_instance(
     return formatter_class(**kwargs)
 
 
+def create_model_and_formatter_by_name(
+    provider_id: str,
+    model_name: str,
+) -> Tuple[ChatModelBase, FormatterBase]:
+    """Create model and formatter by explicit provider/model names.
+
+    This bypasses agent config and directly creates a model instance
+    from the specified provider. Useful for dedicated tasks like
+    context compaction where a different (faster/cheaper) model is
+    desired.
+
+    Args:
+        provider_id: Provider identifier (e.g. "minimax", "zhipuai")
+        model_name: Model name (e.g. "MiniMax-M2.7-highspeed")
+
+    Returns:
+        Tuple of (model_instance, formatter_instance)
+
+    Raises:
+        ValueError: If provider not found
+    """
+    from ..providers.provider_manager import ProviderManager
+
+    manager = ProviderManager.get_instance()
+    provider = manager.get_provider(provider_id)
+    if provider is None:
+        raise ValueError(
+            f"Provider '{provider_id}' not found. "
+            "Available providers: "
+            f"{list(manager._providers.keys()) if hasattr(manager, '_providers') else 'unknown'}",
+        )
+
+    model = provider.get_chat_model_instance(model_name)
+    formatter = _create_formatter_instance(model.__class__)
+    return model, formatter
+
+
 __all__ = [
     "create_model_and_formatter",
+    "create_model_and_formatter_by_name",
 ]

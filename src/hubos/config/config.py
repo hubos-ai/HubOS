@@ -333,6 +333,22 @@ class ContextCompactConfig(BaseModel):
         description="Whether to include thinking blocks when compacting",
     )
 
+    compact_model_provider: str = Field(
+        default="",
+        description=(
+            "Provider ID for the compaction model. If empty, uses the "
+            "agent's active model. Example: 'minimax'"
+        ),
+    )
+
+    compact_model_name: str = Field(
+        default="",
+        description=(
+            "Model name for compaction. If empty, uses the agent's "
+            "active model. Example: 'MiniMax-M2.7-highspeed'"
+        ),
+    )
+
 
 class ToolResultCompactConfig(BaseModel):
     """Tool result compaction thresholds and retention configuration."""

@@ -15,7 +15,10 @@ from agentscope.message import Msg, TextBlock
 from agentscope.tool import Toolkit, ToolResponse
 
 from hubos.agents.memory.base_memory_manager import BaseMemoryManager
-from hubos.agents.model_factory import create_model_and_formatter
+from hubos.agents.model_factory import (
+    create_model_and_formatter,
+    create_model_and_formatter_by_name,
+)
 from hubos.agents.tools import read_file, write_file, edit_file
 from hubos.agents.utils import get_hubos_token_counter
 from hubos.config import load_config
@@ -169,12 +172,28 @@ See: https://docs.trychroma.com/docs/overview/troubleshooting#sqlite
             )
 
     def _prepare_model_formatter(self) -> None:
-        """Lazily initialize chat_model and formatter if not already set."""
+        """Lazily initialize chat_model and formatter if not already set.
+
+        If a dedicated compaction model is configured in
+        ``context_compact.compact_model_provider/name``, that model is used
+        instead of the agent's active model.
+        """
         self._warn_if_version_mismatch()
         if self.chat_model is None or self.formatter is None:
-            self.chat_model, self.formatter = create_model_and_formatter(
-                self.agent_id,
-            )
+            agent_config = load_agent_config(self.agent_id)
+            cc = agent_config.running.context_compact
+            if cc.compact_model_provider and cc.compact_model_name:
+                (
+                    self.chat_model,
+                    self.formatter,
+                ) = create_model_and_formatter_by_name(
+                    provider_id=cc.compact_model_provider,
+                    model_name=cc.compact_model_name,
+                )
+            else:
+                self.chat_model, self.formatter = create_model_and_formatter(
+                    self.agent_id,
+                )
 
     # ------------------------------------------------------------------
     # Public helpers
