@@ -2,6 +2,7 @@
 """Console APIs: push messages, chat, and file upload for chat."""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -14,6 +15,11 @@ from starlette.responses import StreamingResponse
 
 from agentscope_runtime.engine.schemas.agent_schemas import AgentRequest
 from ..agent_context import get_agent_for_request
+
+# SSE heartbeat interval (seconds).  Keeps the HTTP response alive during
+# long-running LLM calls / tool invocations where no real events are produced.
+# Chromium / Electron may stall a ReadableStream if no bytes arrive for ~30s.
+_SSE_HEARTBEAT_INTERVAL = 15
 
 
 logger = logging.getLogger(__name__)
@@ -125,16 +131,57 @@ async def post_console_chat(
         )
 
     async def event_generator() -> AsyncGenerator[str, None]:
+        """Yield SSE events from *stream_it*, injecting heartbeat comments
+        when the backend is silent (LLM thinking, tool execution, etc.).
+
+        SSE comments (``: ping\\n\\n``) are ignored by spec-compliant parsers
+        but keep the TCP connection alive and prevent Chromium's
+        ReadableStream from stalling.
+        """
         # Hold iterator so finally can aclose(); guarantees stream_from_queue's
         # finally (detach_subscriber) on client abort / generator teardown.
         stream_it = tracker.stream_from_queue(queue, chat.id)
+
+        # Heartbeat task: periodically push ``: ping`` SSE comments so the
+        # client never sees a prolonged silence that could be mistaken for a
+        # dead connection or trigger browser-level buffer stalls.
+        hb_queue: asyncio.Queue[str] = asyncio.Queue()
+        hb_stop = asyncio.Event()
+
+        async def _heartbeat_loop() -> None:
+            try:
+                while not hb_stop.is_set():
+                    try:
+                        await asyncio.wait_for(
+                            hb_stop.wait(),
+                            timeout=_SSE_HEARTBEAT_INTERVAL,
+                        )
+                    except asyncio.TimeoutError:
+                        await hb_queue.put(": ping\n\n")
+            except asyncio.CancelledError:
+                pass
+
+        hb_task = asyncio.create_task(_heartbeat_loop())
         try:
             try:
                 async for event_data in stream_it:
                     yield event_data
+                    # Also drain any queued heartbeats so they don't pile up.
+                    while not hb_queue.empty():
+                        yield hb_queue.get_nowait()
             except Exception as e:
                 logger.exception("Console chat stream error")
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            finally:
+                hb_stop.set()
+                hb_task.cancel()
+                try:
+                    await hb_task
+                except asyncio.CancelledError:
+                    pass
+                # Drain any remaining heartbeats.
+                while not hb_queue.empty():
+                    yield hb_queue.get_nowait()
         finally:
             await stream_it.aclose()
 
