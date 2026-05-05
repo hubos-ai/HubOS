@@ -234,7 +234,7 @@ export function AgentModal({
             </div>
           ) : (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ marginBottom: 8 }}>
+              <div style={{ marginBottom: 8, display: "flex", gap: 8 }}>
                 <Button
                   type={followGlobal ? "primary" : "default"}
                   size="small"
@@ -243,18 +243,16 @@ export function AgentModal({
                     setSelectedProviderId(null);
                     setSelectedModel(null);
                   }}
-                  style={{ marginRight: 8 }}
                 >
                   {t("taskModes.agentModelFollowGlobal")}
                 </Button>
-                {!followGlobal && (
-                  <Button
-                    size="small"
-                    onClick={() => setFollowGlobal(false)}
-                  >
-                    {t("taskModes.agentModelTitle")}
-                  </Button>
-                )}
+                <Button
+                  type={!followGlobal ? "primary" : "default"}
+                  size="small"
+                  onClick={() => setFollowGlobal(false)}
+                >
+                  {t("taskModes.agentModelTitle")}
+                </Button>
               </div>
 
               {!followGlobal && (

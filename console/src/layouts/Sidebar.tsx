@@ -248,12 +248,6 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
       path: "/voice-transcription",
       label: t("nav.voiceTranscription"),
     },
-    {
-      key: "task-modes",
-      icon: <SparkDataLine size={18} />,
-      path: "/task-modes",
-      label: t("nav.taskModes", "Task Modes"),
-    },
     ...(isAdmin
       ? [
           {
@@ -379,11 +373,6 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
           key: "voice-transcription",
           label: collapsed ? null : t("nav.voiceTranscription"),
           icon: <SparkMicLine size={16} />,
-        },
-        {
-          key: "task-modes",
-          label: collapsed ? null : t("nav.taskModes", "Task Modes"),
-          icon: <SparkDataLine size={16} />,
         },
       ],
     },
