@@ -44,9 +44,15 @@ class WorkflowCard:
 
     # Core content
     workflow: list[str] = field(default_factory=list)  # ordered steps
-    tools: dict[str, str] = field(default_factory=dict)  # tool_name -> usage notes
-    pitfalls: list[str] = field(default_factory=list)  # known problems to avoid
-    success_patterns: list[str] = field(default_factory=list)  # what works well
+    tools: dict[str, str] = field(
+        default_factory=dict,
+    )  # tool_name -> usage notes
+    pitfalls: list[str] = field(
+        default_factory=list,
+    )  # known problems to avoid
+    success_patterns: list[str] = field(
+        default_factory=list,
+    )  # what works well
 
     # Metadata
     executions: int = 0
@@ -54,6 +60,12 @@ class WorkflowCard:
     created_at: str = field(default_factory=_utcnow)
     updated_at: str = field(default_factory=_utcnow)
     source_sessions: list[str] = field(default_factory=list)
+
+    # Admin/governance state. These mirror the legacy UI fields so the
+    # Work Experience page can manage v4 cards without falling back to v3.
+    status: str = "approved"  # candidate, approved, rejected, archived
+    experience_level: str = "mature"  # new, observed, mature, deprecated
+    disabled: bool = False
 
     def __post_init__(self) -> None:
         if not self.card_id and self.task_type:
@@ -79,6 +91,9 @@ class WorkflowCard:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "source_sessions": self.source_sessions[-20:],  # keep last 20
+            "status": self.status,
+            "experience_level": self.experience_level,
+            "disabled": self.disabled,
         }
 
     @classmethod
@@ -96,6 +111,9 @@ class WorkflowCard:
             created_at=data.get("created_at", _utcnow()),
             updated_at=data.get("updated_at", _utcnow()),
             source_sessions=data.get("source_sessions", []),
+            status=data.get("status", "approved"),
+            experience_level=data.get("experience_level", "mature"),
+            disabled=data.get("disabled", False),
         )
 
     def to_json(self) -> str:

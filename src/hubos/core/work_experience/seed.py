@@ -44,6 +44,9 @@ def seed_work_experience_cards(store=None) -> int:
     for path in sorted(_SEED_DIR.glob("*.json")):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                logger.debug("Skipping non-v3 seed file: %s", path.name)
+                continue
             title = data.get("title", "")
             if title and title in existing_titles:
                 logger.debug("Seed card already exists: %s", title[:60])

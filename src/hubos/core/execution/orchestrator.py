@@ -141,6 +141,21 @@ class ExecutionOrchestrator:
                 user_message=task.input_text or "",
                 session_id=task.session_id or "",
             )
+            task.work_experience_cards = []
+            if card:
+                task.work_experience_cards = [
+                    {
+                        "experience_id": card.card_id,
+                        "title": card.task_type,
+                        "guidance": card.formatted_for_injection(),
+                        "status": getattr(card, "status", "approved"),
+                        "experience_level": getattr(
+                            card,
+                            "experience_level",
+                            "mature",
+                        ),
+                    },
+                ]
 
             # Emit event only when the layer is enabled
             if get_feature_flags().enable_work_experience_layer:

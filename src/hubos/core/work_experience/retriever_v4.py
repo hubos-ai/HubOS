@@ -46,9 +46,9 @@ class CardRetriever:
             f"已有任务类型：\n{card_list}\n\n"
             f"用户任务：{user_message[:500]}\n\n"
             "回复规则：\n"
-            "- 如果匹配某个已有类型，输出：{\"match\": \"任务类型名\"}\n"
-            "- 如果不匹配任何已有类型，输出：{\"match\": null, \"new_type\": \"建议的新类型名\", "
-            "\"description\": \"一句话描述\"}\n"
+            '- 如果匹配某个已有类型，输出：{"match": "任务类型名"}\n'
+            '- 如果不匹配任何已有类型，输出：{"match": null, "new_type": "建议的新类型名", '
+            '"description": "一句话描述"}\n'
             "- 只输出JSON，不要解释"
         )
 
@@ -62,7 +62,9 @@ class CardRetriever:
             if text.startswith("```"):
                 lines = text.split("\n")
                 text = "\n".join(
-                    line for line in lines if not line.strip().startswith("```")
+                    line
+                    for line in lines
+                    if not line.strip().startswith("```")
                 )
 
             parsed = json.loads(text)
@@ -150,7 +152,9 @@ class CardRetriever:
             if text.startswith("```"):
                 lines = text.split("\n")
                 text = "\n".join(
-                    line for line in lines if not line.strip().startswith("```")
+                    line
+                    for line in lines
+                    if not line.strip().startswith("```")
                 )
             return json.loads(text)
         except Exception:

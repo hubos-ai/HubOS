@@ -184,14 +184,17 @@ class WorkExperienceInterceptor:
         if self._session_card_id:
             existing_card = self._store.get(self._session_card_id)
         elif self._session_task_type:
-            existing_card = self._store.get_by_task_type(self._session_task_type)
+            existing_card = self._store.get_by_task_type(
+                self._session_task_type,
+            )
 
         # LLM reflection
         reflection = self._reflect_with_llm(turns, existing_card)
 
         if reflection is None:
             logger.debug(
-                "No reflection extracted from %d turns", buf_count,
+                "No reflection extracted from %d turns",
+                buf_count,
             )
             return None
 
@@ -216,7 +219,8 @@ class WorkExperienceInterceptor:
         else:
             # Create new card
             card = self._create_card_from_reflection(
-                reflection, session_id=session_id,
+                reflection,
+                session_id=session_id,
             )
             if card:
                 self._store.save(card)
@@ -256,7 +260,9 @@ class WorkExperienceInterceptor:
         for i, t in enumerate(turns[-10:]):
             q = (t.get("user_input") or "")[:200]
             r = (t.get("assistant_response") or "")[:500]
-            context_parts.append(f"Round {i + 1}:\nUser: {q}\nAssistant: {r}\n")
+            context_parts.append(
+                f"Round {i + 1}:\nUser: {q}\nAssistant: {r}\n",
+            )
         context_text = "\n".join(context_parts)
 
         # Include existing card content if available
@@ -312,7 +318,9 @@ class WorkExperienceInterceptor:
             if text.startswith("```"):
                 lines = text.split("\n")
                 text = "\n".join(
-                    line for line in lines if not line.strip().startswith("```")
+                    line
+                    for line in lines
+                    if not line.strip().startswith("```")
                 )
 
             parsed = json.loads(text)
@@ -367,7 +375,8 @@ class WorkExperienceInterceptor:
         new_success = reflection.get("success_patterns", [])
         if new_success:
             card.success_patterns = _merge_deduplicate(
-                card.success_patterns, new_success,
+                card.success_patterns,
+                new_success,
             )
 
         # Update metadata
@@ -417,6 +426,7 @@ class WorkExperienceInterceptor:
 # Helpers
 # ======================================================================
 
+
 def _merge_deduplicate(
     existing: list[str],
     new_items: list[str],
@@ -441,9 +451,8 @@ def _merge_deduplicate(
         for i, existing_item in enumerate(result):
             ex_prefix = existing_item.strip().lower()[:20]
             # If one is a prefix of the other, they're "similar"
-            if (
-                item_prefix.startswith(ex_prefix)
-                or ex_prefix.startswith(item_prefix)
+            if item_prefix.startswith(ex_prefix) or ex_prefix.startswith(
+                item_prefix,
             ):
                 # Keep the longer one (more detail)
                 if len(item_clean) > len(existing_item.strip()):

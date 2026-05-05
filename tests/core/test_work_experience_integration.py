@@ -31,6 +31,11 @@ from hubos.core.work_experience.schemas import (
 from hubos.core.work_experience.integration import (
     get_work_experience_interceptor,
 )
+from hubos.core.work_experience.integration_v4 import (
+    WorkExperienceInterceptor as V4WorkExperienceInterceptor,
+)
+from hubos.core.work_experience.schemas_v4 import WorkflowCard
+from hubos.core.work_experience.store_v4 import CardStore
 from hubos.core.orchestrator.reflection_engine import TaskContext
 from hubos.core.schemas.memory import ReflectionReport
 from hubos.core.schemas.tasks import TaskResult, TaskStatus as TaskStatusEnum
@@ -264,6 +269,9 @@ class TestWorkExperienceInterceptorUnit:
             cards = interceptor._store.list_all(include_disabled=True)
             assert cards == []
 
+    @pytest.mark.skip(
+        reason="Legacy v3 per-turn card creation was replaced by v4 completion reflection",
+    )
     def test_chat_turn_persists_structured_lesson_card_when_flag_on(
         self,
         tmp_path: Path,
@@ -339,6 +347,95 @@ class TestWorkExperienceInterceptorUnit:
 
 
 # =============================================================================
+# V4 Interceptor Tests
+# =============================================================================
+
+
+class TestWorkExperienceV4Interceptor:
+    """V4 tests: completion reflection creates and updates methodology cards."""
+
+    def test_completion_creates_methodology_card(self, tmp_path: Path) -> None:
+        store = CardStore(root=tmp_path / "we_v4")
+        interceptor = V4WorkExperienceInterceptor(store=store)
+        reflection = {
+            "task_type": "政府采购客户开发",
+            "description": "从政府采购中标结果寻找精准客户",
+            "workflow": ["找到采购平台", "抓取中标结果", "反查供应商联系方式"],
+            "tools": {"browser": "验证政府平台", "curl": "调用开放API"},
+            "pitfalls": ["不要泛搜 distributor"],
+            "success_patterns": ["中标公司比泛搜索更精准"],
+            "has_lessons": True,
+        }
+
+        with patch.object(
+            V4WorkExperienceInterceptor,
+            "_reflect_with_llm",
+            return_value=reflection,
+        ):
+            result = interceptor.post_chat_turn(
+                session_id="session-v4-create",
+                user_input="开发巴西客户",
+                assistant_response="已完成，测试通过。",
+            )
+
+        assert result is not None
+        assert result["action"] == "created"
+        card = store.get(result["card_id"])
+        assert card is not None
+        assert card.task_type == "政府采购客户开发"
+        assert card.executions == 1
+        assert card.source_sessions == ["session-v4-create"]
+
+    def test_completion_updates_existing_methodology_card(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        store = CardStore(root=tmp_path / "we_v4")
+        card = WorkflowCard(
+            card_id="gov-procurement",
+            task_type="政府采购客户开发",
+            description="旧描述",
+            workflow=["找到采购平台"],
+            tools={"browser": "验证页面"},
+            pitfalls=["旧坑"],
+            success_patterns=["旧方法"],
+            executions=2,
+        )
+        store.save(card)
+        interceptor = V4WorkExperienceInterceptor(store=store)
+        interceptor._session_card_id = "gov-procurement"
+
+        reflection = {
+            "task_type": "政府采购客户开发",
+            "description": "从政府采购中标结果寻找精准客户",
+            "workflow": ["找到采购平台", "抓取中标结果"],
+            "tools": {"curl": "调用开放API"},
+            "pitfalls": ["旧坑", "不要泛搜 distributor"],
+            "success_patterns": ["旧方法", "中标公司更精准"],
+            "has_lessons": True,
+        }
+
+        with patch.object(
+            V4WorkExperienceInterceptor,
+            "_reflect_with_llm",
+            return_value=reflection,
+        ):
+            result = interceptor.post_chat_turn(
+                session_id="session-v4-update",
+                user_input="继续优化客户开发",
+                assistant_response="完成了，已更新。",
+            )
+
+        assert result is not None
+        assert result["action"] == "updated"
+        updated = store.get("gov-procurement")
+        assert updated is not None
+        assert updated.executions == 3
+        assert "curl" in updated.tools
+        assert "不要泛搜 distributor" in updated.pitfalls
+
+
+# =============================================================================
 # Orchestrator Integration Tests
 # =============================================================================
 
@@ -406,7 +503,7 @@ class TestOrchestratorWorkExperienceIntegration:
         tmp_path: Path,
         we_store_with_cards: LocalWorkExperienceStore,
     ) -> None:
-        """Flag ON: experiences retrieved and attached, execution result unchanged."""
+        """Flag ON: v4 card retrieved and attached, execution result unchanged."""
         with patch.dict(
             os.environ,
             {
@@ -418,9 +515,21 @@ class TestOrchestratorWorkExperienceIntegration:
 
             reload_feature_flags()
 
-            import hubos.core.work_experience.integration as integ_mod
+            import hubos.core.work_experience.integration_v4 as integ_v4_mod
 
-            integ_mod._interceptor = None
+            integ_v4_mod._interceptor = None
+            v4_store = CardStore(root=tmp_path / "we_v4_orch")
+            v4_card = WorkflowCard(
+                card_id="csv-processing",
+                task_type="CSV处理",
+                description="处理CSV文件并总结内容",
+                workflow=["读取CSV", "分析列", "总结结果"],
+                tools={"pandas": "读取和分析CSV"},
+                pitfalls=["不要假设编码一定是UTF-8"],
+                success_patterns=["先检测编码再读取"],
+                executions=3,
+            )
+            v4_store.save(v4_card)
 
             task_store = TaskStore()
             event_store = EventStore()
@@ -433,27 +542,33 @@ class TestOrchestratorWorkExperienceIntegration:
                 "hubos.core.infra.agent_registry.get_agent_registry",
                 return_value=mock_registry,
             ):
-                # Create the interceptor and inject the test store directly
-                interceptor = get_work_experience_interceptor()
-                interceptor._store = we_store_with_cards
-                interceptor._retriever = WorkExperienceRetriever(
-                    store=we_store_with_cards,
-                    max_results=5,
-                )
-
-                task = orch.submit_task(
-                    input_text="read a CSV file and summarize it",
-                    session_id="session-flag-on",
-                    channel="api",
-                    requested_workflow="one_person_default",
-                )
-                result_task = orch.execute_task(task.task_id)
+                interceptor = V4WorkExperienceInterceptor(store=v4_store)
+                with patch.object(
+                    interceptor._retriever,
+                    "get_or_suggest",
+                    return_value=(v4_card, None),
+                ):
+                    with patch.object(
+                        integ_v4_mod,
+                        "get_work_experience_interceptor",
+                        return_value=interceptor,
+                    ):
+                        task = orch.submit_task(
+                            input_text="read a CSV file and summarize it",
+                            session_id="session-flag-on",
+                            channel="api",
+                            requested_workflow="one_person_default",
+                        )
+                        result_task = orch.execute_task(task.task_id)
 
         # Execution completed successfully
         assert result_task.current_status == TaskStatus.DONE
 
         # Experiences were retrieved and attached
         assert len(result_task.work_experience_cards) >= 1
+        assert result_task.work_experience_cards[0]["experience_id"] == (
+            "csv-processing"
+        )
 
         # WORK_EXPERIENCE_RETRIEVED event was emitted
         events = event_store.get_events(task.task_id)
@@ -577,6 +692,9 @@ class TestOrchestratorWorkExperienceIntegration:
         tmp_path: Path,
     ) -> None:
         """Flag ON: completed task is reflected and saved as a candidate card."""
+        pytest.skip(
+            "Legacy v3 post_execute persistence was replaced by v4 chat completion reflection",
+        )
         with patch.dict(
             os.environ,
             {
@@ -688,6 +806,9 @@ class TestOrchestratorWorkExperienceIntegration:
 # =============================================================================
 
 
+@pytest.mark.skip(
+    reason="Legacy v3 per-turn update tests were replaced by v4 methodology-card tests",
+)
 class TestChatTurnUpdateInsteadOfCreate:
     """Tests: similar chat turns update existing cards instead of creating duplicates."""
 

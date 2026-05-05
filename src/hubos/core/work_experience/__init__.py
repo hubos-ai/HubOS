@@ -1,28 +1,16 @@
 # -*- coding: utf-8 -*-
-"""Work Experience Layer — post-task experience card storage and retrieval.
+"""Work Experience Layer.
 
-Phase 0-3 provides:
-- WorkExperience data model
-- LocalWorkExperienceStore (file-based)
-- WorkExperienceExtractor (from ReflectionReport + TaskContext)
-- WorkExperienceRetriever (scope + keyword + trigger matching)
-
-Phase 4 provides:
-- WorkExperienceInterceptor: bypass-read integration with ExecutionOrchestrator
-
-Phase 5 provides:
-- Prompt injection of compressed experience hints into LLM prompts
-
-Phase 6 provides:
-- Governance state machine: candidate / approved / rejected / archived
-- Quality-based ranking (confidence * usage)
-- WorkExperienceService: administrative API (list/approve/reject/archive/merge)
-- Deduplication and merge logic
-
-All capabilities require ENABLE_WORK_EXPERIENCE_LAYER=true to be active.
+V4 WorkflowCard is the active runtime/admin model. V3 classes are still
+exported for older imports and tests that have not moved to v4 yet.
 """
 
-# v3 imports (kept for backward compat — orchestrator.py still uses these)
+# v3 imports (kept for backward compatibility only)
+from hubos.core.work_experience.extractor import WorkExperienceExtractor
+from hubos.core.work_experience.retriever import WorkExperienceRetriever
+from hubos.core.work_experience.schemas import ExperienceLevel
+from hubos.core.work_experience.service import WorkExperienceService
+from hubos.core.work_experience.store import LocalWorkExperienceStore
 from hubos.core.work_experience.integration import (
     get_work_experience_interceptor as _get_v3_interceptor,
 )
@@ -39,6 +27,7 @@ from hubos.core.work_experience.retriever_v4 import CardRetriever
 # Auto-seed v4 cards on first import (idempotent)
 try:
     from hubos.core.work_experience.seed_v4 import seed_v4_cards
+
     seed_v4_cards()
 except Exception:
     pass
@@ -52,4 +41,9 @@ __all__ = [
     "get_work_experience_interceptor",
     # v3 (backward compat)
     "_get_v3_interceptor",
+    "ExperienceLevel",
+    "LocalWorkExperienceStore",
+    "WorkExperienceExtractor",
+    "WorkExperienceRetriever",
+    "WorkExperienceService",
 ]
