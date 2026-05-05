@@ -112,7 +112,10 @@ export default function AgentsPage() {
             );
           }
         }
-        await agentsApi.updateAgent(editingAgent.id, payload);
+        await agentsApi.updateAgent(editingAgent.id, {
+          ...payload,
+          id: editingAgent.id,
+        });
         message.success(t("agent.updateSuccess"));
       } else {
         const result = await agentsApi.createAgent({
