@@ -307,8 +307,11 @@ def build_host_agent_runner(
                     if role == "assistant" or name in {"assistant", "Friday"}:
                         last_assistant_text = text
                     all_chunks.append(text)
-                if last:
-                    break
+                # NOTE: do NOT `break` on `last`.  `last` from
+                # stream_printing_messages means "last chunk of THIS
+                # streaming message", NOT "the agent is done".  The
+                # generator will naturally exhaust when the agent
+                # coroutine finishes.
         except Exception as e:  # noqa: BLE001
             err_text = f"{type(e).__name__}: {e}"
             raise
