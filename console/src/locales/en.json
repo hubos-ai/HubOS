@@ -1461,7 +1461,15 @@
     "deprecate": "Mark Deprecated",
     "promoteSuccess": "Experience promoted",
     "demoteSuccess": "Experience demoted",
-    "deprecateSuccess": "Experience marked deprecated"
+    "deprecateSuccess": "Experience marked deprecated",
+    "settingsTitle": "Reflection Model",
+    "settingsDescription": "Select the model for experience reflection and summarization. Fast models recommended.",
+    "settingsProvider": "Provider",
+    "settingsModel": "Model",
+    "settingsSaved": "Settings saved",
+    "settingsSaveFailed": "Failed to save settings",
+    "settingsNotConfigured": "Not configured — reflection will be unavailable",
+    "settingsNoProviders": "No configured providers found. Add an API Key in Model Settings first."
   },
   "taskModes": {
     "title": "Task Modes",

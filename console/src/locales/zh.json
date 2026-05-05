@@ -1468,7 +1468,15 @@
     "deprecate": "标记失效",
     "promoteSuccess": "经验已提升",
     "demoteSuccess": "经验已降级",
-    "deprecateSuccess": "经验已标记失效"
+    "deprecateSuccess": "经验已标记失效",
+    "settingsTitle": "反思模型设置",
+    "settingsDescription": "选择用于经验反思和总结的模型。推荐使用速度较快的模型以降低成本。",
+    "settingsProvider": "供应商",
+    "settingsModel": "模型",
+    "settingsSaved": "设置已保存",
+    "settingsSaveFailed": "保存设置失败",
+    "settingsNotConfigured": "未配置 — 反思功能将不可用",
+    "settingsNoProviders": "未找到已配置的供应商，请先在模型设置中添加 API Key"
   },
   "taskModes": {
     "title": "任务模式",

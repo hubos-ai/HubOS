@@ -762,3 +762,120 @@ async def list_by_level() -> dict[str, int]:
         level: counts.get(level, 0)
         for level in ["new", "observed", "mature", "deprecated"]
     }
+
+
+# =============================================================================
+# Settings — reflection model selection
+# =============================================================================
+
+_SETTINGS_PATH = (
+    Path.home() / ".hubos" / "work_experience_v4" / "settings.json"
+)
+
+
+class WorkExperienceSettings(BaseModel):
+    """Settings for the Work Experience system."""
+
+    reflection_provider_id: str = ""
+    reflection_model: str = ""
+
+
+class WorkExperienceSettingsResponse(BaseModel):
+    reflection_provider_id: str = ""
+    reflection_model: str = ""
+    available_providers: list[dict[str, Any]] = []
+
+
+def _load_settings() -> WorkExperienceSettings:
+    if _SETTINGS_PATH.exists():
+        try:
+            data = json.loads(_SETTINGS_PATH.read_text("utf-8"))
+            return WorkExperienceSettings(
+                reflection_provider_id=data.get("reflection_provider_id", ""),
+                reflection_model=data.get("reflection_model", ""),
+            )
+        except Exception:
+            pass
+    return WorkExperienceSettings()
+
+
+def _save_settings(settings: WorkExperienceSettings) -> None:
+    _SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _SETTINGS_PATH.write_text(
+        json.dumps(settings.model_dump(), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _collect_available_providers() -> list[dict[str, Any]]:
+    """Gather all providers with api_key configured and their models."""
+    from hubos.constant import SECRET_DIR
+
+    result: list[dict[str, Any]] = []
+    providers_dir = SECRET_DIR / "providers"
+
+    for subdir in ("builtin", "custom"):
+        pdir = providers_dir / subdir
+        if not pdir.exists():
+            continue
+        for pfile in sorted(pdir.glob("*.json")):
+            try:
+                cfg = json.loads(pfile.read_text("utf-8"))
+            except Exception:
+                continue
+            api_key = cfg.get("api_key", "")
+            if not api_key:
+                continue
+            provider_id = cfg.get("id", pfile.stem)
+            models = []
+            for m in cfg.get("models", []):
+                mid = m if isinstance(m, str) else m.get("id", "")
+                mname = m.get("name", mid) if isinstance(m, dict) else mid
+                if mid:
+                    models.append({"id": mid, "name": mname})
+            # Also include chat_model as a model option
+            chat_model = cfg.get("chat_model", "")
+            if chat_model and not any(m["id"] == chat_model for m in models):
+                models.append({"id": chat_model, "name": chat_model})
+            result.append(
+                {
+                    "provider_id": provider_id,
+                    "name": cfg.get("name", provider_id),
+                    "base_url": cfg.get("base_url", ""),
+                    "models": models,
+                },
+            )
+    return result
+
+
+@router.get("/settings", summary="Get Work Experience settings")
+async def get_settings() -> WorkExperienceSettingsResponse:
+    settings = _load_settings()
+    providers = _collect_available_providers()
+    return WorkExperienceSettingsResponse(
+        reflection_provider_id=settings.reflection_provider_id,
+        reflection_model=settings.reflection_model,
+        available_providers=providers,
+    )
+
+
+class UpdateSettingsRequest(BaseModel):
+    reflection_provider_id: str
+    reflection_model: str
+
+
+@router.put("/settings", summary="Update Work Experience settings")
+async def update_settings(
+    body: UpdateSettingsRequest,
+) -> WorkExperienceSettingsResponse:
+    settings = WorkExperienceSettings(
+        reflection_provider_id=body.reflection_provider_id,
+        reflection_model=body.reflection_model,
+    )
+    _save_settings(settings)
+    providers = _collect_available_providers()
+    return WorkExperienceSettingsResponse(
+        reflection_provider_id=settings.reflection_provider_id,
+        reflection_model=settings.reflection_model,
+        available_providers=providers,
+    )

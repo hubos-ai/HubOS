@@ -24,7 +24,12 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useWorkExperience } from "./useWorkExperience";
-import type { WorkExperienceCard } from "@/api/modules/workExperience";
+import type {
+  WorkExperienceCard,
+  WorkExperienceSettingsResponse,
+  ProviderInfoForWE,
+} from "@/api/modules/workExperience";
+import { workExperienceApi } from "@/api/modules/workExperience";
 import { PageHeader } from "@/components/PageHeader";
 import styles from "./index.module.less";
 
@@ -717,6 +722,132 @@ function StatsBar({
 }
 
 // ---------------------------------------------------------------------------
+// Settings Section — Reflection Model Selector
+// ---------------------------------------------------------------------------
+
+function SettingsSection() {
+  const { t } = useTranslation();
+  const [settings, setSettings] =
+    useState<WorkExperienceSettingsResponse | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState("");
+  const [selectedModel, setSelectedModel] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    workExperienceApi.getSettings().then((s) => {
+      setSettings(s);
+      setSelectedProvider(s.reflection_provider_id);
+      setSelectedModel(s.reflection_model);
+    });
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const result = await workExperienceApi.updateSettings(
+        selectedProvider,
+        selectedModel,
+      );
+      setSettings(result);
+      message.success(t("workExperience.settingsSaved"));
+    } catch {
+      message.error(t("workExperience.settingsSaveFailed"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const providers: ProviderInfoForWE[] = settings?.available_providers ?? [];
+  const currentProvider = providers.find(
+    (p) => p.provider_id === selectedProvider,
+  );
+  const models = currentProvider?.models ?? [];
+  const configured = settings?.reflection_provider_id ? true : false;
+
+  return (
+    <Card
+      size="small"
+      style={{ marginBottom: 12 }}
+      title={t("workExperience.settingsTitle")}
+      extra={
+        <Button
+          type="primary"
+          size="small"
+          loading={saving}
+          disabled={!selectedProvider || !selectedModel}
+          onClick={handleSave}
+        >
+          {t("common.save")}
+        </Button>
+      }
+    >
+      <div style={{ color: "var(--text-secondary)", marginBottom: 12 }}>
+        {t("workExperience.settingsDescription")}
+      </div>
+      {providers.length === 0 ? (
+        <div style={{ color: "var(--text-tertiary)" }}>
+          {t("workExperience.settingsNoProviders")}
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <div style={{ minWidth: 120 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--text-secondary)",
+                marginBottom: 4,
+              }}
+            >
+              {t("workExperience.settingsProvider")}
+            </div>
+            <Select
+              value={selectedProvider || undefined}
+              placeholder={t("workExperience.settingsProvider")}
+              style={{ width: "100%" }}
+              onChange={(v: string) => {
+                setSelectedProvider(v);
+                setSelectedModel("");
+              }}
+              options={providers.map((p) => ({
+                value: p.provider_id,
+                label: p.name,
+              }))}
+            />
+          </div>
+          <div style={{ minWidth: 200 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--text-secondary)",
+                marginBottom: 4,
+              }}
+            >
+              {t("workExperience.settingsModel")}
+            </div>
+            <Select
+              value={selectedModel || undefined}
+              placeholder={t("workExperience.settingsModel")}
+              style={{ width: "100%" }}
+              disabled={!selectedProvider}
+              onChange={(v: string) => setSelectedModel(v)}
+              options={models.map((m) => ({
+                value: m.id,
+                label: m.name || m.id,
+              }))}
+            />
+          </div>
+          {!configured && (
+            <Tag color="warning" style={{ marginLeft: 8 }}>
+              {t("workExperience.settingsNotConfigured")}
+            </Tag>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 
@@ -898,6 +1029,8 @@ export default function WorkExperiencePage() {
         />
 
         <StatsBar stats={stats} t={t} />
+
+        <SettingsSection />
 
         <div className={styles.filters}>
           <div className={styles.filterGroup}>

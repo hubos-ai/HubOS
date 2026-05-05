@@ -8,6 +8,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Optional
 
 from .providers.minimax_provider import MiniMaxProvider, MiniMaxResponse
@@ -101,25 +102,80 @@ class LLMRuntime:
 
     @staticmethod
     def _create_provider_from_hubos_config() -> Optional[MiniMaxProvider]:
-        """Try to create MiniMaxProvider from HubOS provider config.
+        """Try to create provider from HubOS config.
 
-        Falls back to env-var based init if HubOS config is unavailable.
+        Priority:
+        1. Work Experience settings (user-selected provider/model)
+        2. First provider with api_key configured
+        3. MINIMAX_API_KEY env var (original fallback)
         """
         try:
             from hubos.constant import SECRET_DIR
 
-            for name in ("minimax-cn", "minimax"):
-                path = SECRET_DIR / "providers" / "builtin" / f"{name}.json"
-                if path.exists():
-                    with open(path) as f:
-                        cfg = json.load(f)
-                    api_key = cfg.get("api_key", "")
-                    base_url = cfg.get("base_url", "")
-                    if api_key:
+            providers_dir = SECRET_DIR / "providers"
+            settings_path = (
+                Path.home() / ".hubos" / "work_experience_v4" / "settings.json"
+            )
+
+            # Load all available provider configs
+            provider_configs: dict[str, dict] = {}
+            for subdir in ("builtin", "custom"):
+                pdir = providers_dir / subdir
+                if not pdir.exists():
+                    continue
+                for pfile in pdir.glob("*.json"):
+                    try:
+                        cfg = json.loads(pfile.read_text("utf-8"))
+                    except Exception:
+                        continue
+                    pid = cfg.get("id", pfile.stem)
+                    if cfg.get("api_key"):
+                        provider_configs[pid] = cfg
+
+            # 1. Check WE settings for user-selected provider
+            if settings_path.exists():
+                try:
+                    we_settings = json.loads(
+                        settings_path.read_text("utf-8"),
+                    )
+                    selected_id = we_settings.get(
+                        "reflection_provider_id",
+                        "",
+                    )
+                    selected_model = we_settings.get(
+                        "reflection_model",
+                        "",
+                    )
+                    if selected_id and selected_id in provider_configs:
+                        cfg = provider_configs[selected_id]
                         return MiniMaxProvider(
-                            api_key=api_key,
-                            base_url=base_url or None,
+                            api_key=cfg["api_key"],
+                            base_url=cfg.get("base_url") or None,
+                            model=selected_model or None,
                         )
+                except Exception:
+                    pass
+
+            # 2. Fallback: first provider with api_key
+            # Prefer minimax/fast models
+            for preferred in ("minimax-cn", "minimax"):
+                if preferred in provider_configs:
+                    cfg = provider_configs[preferred]
+                    return MiniMaxProvider(
+                        api_key=cfg["api_key"],
+                        base_url=cfg.get("base_url") or None,
+                        model=cfg.get("chat_model") or None,
+                    )
+
+            # Other providers
+            if provider_configs:
+                cfg = next(iter(provider_configs.values()))
+                return MiniMaxProvider(
+                    api_key=cfg["api_key"],
+                    base_url=cfg.get("base_url") or None,
+                    model=cfg.get("chat_model") or None,
+                )
+
         except Exception:  # noqa: BLE001
             pass
         return None

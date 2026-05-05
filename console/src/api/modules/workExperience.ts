@@ -123,6 +123,25 @@ export interface MaturityBreakdown {
   level_weight: number;
 }
 
+// Settings types — reflection model selection
+export interface ProviderModelInfo {
+  id: string;
+  name: string;
+}
+
+export interface ProviderInfoForWE {
+  provider_id: string;
+  name: string;
+  base_url: string;
+  models: ProviderModelInfo[];
+}
+
+export interface WorkExperienceSettingsResponse {
+  reflection_provider_id: string;
+  reflection_model: string;
+  available_providers: ProviderInfoForWE[];
+}
+
 export const workExperienceApi = {
   listCards: async (params?: {
     status?: string;
@@ -298,5 +317,27 @@ export const workExperienceApi = {
 
   getByLevel: async (): Promise<Record<string, number>> => {
     return request<Record<string, number>>(`/work-experience/by-level`);
+  },
+
+  // ---- Settings (reflection model selection) ----
+
+  getSettings: async (): Promise<WorkExperienceSettingsResponse> => {
+    return request<WorkExperienceSettingsResponse>("/work-experience/settings");
+  },
+
+  updateSettings: async (
+    providerId: string,
+    model: string,
+  ): Promise<WorkExperienceSettingsResponse> => {
+    return request<WorkExperienceSettingsResponse>(
+      "/work-experience/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          reflection_provider_id: providerId,
+          reflection_model: model,
+        }),
+      },
+    );
   },
 };
