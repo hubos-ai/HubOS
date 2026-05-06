@@ -341,7 +341,7 @@ See: https://docs.trychroma.com/docs/overview/troubleshooting#sqlite
                 )
                 logger.error(
                     "Please upload the log: "
-                    "https://github.com/agentscope-ai/HubOS/issues",
+                    "https://github.com/hubos-ai/HubOS/issues",
                 )
             except Exception as _e:
                 logger.error(f"Failed to save invalid compact result: {_e}")

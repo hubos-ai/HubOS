@@ -1,5 +1,4 @@
 # Deploy website to GitHub Pages (see scripts/website_build.sh).
-# Custom domain: hubos.agentscope.io (CNAME).
 name: Deploy website to GitHub Pages
 
 on:
@@ -43,11 +42,9 @@ jobs:
           VITE_BASE_PATH: "/"
         run: pnpm run build
 
-      # Copy installation scripts so they are served from the website
-      # (e.g. hubos.agentscope.io/install.sh) instead of raw.githubusercontent.com,
-      # which may be blocked by some firewalls.
+      # Copy installation scripts so they are served from the website.
       - name: Copy installation scripts to dist
-        run: cp scripts/install.sh scripts/install.ps1 scripts/install.bat website/dist/
+        run: cp scripts/install.sh scripts/install.ps1 scripts/install.bat website/dist/ 2>/dev/null || true
 
       # 404.html fallback for unknown paths (real routes from build script).
       - name: 404 fallback for GitHub Pages
@@ -58,4 +55,5 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: website/dist
-          cname: hubos.agentscope.io
+          # Set your custom domain here (requires CNAME DNS record):
+          # cname: hubos.dev

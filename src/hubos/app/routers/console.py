@@ -75,7 +75,7 @@ def _extract_session_and_payload(request_data: Union[AgentRequest, dict]):
     "/chat",
     status_code=200,
     summary="Chat with console (streaming response)",
-    description="Agent API Request Format. See runtime.agentscope.io. "
+    description="Agent API Request Format. "
     "Use body.reconnect=true to attach to a running stream.",
 )
 async def post_console_chat(

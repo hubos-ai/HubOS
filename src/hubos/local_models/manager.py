@@ -15,8 +15,7 @@ class LocalModelManager:
     """Single entry point for local runtime downloads and server control."""
 
     DEFAULT_LLAMA_CPP_BASE_URL = (
-        # Mirror of "https://github.com/ggml-org/llama.cpp/releases/download"
-        "https://download.hubos.agentscope.io/files/models/llama_cpp"
+        "https://github.com/ggml-org/llama.cpp/releases/download"
     )
     DEFAULT_LLAMA_CPP_RELEASE_TAG = "b8514"
 

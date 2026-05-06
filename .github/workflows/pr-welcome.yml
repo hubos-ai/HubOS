@@ -146,7 +146,7 @@ jobs:
             if (hasChinese) {
               // Bilingual response with logo
               comment = `<div align="center">\n\n`;
-              comment += `<img src="https://hubos.agentscope.io/copaw_ip.svg" width="80" height="80" />\n\n`;
+              comment += `<img src="https://raw.githubusercontent.com/hubos-ai/HubOS/main/assets/logo.svg" width="80" height="80" />\n\n`;
               comment += `## 欢迎来到 HubOS! 🐾 Welcome to HubOS!\n\n`;
               comment += `</div>\n\n`;
 
@@ -203,7 +203,7 @@ jobs:
               comment += `Thanks so much for your contribution! We'd love to invite you to join the official HubOS developer group!\n\n`;
               comment += `你可以在我们的文档页面的 "Developer Community" 部分找到 Discord 和钉钉群链接：\n`;
               comment += `You can find the Discord and DingTalk group links under the "Developer Community" section on our docs page:\n`;
-              comment += `https://hubos.agentscope.io/docs/community\n\n`;
+              comment += `https://github.com/hubos-ai/HubOS#community\n\n`;
               comment += `我们真诚地感谢你的热情，也期待你未来的更多贡献！😊\n`;
               comment += `We truly appreciate your enthusiasm—and look forward to your future contributions! 😊\n\n`;
               comment += `我们会尽快审查你的 PR。\n`;
@@ -219,7 +219,7 @@ jobs:
                 comment += `> \n`;
                 comment += `> <div align="center">\n`;
                 comment += `> \n`;
-                comment += `> [![Star HubOS](https://img.alicdn.com/imgextra/i1/O1CN0197AtT32351zYCnOUU_!!6000000007203-1-tps-2214-1080.gif)](https://github.com/agentscope-ai/HubOS)\n`;
+                comment += `> [![Star HubOS](https://raw.githubusercontent.com/hubos-ai/HubOS/main/assets/star.gif)](https://github.com/hubos-ai/HubOS)\n`;
                 comment += `> \n`;
                 comment += `> </div>\n`;
                 comment += `> \n`;
@@ -237,7 +237,7 @@ jobs:
             } else {
               // English only with logo
               comment = `<div align="center">\n\n`;
-              comment += `<img src="https://hubos.agentscope.io/copaw_ip.svg" width="80" height="80" />\n\n`;
+              comment += `<img src="https://raw.githubusercontent.com/hubos-ai/HubOS/main/assets/logo.svg" width="80" height="80" />\n\n`;
               comment += `## Welcome to HubOS! 🐾\n\n`;
               comment += `</div>\n\n`;
 
@@ -284,7 +284,7 @@ jobs:
 
               comment += `### 🙌 Join Developer Community\n\n`;
               comment += `Thanks so much for your contribution! We'd love to invite you to join the official HubOS developer group! You can find the Discord and DingTalk group links under the "Developer Community" section on our docs page:\n`;
-              comment += `https://hubos.agentscope.io/docs/community\n\n`;
+              comment += `https://github.com/hubos-ai/HubOS#community\n\n`;
               comment += `We truly appreciate your enthusiasm—and look forward to your future contributions! 😊\n\n`;
               comment += `We'll review your PR soon.\n\n`;
 
@@ -296,7 +296,7 @@ jobs:
                 comment += `> \n`;
                 comment += `> <div align="center">\n`;
                 comment += `> \n`;
-                comment += `> [![Star HubOS](https://img.alicdn.com/imgextra/i1/O1CN0197AtT32351zYCnOUU_!!6000000007203-1-tps-2214-1080.gif)](https://github.com/agentscope-ai/HubOS)\n`;
+                comment += `> [![Star HubOS](https://raw.githubusercontent.com/hubos-ai/HubOS/main/assets/star.gif)](https://github.com/hubos-ai/HubOS)\n`;
                 comment += `> \n`;
                 comment += `> </div>\n`;
                 comment += `> \n`;

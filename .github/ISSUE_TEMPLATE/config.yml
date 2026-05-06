@@ -5,8 +5,8 @@ blank_issues_enabled: true
 
 contact_links:
   - name: GitHub Discussions
-    url: https://github.com/agentscope-ai/HubOS/discussions
+    url: https://github.com/hubos-ai/HubOS/discussions
     about: Ask questions, share ideas, or discuss HubOS here.
   - name: View docs
-    url: https://hubos.agentscope.io/
+    url: https://github.com/hubos-ai/HubOS#readme
     about: HubOS docs and guides.
