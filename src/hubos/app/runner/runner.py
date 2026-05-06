@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import threading
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -61,11 +63,25 @@ def _is_approval(text: str) -> bool:
 
 
 class AgentRunner(Runner):
+    """Agent runner with optional instance pooling.
+
+    When ``enable_pool=True``, HubOSAgent instances are cached per
+    ``agent_id`` and reused across requests.  On each request only the
+    lightweight per-session state (request_context, memory, sys_prompt)
+    is refreshed — avoiding the cost of re-registering skills, MCP
+    clients, and rebuilding the toolkit.
+    """
+
+    # Pool config (class-level defaults)
+    _POOL_MAX_SIZE = 32
+    _POOL_IDLE_TTL_SECS = 3600.0  # evict after 1 h idle
+
     def __init__(
         self,
         agent_id: str = "default",
         workspace_dir: Path | None = None,
         task_tracker: Any | None = None,
+        enable_pool: bool = True,
     ) -> None:
         super().__init__()
         self.framework_type = "agentscope"
@@ -78,6 +94,11 @@ class AgentRunner(Runner):
         self._workspace: Any = None  # Workspace instance for control commands
         self.memory_manager: BaseMemoryManager | None = None
         self._task_tracker = task_tracker  # Task tracker for background tasks
+
+        # Agent instance pool: agent_id → (HubOSAgent, timestamp)
+        self._enable_pool = enable_pool
+        self._agent_pool: OrderedDict[str, tuple[Any, float]] = OrderedDict()
+        self._agent_pool_lock = threading.Lock()
 
     def set_chat_manager(self, chat_manager):
         """Set chat manager for auto-registration.
@@ -102,6 +123,170 @@ class AgentRunner(Runner):
             workspace: Workspace instance
         """
         self._workspace = workspace
+
+    # ------------------------------------------------------------------
+    # Agent instance pool
+    # ------------------------------------------------------------------
+
+    async def _get_or_create_agent(
+        self,
+        agent_config: Any,
+        env_context: str,
+        mcp_clients: list,
+        request_context: dict,
+    ) -> HubOSAgent:
+        """Return a HubOSAgent from the pool or create a new one.
+
+        Pooled agents retain their toolkit, skills, and MCP client
+        registrations.  Per-request state (request_context, memory)
+        is refreshed before the agent is returned.
+
+        **Concurrency safety**: If the pooled instance is currently
+        in-use (borrowed by another concurrent request), a fresh
+        temporary agent is created instead.  This prevents memory
+        cross-contamination between sessions.
+        """
+        if not self._enable_pool:
+            return await self._create_agent(
+                agent_config,
+                env_context,
+                mcp_clients,
+                request_context,
+            )
+
+        pool_key = self.agent_id
+        was_borrowed = False
+
+        with self._agent_pool_lock:
+            self._evict_expired_entries()
+
+            if pool_key in self._agent_pool:
+                agent, _ts = self._agent_pool[pool_key]
+                # Check if already borrowed by a concurrent request
+                if getattr(agent, "_pool_borrowed", False):
+                    was_borrowed = True
+                    logger.info(
+                        "Agent pool HIT but BORROWED for '%s' "
+                        "— creating temporary instance",
+                        pool_key,
+                    )
+                    # Fall through to create a new one
+                else:
+                    # Mark as borrowed and remove from pool
+                    agent._pool_borrowed = True  # noqa: SLF001
+                    del self._agent_pool[pool_key]
+                    logger.info(
+                        "Agent pool HIT for '%s' — reusing instance",
+                        pool_key,
+                    )
+                    self._refresh_agent(agent, request_context)
+                    return agent
+
+        # Cache miss or borrowed — create new
+        is_temporary = (
+            was_borrowed  # only temp if pool had one but it was in use
+        )
+        agent = await self._create_agent(
+            agent_config,
+            env_context,
+            mcp_clients,
+            request_context,
+        )
+        if is_temporary:
+            agent._pool_is_temporary = True  # noqa: SLF001
+            logger.info(
+                "Agent pool MISS for '%s' — created temporary instance",
+                pool_key,
+            )
+        else:
+            logger.info(
+                "Agent pool MISS for '%s' — created new instance",
+                pool_key,
+            )
+        return agent
+
+    async def _create_agent(
+        self,
+        agent_config: Any,
+        env_context: str,
+        mcp_clients: list,
+        request_context: dict,
+    ) -> HubOSAgent:
+        """Create a fresh HubOSAgent and register MCP clients."""
+        agent = HubOSAgent(
+            agent_config=agent_config,
+            env_context=env_context,
+            mcp_clients=mcp_clients,
+            memory_manager=self.memory_manager,
+            request_context=request_context,
+            workspace_dir=self.workspace_dir,
+            task_tracker=self._task_tracker,
+        )
+        await agent.register_mcp_clients()
+        agent.set_console_output_enabled(enabled=False)
+        return agent
+
+    def _refresh_agent(
+        self,
+        agent: HubOSAgent,
+        request_context: dict,
+    ) -> None:
+        """Reset per-session state on a pooled agent for reuse."""
+        # Update request context
+        agent._request_context = dict(request_context)  # noqa: SLF001
+        from ...agents.react_agent import set_runtime_request_context
+
+        set_runtime_request_context(agent._request_context)  # noqa: SLF001
+
+        # Reset in-memory conversation history so stale messages from
+        # the previous session don't leak into the new one.
+        from agentscope.memory import InMemoryMemory
+
+        agent.memory = InMemoryMemory()
+
+        # Console output stays disabled
+        agent.set_console_output_enabled(enabled=False)
+
+    def _return_agent(self, agent: HubOSAgent) -> None:
+        """Return an agent to the pool after use.
+
+        Temporary agents (created because the pooled instance was
+        borrowed) are simply discarded.  The primary pooled instance
+        is put back for reuse.
+        """
+        if not self._enable_pool:
+            return
+
+        # Temporary agents are not returned to pool
+        if getattr(agent, "_pool_is_temporary", False):
+            logger.debug("Discarding temporary agent instance")
+            return
+
+        pool_key = self.agent_id
+        agent._pool_borrowed = False  # noqa: SLF001
+        with self._agent_pool_lock:
+            self._agent_pool[pool_key] = (agent, time.monotonic())
+            self._agent_pool.move_to_end(pool_key)
+
+            # Evict if over capacity
+            while len(self._agent_pool) > self._POOL_MAX_SIZE:
+                evicted_key, _ = self._agent_pool.popitem(last=False)
+                logger.info(
+                    "Agent pool evicted '%s' (over capacity)",
+                    evicted_key,
+                )
+
+    def _evict_expired_entries(self) -> None:
+        """Remove entries idle beyond TTL. Must be called under lock."""
+        now = time.monotonic()
+        expired = [
+            k
+            for k, (_, ts) in self._agent_pool.items()
+            if now - ts > self._POOL_IDLE_TTL_SECS
+        ]
+        for k in expired:
+            del self._agent_pool[k]
+            logger.info("Agent pool evicted '%s' (idle TTL)", k)
 
     _APPROVAL_TIMEOUT_SECONDS = TOOL_GUARD_APPROVAL_TIMEOUT_SECONDS
 
@@ -333,32 +518,29 @@ class AgentRunner(Runner):
             # Load agent-specific configuration
             agent_config = load_agent_config(self.agent_id)
 
-            agent = HubOSAgent(
+            request_context = {
+                "session_id": session_id,
+                "user_id": user_id,
+                "channel": channel,
+                "agent_id": self.agent_id,
+                **(
+                    {
+                        "forced_tool_call_json": json.dumps(
+                            approved_tool_call,
+                            ensure_ascii=False,
+                        ),
+                    }
+                    if approved_tool_call
+                    else {}
+                ),
+            }
+
+            agent = await self._get_or_create_agent(
                 agent_config=agent_config,
                 env_context=env_context,
                 mcp_clients=mcp_clients,
-                memory_manager=self.memory_manager,
-                request_context={
-                    "session_id": session_id,
-                    "user_id": user_id,
-                    "channel": channel,
-                    "agent_id": self.agent_id,
-                    **(
-                        {
-                            "forced_tool_call_json": json.dumps(
-                                approved_tool_call,
-                                ensure_ascii=False,
-                            ),
-                        }
-                        if approved_tool_call
-                        else {}
-                    ),
-                },
-                workspace_dir=self.workspace_dir,
-                task_tracker=self._task_tracker,
+                request_context=request_context,
             )
-            await agent.register_mcp_clients()
-            agent.set_console_output_enabled(enabled=False)
 
             logger.debug(
                 f"Agent Query msgs {msgs}",
@@ -502,6 +684,10 @@ class AgentRunner(Runner):
 
             if self._chat_manager is not None and chat is not None:
                 await self._chat_manager.update_chat(chat)
+
+            # Return agent to the pool for reuse
+            if agent is not None:
+                self._return_agent(agent)
 
     async def _cleanup_denied_session_memory(
         self,
