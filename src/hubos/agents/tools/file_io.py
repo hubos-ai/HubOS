@@ -1,10 +1,69 @@
 # -*- coding: utf-8 -*-
 # flake8: noqa: E501
 # pylint: disable=line-too-long
+import fcntl
+import logging
 import os
+import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional
+from typing import Generator, Optional
 from urllib.parse import quote
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# File-level locking for concurrent write safety
+# ---------------------------------------------------------------------------
+
+_LOCK_TIMEOUT_SECONDS = 30.0
+
+
+@contextmanager
+def _file_lock(
+    file_path: str,
+    timeout: float = _LOCK_TIMEOUT_SECONDS,
+) -> Generator[None, None, None]:
+    """Acquire an exclusive file-level lock for *file_path*.
+
+    Uses ``fcntl.flock(LOCK_EX)`` on Unix (macOS/Linux).  The lock is scoped
+    to a separate ``.lock`` file adjacent to the target so that read-modify-
+    write cycles (edit_file) can hold the lock across separate open() calls.
+
+    Raises ``TimeoutError`` if the lock cannot be acquired within *timeout*.
+    """
+    lock_path = file_path + ".lock"
+    lock_dir = os.path.dirname(lock_path)
+    if lock_dir:
+        os.makedirs(lock_dir, exist_ok=True)
+
+    lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
+    deadline = time.monotonic() + timeout
+    try:
+        while True:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except (OSError, BlockingIOError):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    os.close(lock_fd)
+                    raise TimeoutError(
+                        f"Could not acquire file lock for {file_path} "
+                        f"within {timeout}s — another agent may be writing.",
+                    )
+                time.sleep(0.05)
+        yield
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        try:
+            os.close(lock_fd)
+        except OSError:
+            pass
+
 
 from agentscope.message import TextBlock
 from agentscope.tool import ToolResponse
@@ -390,8 +449,9 @@ async def write_file(
 
     try:
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(file_path, "w", encoding=encoding) as file:
-            file.write(content)
+        with _file_lock(file_path):
+            with open(file_path, "w", encoding=encoding) as file:
+                file.write(content)
         link = _download_link(file_path)
         suffix = f"\nDownload: {link}" if link else ""
         return ToolResponse(
@@ -402,6 +462,12 @@ async def write_file(
                         f"Wrote {len(content)} bytes to {file_path}.{suffix}"
                     ),
                 ),
+            ],
+        )
+    except TimeoutError as e:
+        return ToolResponse(
+            content=[
+                TextBlock(type="text", text=f"Error: {e}"),
             ],
         )
     except Exception as e:
@@ -470,37 +536,38 @@ async def edit_file(
         )
 
     try:
-        content = read_file_safe(resolved_path)
+        with _file_lock(resolved_path):
+            content = read_file_safe(resolved_path)
+            if old_text not in content:
+                return ToolResponse(
+                    content=[
+                        TextBlock(
+                            type="text",
+                            text=f"Error: The text to replace was not found in {file_path}.",
+                        ),
+                    ],
+                )
+            new_content = content.replace(old_text, new_text)
+            Path(resolved_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(
+                resolved_path,
+                "w",
+                encoding=_get_encoding_for_file(resolved_path),
+            ) as f:
+                f.write(new_content)
+    except TimeoutError as e:
+        return ToolResponse(
+            content=[TextBlock(type="text", text=f"Error: {e}")],
+        )
     except Exception as e:
         return ToolResponse(
             content=[
                 TextBlock(
                     type="text",
-                    text=f"Error: Read file failed due to \n{e}",
+                    text=f"Error: Edit file failed due to \n{e}",
                 ),
             ],
         )
-
-    if old_text not in content:
-        return ToolResponse(
-            content=[
-                TextBlock(
-                    type="text",
-                    text=f"Error: The text to replace was not found in {file_path}.",
-                ),
-            ],
-        )
-
-    new_content = content.replace(old_text, new_text)
-    write_response = await write_file(
-        file_path=resolved_path,
-        content=new_content,
-    )
-
-    if write_response.content and len(write_response.content) > 0:
-        write_text = write_response.content[0].get("text", "")
-        if write_text.startswith("Error:"):
-            return write_response
 
     link = _download_link(resolved_path)
     suffix = f"\nDownload: {link}" if link else ""
@@ -552,8 +619,9 @@ async def append_file(
 
     try:
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(file_path, "a", encoding=encoding) as file:
-            file.write(content)
+        with _file_lock(file_path):
+            with open(file_path, "a", encoding=encoding) as file:
+                file.write(content)
         link = _download_link(file_path)
         suffix = f"\nDownload: {link}" if link else ""
         return ToolResponse(
@@ -565,6 +633,10 @@ async def append_file(
                     ),
                 ),
             ],
+        )
+    except TimeoutError as e:
+        return ToolResponse(
+            content=[TextBlock(type="text", text=f"Error: {e}")],
         )
     except Exception as e:
         return ToolResponse(
