@@ -464,6 +464,42 @@ async def put_agents_running_config(
     return running_config
 
 
+# ── Task Modes ────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/task-modes",
+    summary="Get task mode configurations",
+    description="Get per-mode execution configs (spawn_subagents, coordinate_workflow, delegate_task)",
+)
+async def get_task_modes(
+    request: Request,
+) -> dict:
+    """Get task mode configurations for active agent."""
+    workspace = await get_agent_for_request(request)
+    agent_config = load_agent_config(workspace.agent_id)
+    return agent_config.task_modes.model_dump()
+
+
+@router.put(
+    "/task-modes",
+    summary="Update task mode configurations",
+    description="Update per-mode execution configs",
+)
+async def update_task_modes(
+    request: Request,
+    body: dict = Body(..., description="Task mode configuration"),
+) -> dict:
+    """Update task mode configurations for active agent."""
+    from hubos.config.config import TaskModesConfig
+
+    workspace = await get_agent_for_request(request)
+    agent_config = load_agent_config(workspace.agent_id)
+    agent_config.task_modes = TaskModesConfig(**body)
+    save_agent_config(workspace.agent_id, agent_config)
+    return agent_config.task_modes.model_dump()
+
+
 @router.get(
     "/system-prompt-files",
     response_model=list[str],

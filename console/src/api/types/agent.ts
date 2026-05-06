@@ -64,3 +64,32 @@ export interface AgentsRunningConfig {
   embedding_config: EmbeddingConfig;
   memory_manager_backend: "remelight";
 }
+
+// ── Task Mode Configs ──────────────────────────────────────────────
+
+export interface SpawnSubagentsConfig {
+  max_concurrency: number;
+  timeout_seconds: number;
+  max_subagents: number;
+  allow_nesting: boolean;
+  nesting_max_depth: number;
+}
+
+export interface CoordinateWorkflowConfig {
+  max_concurrency: number;
+  timeout_seconds: number;
+  step_timeout_seconds: number;
+  max_steps: number;
+  allow_nesting: boolean;
+}
+
+export interface DelegateTaskConfig {
+  timeout_seconds: number;
+  allow_nesting: boolean;
+}
+
+export interface TaskModesConfig {
+  spawn_subagents: SpawnSubagentsConfig;
+  coordinate_workflow: CoordinateWorkflowConfig;
+  delegate_task: DelegateTaskConfig;
+}

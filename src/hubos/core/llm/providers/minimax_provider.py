@@ -1,24 +1,50 @@
 # -*- coding: utf-8 -*-
-"""MiniMax AI provider implementation.
+"""LLM provider — delegates to agentscope model clients.
 
-Handles API calls to MiniMax chat completion endpoint.
+Reads HubOS provider config (api_key, base_url, model class) and creates
+the corresponding agentscope model client. No manual HTTP handling.
 """
 
+import asyncio
 import json
 import logging
 import os
-import time
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
+# agentscope model class registry
+_MODEL_CLASSES: dict[str, type] = {}
+
+
+def _get_model_classes() -> dict[str, type]:
+    """Lazy-load agentscope model classes."""
+    if _MODEL_CLASSES:
+        return _MODEL_CLASSES
+    try:
+        from agentscope.model import (
+            AnthropicChatModel,
+            GeminiChatModel,
+            OpenAIChatModel,
+        )
+
+        _MODEL_CLASSES.update(
+            {
+                "OpenAIChatModel": OpenAIChatModel,
+                "AnthropicChatModel": AnthropicChatModel,
+                "GeminiChatModel": GeminiChatModel,
+            },
+        )
+    except ImportError:
+        logger.warning("agentscope not installed, LLM provider unavailable")
+    return _MODEL_CLASSES
+
 
 @dataclass
 class MiniMaxResponse:
-    """Response from MiniMax API."""
+    """Response from LLM API."""
 
     text: str
     finish_reason: str
@@ -28,7 +54,11 @@ class MiniMaxResponse:
 
 
 class MiniMaxProvider:
-    """MiniMax chat completion provider."""
+    """Universal LLM provider backed by agentscope model clients.
+
+    Reads HubOS provider config to determine which agentscope model class
+    to use (OpenAI, Anthropic, Gemini, etc.) and calls it directly.
+    """
 
     DEFAULT_BASE_URL = "https://api.minimax.chat/v1"
     DEFAULT_MODEL = "MiniMax-M2.7-highspeed"
@@ -39,15 +69,9 @@ class MiniMaxProvider:
         base_url: Optional[str] = None,
         model: Optional[str] = None,
         timeout_seconds: int = 60,
+        *,
+        model_class_name: Optional[str] = None,
     ) -> None:
-        """Initialize MiniMax provider.
-
-        Args:
-            api_key: MiniMax API key (reads from MINIMAX_API_KEY env if not provided)
-            base_url: API base URL
-            model: Model name to use
-            timeout_seconds: Request timeout
-        """
         self._api_key = api_key or os.environ.get("MINIMAX_API_KEY", "")
         self._base_url = (
             base_url
@@ -58,10 +82,32 @@ class MiniMaxProvider:
             self.DEFAULT_MODEL,
         )
         self._timeout = timeout_seconds
+        self._model_class_name = model_class_name or "OpenAIChatModel"
+        self._client: Any = None
+
+    def _get_client(self) -> Any:
+        """Create the agentscope model client lazily."""
+        if self._client is not None:
+            return self._client
+
+        classes = _get_model_classes()
+        cls = classes.get(self._model_class_name)
+        if cls is None:
+            raise RuntimeError(
+                f"Unknown model class: {self._model_class_name}, "
+                f"available: {list(classes.keys())}",
+            )
+
+        self._client = cls(
+            model_name=self._model,
+            api_key=self._api_key or None,
+            stream=False,
+            client_kwargs={"base_url": self._base_url},
+        )
+        return self._client
 
     @property
     def is_configured(self) -> bool:
-        """Check if provider is properly configured."""
         return bool(self._api_key)
 
     def generate(
@@ -72,29 +118,11 @@ class MiniMaxProvider:
         max_tokens: int = 1024,
         role: Optional[str] = None,
     ) -> MiniMaxResponse:
-        """Generate text from MiniMax model.
-
-        Args:
-            prompt: User prompt
-            system_prompt: Optional system prompt
-            temperature: Sampling temperature
-            max_tokens: Maximum tokens to generate
-            role: Optional role context for the prompt
-
-        Returns:
-            MiniMaxResponse with generated text
-
-        Raises:
-            RuntimeError: If API call fails
-        """
+        """Generate text using agentscope model client."""
         if not self._api_key:
-            raise RuntimeError(
-                "MiniMax API key not configured (set MINIMAX_API_KEY env)",
-            )
+            raise RuntimeError("LLM API key not configured")
 
-        # Build messages
         messages = []
-        # Combine system_prompt and role into single system message if provided
         system_content = system_prompt or ""
         if role:
             system_content = (
@@ -104,92 +132,67 @@ class MiniMaxProvider:
             messages.append({"role": "system", "content": system_content})
         messages.append({"role": "user", "content": prompt})
 
-        payload = {
-            "model": self._model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
+        client = self._get_client()
 
-        url = f"{self._base_url}/chat/completions"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self._api_key}",
-        }
-
+        # agentscope model __call__ is async
         try:
-            request = urllib.request.Request(
-                url=url,
-                data=json.dumps(payload).encode("utf-8"),
-                headers=headers,
-                method="POST",
-            )
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
 
-            start_time = time.time()
-            with urllib.request.urlopen(
-                request,
-                timeout=float(self._timeout),
-            ) as response:
-                elapsed_ms = (time.time() - start_time) * 1000
-                data = json.loads(response.read().decode("utf-8"))
+        if loop and loop.is_running():
+            # We're inside an async context — use nest_asyncio or run in thread
+            import concurrent.futures
 
-            logger.debug(f"MiniMax API call completed in {elapsed_ms:.0f}ms")
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                response = pool.submit(
+                    asyncio.run,
+                    client(messages),
+                ).result()
+        else:
+            response = asyncio.run(client(messages))
 
-            # Extract response text
-            choices = data.get("choices", [])
-            if not choices:
-                return MiniMaxResponse(
-                    text="",
-                    finish_reason="empty",
-                    usage=data.get("usage"),
-                    model=data.get("model"),
-                    raw_response=data,
-                )
+        # Parse ChatResponse (agentscope dict-like object)
+        text = ""
+        # ChatResponse.content is a list of content blocks
+        content = (
+            response.get("content")
+            if isinstance(response, dict)
+            else getattr(response, "content", None)
+        )
+        if content and isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text += block.get("text", "")
 
-            first_choice = choices[0]
-            text = first_choice.get("message", {}).get("content", "")
-            finish_reason = first_choice.get("finish_reason", "stop")
+        usage = None
+        u = (
+            response.get("usage")
+            if isinstance(response, dict)
+            else getattr(response, "usage", None)
+        )
+        if u:
+            usage = {
+                "input_tokens": getattr(u, "input_tokens", 0)
+                if not isinstance(u, dict)
+                else u.get("input_tokens", 0),
+                "output_tokens": getattr(u, "output_tokens", 0)
+                if not isinstance(u, dict)
+                else u.get("output_tokens", 0),
+            }
 
-            return MiniMaxResponse(
-                text=text,
-                finish_reason=finish_reason,
-                usage=data.get("usage"),
-                model=data.get("model"),
-                raw_response=data,
-            )
-
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode("utf-8") if e.fp else ""
-            logger.error(f"MiniMax API HTTP error {e.code}: {error_body}")
-            raise RuntimeError(
-                f"MiniMax API error {e.code}: {error_body[:500]}",
-            )
-        except urllib.error.URLError as e:
-            logger.error(f"MiniMax API connection error: {e.reason}")
-            raise RuntimeError(f"MiniMax connection error: {e.reason}")
-        except json.JSONDecodeError as e:
-            logger.error(f"MiniMax API invalid JSON response: {e}")
-            raise RuntimeError(f"MiniMax API invalid response format")
-        except Exception as e:
-            logger.error(f"MiniMax API unexpected error: {e}")
-            raise RuntimeError(f"MiniMax API error: {str(e)}")
+        return MiniMaxResponse(
+            text=text,
+            finish_reason="stop",
+            usage=usage,
+            model=self._model,
+        )
 
     def health_check(self) -> tuple[bool, str]:
-        """Check if provider is reachable and configured.
-
-        Returns:
-            Tuple of (is_healthy, message)
-        """
         if not self._api_key:
             return False, "API key not configured"
-
-        # Try a minimal request to verify credentials
         try:
-            self.generate(
-                prompt="Hi",
-                max_tokens=1,
-                temperature=0.0,
-            )
+            self.generate(prompt="Hi", max_tokens=1, temperature=0.0)
             return True, "OK"
         except Exception as e:
             return False, str(e)[:100]

@@ -1,13 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
-import { Card, Form, InputNumber, Switch, Slider, Button } from "antd";
+import { Card, Form, Switch, Slider, Button, Tag, Space, Spin } from "antd";
+import {
+  TeamOutlined,
+  ApartmentOutlined,
+  RocketOutlined,
+  SaveOutlined,
+} from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/PageHeader";
 import { api } from "@/api";
 import { useAppMessage } from "@/hooks/useAppMessage";
-import type { AgentsRunningConfig } from "@/api/types";
+import type { TaskModesConfig } from "@/api/types";
 import styles from "./index.module.less";
 
-/* ── Slider with inline value display ──────────────────────────────── */
+/* ── Slider with inline value ──────────────────────────────────────── */
 
 function SliderWithValue({
   value,
@@ -35,14 +41,56 @@ function SliderWithValue({
       </div>
       <div style={{ minWidth: 50, textAlign: "right", lineHeight: "32px" }}>
         <span className={styles.sliderValue}>
-          {value !== undefined
-            ? value >= 1
-              ? String(value)
-              : value.toFixed(2)
-            : "-"}
+          {value !== undefined ? String(value) : "-"}
         </span>
       </div>
     </div>
+  );
+}
+
+/* ── Mode Card ─────────────────────────────────────────────────────── */
+
+interface ModeCardProps {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  color: string;
+  children: React.ReactNode;
+}
+
+function ModeCard({
+  icon,
+  title,
+  description,
+  color,
+  children,
+}: ModeCardProps) {
+  return (
+    <Card
+      className={styles.modeCard}
+      title={
+        <Space>
+          <Tag
+            color={color}
+            style={{ marginRight: 0, fontSize: 16, padding: "2px 8px" }}
+          >
+            {icon}
+          </Tag>
+          <span style={{ fontSize: 15 }}>{title}</span>
+          <span
+            style={{
+              fontSize: 12,
+              color: "var(--text-secondary)",
+              fontWeight: 400,
+            }}
+          >
+            {description}
+          </span>
+        </Space>
+      }
+    >
+      {children}
+    </Card>
   );
 }
 
@@ -51,25 +99,23 @@ function SliderWithValue({
 export default function TaskModesPage() {
   const { t } = useTranslation();
   const { message } = useAppMessage();
-  const [form] = Form.useForm();
+  const [form] = Form.useForm<TaskModesConfig>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const fetchConfig = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
-      const config = await api.getAgentRunningConfig();
+      const config = await api.getTaskModes();
       form.setFieldsValue(config);
     } catch (err) {
       const errMsg =
         err instanceof Error ? err.message : t("taskModes.loadFailed");
-      setError(errMsg);
+      message.error(errMsg);
     } finally {
       setLoading(false);
     }
-  }, [form, t]);
+  }, [form, t, message]);
 
   useEffect(() => {
     fetchConfig();
@@ -79,7 +125,7 @@ export default function TaskModesPage() {
     try {
       const values = await form.validateFields();
       setSaving(true);
-      await api.updateAgentRunningConfig(values as AgentsRunningConfig);
+      await api.updateTaskModes(values as TaskModesConfig);
       message.success(t("taskModes.saveSuccess"));
     } catch (err) {
       if (err instanceof Error && "errorFields" in err) return;
@@ -91,26 +137,11 @@ export default function TaskModesPage() {
     }
   }, [form, t, message]);
 
-  const llmRetryEnabled = Form.useWatch("llm_retry_enabled", form) ?? true;
-
   if (loading) {
     return (
       <div className={styles.page}>
         <div className={styles.centerState}>
-          <span className={styles.stateText}>{t("common.loading")}</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className={styles.page}>
-        <div className={styles.centerState}>
-          <span className={styles.stateTextError}>{error}</span>
-          <Button size="small" onClick={fetchConfig} style={{ marginTop: 12 }}>
-            {t("common.refresh")}
-          </Button>
+          <Spin size="large" />
         </div>
       </div>
     );
@@ -118,271 +149,154 @@ export default function TaskModesPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader parent={t("nav.settings")} current={t("taskModes.title")} />
+      <PageHeader parent={t("nav.settings")} current={t("nav.taskModes")} />
 
-      <div className={styles.pageContent}>
-        <div className={styles.formContainer}>
-          <Form form={form} layout="vertical" className={styles.form}>
-            {/* ── LLM Concurrency & Rate Limiting ──────────────────── */}
-            <Card
-              className={styles.formCard}
-              title={t("taskModes.llmConcurrencyTitle")}
-              style={{ marginTop: 16 }}
-            >
-              <Form.Item
-                label={t("taskModes.llmMaxConcurrent")}
-                name="llm_max_concurrent"
-                rules={[
-                  {
-                    required: true,
-                    message: t("taskModes.llmMaxConcurrentRequired"),
-                  },
-                  {
-                    type: "number",
-                    min: 1,
-                    message: t("taskModes.llmMaxConcurrentRange"),
-                  },
-                ]}
-                tooltip={t("taskModes.llmMaxConcurrentTooltip")}
-              >
-                <SliderWithValue min={1} max={20} />
-              </Form.Item>
-
-              <Form.Item
-                label={t("taskModes.llmMaxQpm")}
-                name="llm_max_qpm"
-                rules={[
-                  {
-                    required: true,
-                    message: t("taskModes.llmMaxQpmRequired"),
-                  },
-                  {
-                    type: "number",
-                    min: 0,
-                    message: t("taskModes.llmMaxQpmRange"),
-                  },
-                ]}
-                tooltip={t("taskModes.llmMaxQpmTooltip")}
-              >
-                <InputNumber
-                  style={{ width: "100%" }}
-                  min={0}
-                  step={10}
-                  placeholder={t("taskModes.llmMaxQpmPlaceholder")}
-                />
-              </Form.Item>
-
-              <Form.Item
-                label={t("taskModes.llmRateLimitPause")}
-                name="llm_rate_limit_pause"
-                rules={[
-                  {
-                    required: true,
-                    message: t("taskModes.llmRateLimitPauseRequired"),
-                  },
-                  {
-                    type: "number",
-                    min: 1.0,
-                    message: t("taskModes.llmRateLimitPauseMin"),
-                  },
-                ]}
-                tooltip={t("taskModes.llmRateLimitPauseTooltip")}
-              >
-                <InputNumber
-                  style={{ width: "100%" }}
-                  step={0.5}
-                  placeholder={t("taskModes.llmRateLimitPausePlaceholder")}
-                />
-              </Form.Item>
-
-              <Form.Item
-                label={t("taskModes.llmRateLimitJitter")}
-                name="llm_rate_limit_jitter"
-                rules={[
-                  {
-                    required: true,
-                    message: t("taskModes.llmRateLimitJitterRequired"),
-                  },
-                  {
-                    type: "number",
-                    min: 0.0,
-                    message: t("taskModes.llmRateLimitJitterMin"),
-                  },
-                ]}
-                tooltip={t("taskModes.llmRateLimitJitterTooltip")}
-              >
-                <InputNumber
-                  style={{ width: "100%" }}
-                  step={0.5}
-                  placeholder={t("taskModes.llmRateLimitJitterPlaceholder")}
-                />
-              </Form.Item>
-
-              <Form.Item
-                label={t("taskModes.llmAcquireTimeout")}
-                name="llm_acquire_timeout"
-                rules={[
-                  {
-                    required: true,
-                    message: t("taskModes.llmAcquireTimeoutRequired"),
-                  },
-                  {
-                    type: "number",
-                    min: 10.0,
-                    message: t("taskModes.llmAcquireTimeoutMin"),
-                  },
-                ]}
-                tooltip={t("taskModes.llmAcquireTimeoutTooltip")}
-              >
-                <InputNumber
-                  style={{ width: "100%" }}
-                  step={10}
-                  placeholder={t("taskModes.llmAcquireTimeoutPlaceholder")}
-                />
-              </Form.Item>
-            </Card>
-
-            {/* ── Retry Configuration ───────────────────────────────── */}
-            <Card
-              className={styles.formCard}
-              title={t("taskModes.llmRetryTitle")}
-              style={{ marginTop: 16 }}
-            >
-              <Form.Item
-                name="llm_retry_enabled"
-                label={t("taskModes.llmRetryEnabled")}
-                valuePropName="checked"
-                tooltip={t("taskModes.llmRetryEnabledTooltip")}
-              >
-                <Switch />
-              </Form.Item>
-
-              <div className={styles.llmRetryRow}>
-                <Form.Item
-                  label={t("taskModes.llmMaxRetries")}
-                  name="llm_max_retries"
-                  rules={[
-                    {
-                      required: true,
-                      message: t("taskModes.llmMaxRetriesRequired"),
-                    },
-                    {
-                      type: "number",
-                      min: 1,
-                      message: t("taskModes.llmMaxRetriesMin"),
-                    },
-                  ]}
-                  tooltip={t("taskModes.llmMaxRetriesTooltip")}
-                  className={styles.llmRetryField}
-                >
-                  <InputNumber
-                    style={{ width: "100%" }}
-                    min={1}
-                    step={1}
-                    disabled={!llmRetryEnabled}
-                    placeholder={t("taskModes.llmMaxRetriesPlaceholder")}
-                  />
-                </Form.Item>
-
-                <Form.Item
-                  label={t("taskModes.llmBackoffBase")}
-                  name="llm_backoff_base"
-                  rules={[
-                    {
-                      required: true,
-                      message: t("taskModes.llmBackoffBaseRequired"),
-                    },
-                    {
-                      type: "number",
-                      min: 0.1,
-                      message: t("taskModes.llmBackoffBaseMin"),
-                    },
-                  ]}
-                  tooltip={t("taskModes.llmBackoffBaseTooltip")}
-                  className={styles.llmRetryField}
-                >
-                  <InputNumber
-                    style={{ width: "100%" }}
-                    step={0.1}
-                    disabled={!llmRetryEnabled}
-                    placeholder={t("taskModes.llmBackoffBasePlaceholder")}
-                  />
-                </Form.Item>
-
-                <Form.Item
-                  label={t("taskModes.llmBackoffCap")}
-                  name="llm_backoff_cap"
-                  dependencies={["llm_backoff_base"]}
-                  rules={[
-                    {
-                      required: true,
-                      message: t("taskModes.llmBackoffCapRequired"),
-                    },
-                    {
-                      type: "number",
-                      min: 0.5,
-                      message: t("taskModes.llmBackoffCapMin"),
-                    },
-                  ]}
-                  tooltip={t("taskModes.llmBackoffCapTooltip")}
-                  className={styles.llmRetryField}
-                >
-                  <InputNumber
-                    style={{ width: "100%" }}
-                    step={0.5}
-                    disabled={!llmRetryEnabled}
-                    placeholder={t("taskModes.llmBackoffCapPlaceholder")}
-                  />
-                </Form.Item>
-              </div>
-            </Card>
-
-            {/* ── Iteration Limit ───────────────────────────────────── */}
-            <Card
-              className={styles.formCard}
-              title={t("taskModes.iterLimitTitle")}
-              style={{ marginTop: 16 }}
-            >
-              <Form.Item
-                label={t("taskModes.maxIters")}
-                name="max_iters"
-                rules={[
-                  {
-                    required: true,
-                    message: t("taskModes.maxItersRequired"),
-                  },
-                  {
-                    type: "number",
-                    min: 1,
-                    message: t("taskModes.maxItersMin"),
-                  },
-                ]}
-                tooltip={t("taskModes.maxItersTooltip")}
-              >
-                <InputNumber
-                  style={{ width: "100%" }}
-                  min={1}
-                  step={1}
-                  placeholder={t("taskModes.maxItersPlaceholder")}
-                />
-              </Form.Item>
-            </Card>
-          </Form>
-        </div>
-      </div>
-
-      <div className={styles.footerActions}>
-        <Button
-          onClick={fetchConfig}
-          disabled={saving}
-          style={{ marginRight: 8 }}
+      <Form form={form} layout="vertical" className={styles.form}>
+        {/* ── spawn_subagents ─────────────────────────────────────── */}
+        <ModeCard
+          icon={<TeamOutlined />}
+          title={t("taskModes.spawnSubagents.title")}
+          description={t("taskModes.spawnSubagents.desc")}
+          color="blue"
         >
-          {t("common.reset")}
-        </Button>
-        <Button type="primary" onClick={handleSave} loading={saving}>
-          {t("common.save")}
-        </Button>
-      </div>
+          <Form.Item
+            label={t("taskModes.spawnSubagents.maxConcurrency")}
+            name={["spawn_subagents", "max_concurrency"]}
+            tooltip={t("taskModes.spawnSubagents.maxConcurrencyTip")}
+          >
+            <SliderWithValue min={1} max={32} />
+          </Form.Item>
+
+          <Form.Item
+            label={t("taskModes.spawnSubagents.maxSubagents")}
+            name={["spawn_subagents", "max_subagents"]}
+            tooltip={t("taskModes.spawnSubagents.maxSubagentsTip")}
+          >
+            <SliderWithValue min={1} max={25} />
+          </Form.Item>
+
+          <Form.Item
+            label={t("taskModes.spawnSubagents.timeoutSeconds")}
+            name={["spawn_subagents", "timeout_seconds"]}
+            tooltip={t("taskModes.timeoutTip")}
+          >
+            <SliderWithValue min={30} max={1800} step={10} />
+          </Form.Item>
+
+          <Form.Item
+            label={t("taskModes.allowNesting")}
+            name={["spawn_subagents", "allow_nesting"]}
+            valuePropName="checked"
+            tooltip={t("taskModes.nestingTip")}
+          >
+            <Switch />
+          </Form.Item>
+
+          <Form.Item
+            noStyle
+            shouldUpdate={(prev, cur) =>
+              prev?.spawn_subagents?.allow_nesting !==
+              cur?.spawn_subagents?.allow_nesting
+            }
+          >
+            {({ getFieldValue }) =>
+              getFieldValue(["spawn_subagents", "allow_nesting"]) ? (
+                <Form.Item
+                  label={t("taskModes.nestingMaxDepth")}
+                  name={["spawn_subagents", "nesting_max_depth"]}
+                >
+                  <SliderWithValue min={1} max={5} />
+                </Form.Item>
+              ) : null
+            }
+          </Form.Item>
+        </ModeCard>
+
+        {/* ── coordinate_workflow ─────────────────────────────────── */}
+        <ModeCard
+          icon={<ApartmentOutlined />}
+          title={t("taskModes.coordinateWorkflow.title")}
+          description={t("taskModes.coordinateWorkflow.desc")}
+          color="green"
+        >
+          <Form.Item
+            label={t("taskModes.coordinateWorkflow.maxConcurrency")}
+            name={["coordinate_workflow", "max_concurrency"]}
+            tooltip={t("taskModes.coordinateWorkflow.maxConcurrencyTip")}
+          >
+            <SliderWithValue min={1} max={32} />
+          </Form.Item>
+
+          <Form.Item
+            label={t("taskModes.coordinateWorkflow.maxSteps")}
+            name={["coordinate_workflow", "max_steps"]}
+          >
+            <SliderWithValue min={1} max={25} />
+          </Form.Item>
+
+          <Form.Item
+            label={t("taskModes.coordinateWorkflow.timeoutSeconds")}
+            name={["coordinate_workflow", "timeout_seconds"]}
+            tooltip={t("taskModes.timeoutTip")}
+          >
+            <SliderWithValue min={60} max={3600} step={30} />
+          </Form.Item>
+
+          <Form.Item
+            label={t("taskModes.coordinateWorkflow.stepTimeoutSeconds")}
+            name={["coordinate_workflow", "step_timeout_seconds"]}
+          >
+            <SliderWithValue min={30} max={600} step={10} />
+          </Form.Item>
+
+          <Form.Item
+            label={t("taskModes.allowNesting")}
+            name={["coordinate_workflow", "allow_nesting"]}
+            valuePropName="checked"
+            tooltip={t("taskModes.nestingTip")}
+          >
+            <Switch />
+          </Form.Item>
+        </ModeCard>
+
+        {/* ── delegate_task ───────────────────────────────────────── */}
+        <ModeCard
+          icon={<RocketOutlined />}
+          title={t("taskModes.delegateTask.title")}
+          description={t("taskModes.delegateTask.desc")}
+          color="orange"
+        >
+          <Form.Item
+            label={t("taskModes.delegateTask.timeoutSeconds")}
+            name={["delegate_task", "timeout_seconds"]}
+            tooltip={t("taskModes.timeoutTip")}
+          >
+            <SliderWithValue min={30} max={3600} step={30} />
+          </Form.Item>
+
+          <Form.Item
+            label={t("taskModes.allowNesting")}
+            name={["delegate_task", "allow_nesting"]}
+            valuePropName="checked"
+            tooltip={t("taskModes.nestingTip")}
+          >
+            <Switch />
+          </Form.Item>
+        </ModeCard>
+
+        {/* ── Save ────────────────────────────────────────────────── */}
+        <div className={styles.saveBar}>
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            onClick={handleSave}
+            loading={saving}
+            size="large"
+          >
+            {t("common.save")}
+          </Button>
+        </div>
+      </Form>
     </div>
   );
 }

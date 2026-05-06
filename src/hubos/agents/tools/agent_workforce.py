@@ -42,6 +42,17 @@ _DEFAULT_TIMEOUT = 120
 _MAX_CONCURRENCY = 8
 
 
+def _get_task_modes_config() -> Any:
+    """Load task_modes config for the current agent."""
+    try:
+        from hubos.config.config import load_agent_config
+
+        cfg = load_agent_config("default")
+        return cfg.task_modes
+    except Exception:
+        return None
+
+
 def _err(text: str) -> ToolResponse:
     return ToolResponse(content=[TextBlock(type="text", text=text)])
 
@@ -92,6 +103,24 @@ async def spawn_subagents(
     """
     if not isinstance(assignments, list) or not assignments:
         return _err("spawn_subagents: 'assignments' must be a non-empty list")
+
+    # Apply task_modes config limits
+    tm = _get_task_modes_config()
+    if tm is not None:
+        sc = tm.spawn_subagents
+        max_concurrency = min(max_concurrency, sc.max_concurrency)
+        timeout_seconds = min(timeout_seconds, sc.timeout_seconds)
+        if len(assignments) > sc.max_subagents:
+            return _err(
+                f"spawn_subagents: {len(assignments)} assignments exceeds "
+                f"max_subagents limit ({sc.max_subagents})",
+            )
+        if not sc.allow_nesting:
+            ctx = _current_runtime_ctx()
+            if ctx.get("parent_session_id"):
+                return _err(
+                    "spawn_subagents: nesting not allowed by task mode config",
+                )
 
     cleaned: list[tuple[str, str, str]] = []
     for i, a in enumerate(assignments):
@@ -562,6 +591,22 @@ async def coordinate_workflow(
             "hubos.core.workers.set_host_agent_runner(...) at startup to enable "
             "coordinate_workflow.",
         )
+
+    # Apply task_modes config limits
+    tm = _get_task_modes_config()
+    if tm is not None:
+        cw = tm.coordinate_workflow
+        max_concurrency = min(max_concurrency, cw.max_concurrency)
+        timeout_seconds = min(timeout_seconds, cw.timeout_seconds)
+        step_timeout_seconds = min(
+            step_timeout_seconds,
+            cw.step_timeout_seconds,
+        )
+        if len(steps) > cw.max_steps:
+            return _err(
+                f"coordinate_workflow: {len(steps)} steps exceeds "
+                f"max_steps limit ({cw.max_steps})",
+            )
 
     step_map, err = _validate_plan(steps)
     if err:

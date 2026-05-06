@@ -783,10 +783,18 @@ _SETTINGS_PATH = (
 
 
 class WorkExperienceSettings(BaseModel):
-    """Settings for the Work Experience system."""
+    """Settings for the Work Experience system.
+
+    Includes the full provider connection info so that the reflection
+    code can call the model directly without re-reading provider configs.
+    """
 
     reflection_provider_id: str = ""
     reflection_model: str = ""
+    # Resolved connection info (written on save)
+    reflection_api_key: str = ""
+    reflection_base_url: str = ""
+    reflection_chat_model: str = ""  # agentscope model class name
 
 
 class WorkExperienceSettingsResponse(BaseModel):
@@ -802,6 +810,9 @@ def _load_settings() -> WorkExperienceSettings:
             return WorkExperienceSettings(
                 reflection_provider_id=data.get("reflection_provider_id", ""),
                 reflection_model=data.get("reflection_model", ""),
+                reflection_api_key=data.get("reflection_api_key", ""),
+                reflection_base_url=data.get("reflection_base_url", ""),
+                reflection_chat_model=data.get("reflection_chat_model", ""),
             )
         except Exception:
             pass
@@ -877,9 +888,17 @@ class UpdateSettingsRequest(BaseModel):
 async def update_settings(
     body: UpdateSettingsRequest,
 ) -> WorkExperienceSettingsResponse:
+    # Resolve full connection info from provider config
+    api_key, base_url, chat_model = _resolve_provider(
+        body.reflection_provider_id,
+    )
+
     settings = WorkExperienceSettings(
         reflection_provider_id=body.reflection_provider_id,
         reflection_model=body.reflection_model,
+        reflection_api_key=api_key,
+        reflection_base_url=base_url,
+        reflection_chat_model=chat_model,
     )
     _save_settings(settings)
     providers = _collect_available_providers()
@@ -888,3 +907,25 @@ async def update_settings(
         reflection_model=settings.reflection_model,
         available_providers=providers,
     )
+
+
+def _resolve_provider(
+    provider_id: str,
+) -> tuple[str, str, str]:
+    """Look up api_key, base_url, chat_model for a provider."""
+    from hubos.constant import SECRET_DIR
+
+    providers_dir = SECRET_DIR / "providers"
+    for subdir in ("builtin", "custom"):
+        pfile = providers_dir / subdir / f"{provider_id}.json"
+        if pfile.exists():
+            try:
+                cfg = json.loads(pfile.read_text("utf-8"))
+                return (
+                    cfg.get("api_key", ""),
+                    cfg.get("base_url", ""),
+                    cfg.get("chat_model", ""),
+                )
+            except Exception:
+                pass
+    return "", "", ""

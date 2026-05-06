@@ -1,5 +1,9 @@
 import { request } from "../request";
-import type { AgentRequest, AgentsRunningConfig } from "../types";
+import type {
+  AgentRequest,
+  AgentsRunningConfig,
+  TaskModesConfig,
+} from "../types";
 
 // Agent API
 export const agentApi = {
@@ -30,6 +34,14 @@ export const agentApi = {
 
   updateAgentRunningConfig: (config: AgentsRunningConfig) =>
     request<AgentsRunningConfig>("/agent/running-config", {
+      method: "PUT",
+      body: JSON.stringify(config),
+    }),
+
+  getTaskModes: () => request<TaskModesConfig>("/agent/task-modes"),
+
+  updateTaskModes: (config: TaskModesConfig) =>
+    request<TaskModesConfig>("/agent/task-modes", {
       method: "PUT",
       body: JSON.stringify(config),
     }),

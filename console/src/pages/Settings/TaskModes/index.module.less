@@ -1,4 +1,4 @@
-.configPage {
+.page {
   height: 100%;
   width: 100%;
   display: flex;
@@ -6,19 +6,11 @@
   overflow: hidden;
 }
 
-.pageContent {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.formCard {
-  width: 100%;
-}
-
 .form {
   flex: 1;
   min-height: 0;
+  padding: 16px;
+  overflow-y: auto;
 
   :global {
     .ant-form-item-label > label {
@@ -27,8 +19,9 @@
   }
 }
 
-.formContainer {
-  padding: 16px;
+.modeCard {
+  margin-bottom: 20px;
+  border-radius: 12px;
 }
 
 .centerState {
@@ -40,33 +33,15 @@
   gap: 16px;
 }
 
-.stateText {
+.sliderValue {
   font-size: 14px;
-  color: #666;
+  font-weight: 600;
+  color: var(--ant-color-primary);
+  font-variant-numeric: tabular-nums;
 }
 
-.stateTextError {
-  font-size: 14px;
-  color: #ff4d4f;
-}
-
-.footerActions {
+.saveBar {
   display: flex;
   justify-content: flex-end;
-  align-items: center;
-  padding: 16px 24px;
-  border-top: 1px solid #eae9e7;
-  background: #fff;
-  flex-shrink: 0;
-}
-
-:global(.dark-mode) {
-  .stateText {
-    color: rgba(255, 255, 255, 0.55);
-  }
-
-  .footerActions {
-    border-top-color: rgba(255, 255, 255, 0.08);
-    background: #141414;
-  }
+  padding: 16px 0;
 }

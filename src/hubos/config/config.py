@@ -587,6 +587,112 @@ class AgentsRunningConfig(BaseModel):
         )
 
 
+# ── Task Mode Configs ────────────────────────────────────────────────
+
+
+class SpawnSubagentsConfig(BaseModel):
+    """Config for spawn_subagents (parallel fan-out)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    max_concurrency: int = Field(
+        default=8,
+        ge=1,
+        le=32,
+        description="Max simultaneous sub-agents",
+    )
+    timeout_seconds: int = Field(
+        default=120,
+        ge=30,
+        le=1800,
+        description="Per-subagent timeout (seconds)",
+    )
+    max_subagents: int = Field(
+        default=8,
+        ge=1,
+        le=25,
+        description="Max total sub-agents per call",
+    )
+    allow_nesting: bool = Field(
+        default=False,
+        description="Whether sub-agents can spawn further sub-agents",
+    )
+    nesting_max_depth: int = Field(
+        default=1,
+        ge=0,
+        le=5,
+        description="Max nesting depth (0 = no nesting allowed)",
+    )
+
+
+class CoordinateWorkflowConfig(BaseModel):
+    """Config for coordinate_workflow (sequential/DAG pipeline)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    max_concurrency: int = Field(
+        default=8,
+        ge=1,
+        le=32,
+        description="Max simultaneous steps",
+    )
+    timeout_seconds: int = Field(
+        default=600,
+        ge=60,
+        le=3600,
+        description="Overall workflow timeout (seconds)",
+    )
+    step_timeout_seconds: int = Field(
+        default=120,
+        ge=30,
+        le=600,
+        description="Per-step timeout (seconds)",
+    )
+    max_steps: int = Field(
+        default=25,
+        ge=1,
+        le=25,
+        description="Max steps per workflow",
+    )
+    allow_nesting: bool = Field(
+        default=False,
+        description="Whether steps can spawn sub-agents",
+    )
+
+
+class DelegateTaskConfig(BaseModel):
+    """Config for delegate_task (background task)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    timeout_seconds: int = Field(
+        default=180,
+        ge=30,
+        le=3600,
+        description="Task timeout (seconds)",
+    )
+    allow_nesting: bool = Field(
+        default=False,
+        description="Whether delegated task can spawn sub-agents",
+    )
+
+
+class TaskModesConfig(BaseModel):
+    """Per-agent task mode configurations."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    spawn_subagents: SpawnSubagentsConfig = Field(
+        default_factory=SpawnSubagentsConfig,
+    )
+    coordinate_workflow: CoordinateWorkflowConfig = Field(
+        default_factory=CoordinateWorkflowConfig,
+    )
+    delegate_task: DelegateTaskConfig = Field(
+        default_factory=DelegateTaskConfig,
+    )
+
+
 class AgentsLLMRoutingConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -674,6 +780,10 @@ class AgentProfileConfig(BaseModel):
     running: AgentsRunningConfig = Field(
         default_factory=AgentsRunningConfig,
         description="Runtime configuration",
+    )
+    task_modes: TaskModesConfig = Field(
+        default_factory=TaskModesConfig,
+        description="Task mode configurations (spawn/workflow/delegate)",
     )
     llm_routing: AgentsLLMRoutingConfig = Field(
         default_factory=AgentsLLMRoutingConfig,
