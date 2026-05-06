@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 
 # 加 src 到 PYTHONPATH
-SRC = Path("/Users/allen/HubOS/src")
+SRC = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(SRC))
 
 # 必须在 import hubos.core 之前设置

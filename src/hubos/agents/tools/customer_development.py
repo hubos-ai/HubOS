@@ -489,7 +489,10 @@ async def _zhipu_webreader(url: str) -> str:
 
 async def _hunter_domain(domain: str) -> list[dict]:
     """Call super-crawler hunter_domain to find emails for a domain."""
-    super_crawler_dir = "/Users/allen/projects/super-crawler"
+    super_crawler_dir = os.environ.get(
+        "SUPER_CRAWLER_DIR",
+        os.path.expanduser("~/projects/super-crawler"),
+    )
     try:
         proc = await asyncio.create_subprocess_exec(
             "node",

@@ -87,7 +87,7 @@ class SubAgentWriteDenied(Exception):
 
 # Agent-specific write whitelist: agent_id → list of extra allowed dirs.
 # Configured via HUBOS_AGENT_WRITE_WHITELIST env var:
-#   "rd=/Users/allen/HubOS;operations=/tmp/backups"
+#   "rd=/opt/HubOS;operations=/tmp/backups"
 # Or programmatically via _register_agent_write_dir().
 _AGENT_WRITE_WHITELIST: dict[str, list[Path]] = {}
 

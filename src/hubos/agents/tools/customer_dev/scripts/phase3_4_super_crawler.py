@@ -9,6 +9,7 @@ phase3_4_super_crawler.py - 候选客户抓取与清洗
 4. 输出可供 phase5/phase7 使用的干净候选数据
 """
 import json
+import os
 import subprocess
 import sys
 import re
@@ -21,7 +22,10 @@ from urllib.error import URLError, HTTPError
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Semaphore
 
-SUPER_CRAWLER_DIR = "/Users/allen/projects/super-crawler"
+SUPER_CRAWLER_DIR = os.environ.get(
+    "SUPER_CRAWLER_DIR",
+    os.path.expanduser("~/projects/super-crawler"),
+)
 MAX_WORKERS = 5
 SUB_TIMEOUT = 30
 
@@ -166,7 +170,12 @@ NON_BUSINESS_EMAIL_DOMAINS = {
     "edu.br",
 }
 
-INDEX_DIR = Path("/Users/allen/.openclaw/agents/hunter/workspace/data/index")
+INDEX_DIR = Path(
+    os.environ.get(
+        "HUNTER_INDEX_DIR",
+        os.path.expanduser("~/.openclaw/agents/hunter/workspace/data/index"),
+    ),
+)
 
 
 def read_jsonl(path: Path):

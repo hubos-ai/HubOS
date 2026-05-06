@@ -64,7 +64,7 @@ def _stub_agentscope() -> None:
 _stub_agentscope()
 
 # ---------- 2. 路径 + 环境 ----------
-SRC = Path("/Users/allen/HubOS/src")
+SRC = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(SRC))
 os.environ["HUBOS_RUNTIME_MODE"] = "inprocess"
 os.environ["ENABLE_EXECUTION_LOOP_MVP"] = "true"
