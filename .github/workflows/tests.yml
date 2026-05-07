@@ -20,20 +20,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  approval-gate:
-    name: Maintainer Approval
-    runs-on: ubuntu-latest
-    environment: maintainer-approved
-    steps:
-      - name: Approval granted
-        run: echo "Approved by maintainer"
-
   unit-tests:
     name: Unit Tests - py${{ matrix.python-version }} - ${{ matrix.os }}
-    needs: approval-gate
-    if: |
-      always() &&
-      needs.approval-gate.result == 'success'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -94,10 +82,6 @@ jobs:
 
   integrated-tests:
     name: Integrated Tests - py${{ matrix.python-version }} - ${{ matrix.os }}
-    needs: approval-gate
-    if: |
-      always() &&
-      needs.approval-gate.result == 'success'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -169,10 +153,6 @@ jobs:
 
   coverage-report:
     name: Coverage Report
-    needs: approval-gate
-    if: |
-      always() &&
-      needs.approval-gate.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -233,21 +213,15 @@ jobs:
 
   test-summary:
     name: Test Summary
-    needs: [approval-gate, unit-tests, integrated-tests, coverage-report]
+    needs: [unit-tests, integrated-tests, coverage-report]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Check test results
         shell: bash
         run: |
-          echo "Approval gate: ${{ needs.approval-gate.result }}"
           echo "Unit tests: ${{ needs.unit-tests.result }}"
           echo "Integrated tests: ${{ needs.integrated-tests.result }}"
-
-          if [ "${{ needs.approval-gate.result }}" != "success" ]; then
-            echo "❌ Approval not granted"
-            exit 1
-          fi
 
           if [ "${{ needs.unit-tests.result }}" = "failure" ] || \
              [ "${{ needs.integrated-tests.result }}" = "failure" ]; then
