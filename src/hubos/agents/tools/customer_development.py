@@ -1,16 +1,12 @@
 # -*- coding: utf-8 -*-
 """Customer development lead discovery tool.
 
-This tool wraps the Hunter/OpenClaw lead-discovery pipeline for HubOS,
-then enriches results with HubOS-only tools (Tavily search, Zhipu webReader,
-super-crawler hunter_domain).
-
-Pipeline:
-    Phase 1 (openclaw): Generate search terms
-    Phase 2 (openclaw): xcrawl search for candidate URLs
-    Phase 2.5 (HubOS): Tavily search fallback when xcrawl results are poor
-    Phase 3 (openclaw): super_crawler deep crawl + email discovery
-    Phase 3.5 (HubOS): Zhipu webReader enrichment + hunter_domain retry
+Multi-phase B2B lead discovery pipeline:
+    Phase 1: Generate localized search terms
+    Phase 2: Web search for candidate URLs
+    Phase 2.5: Fallback search enrichment when primary results are poor
+    Phase 3: Deep crawl + email discovery
+    Phase 3.5: Additional email enrichment + verification
 """
 
 import asyncio
@@ -496,7 +492,7 @@ async def _hunter_domain(domain: str) -> list[dict]:
     try:
         proc = await asyncio.create_subprocess_exec(
             "node",
-            f"{super_crawler_dir}/src/openclaw-tools.js",
+            f"{super_crawler_dir}/src/tools.js",
             "call",
             "hunter_domain",
             json.dumps({"domain": domain, "found_only": True}),

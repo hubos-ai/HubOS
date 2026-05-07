@@ -8,7 +8,7 @@ volumes:
 
 services:
   hubos:
-    image: agentscope/hubos:latest
+    image: hubos/hubos:latest
     container_name: hubos
     restart: always
     ports:

@@ -19,8 +19,7 @@ on:
         default: false
 
 env:
-  ACR_REGISTRY: agentscope-registry.ap-southeast-1.cr.aliyuncs.com
-  IMAGE: agentscope/hubos
+  IMAGE: hubos/hubos
 
 jobs:
   build-and-push:
@@ -40,13 +39,6 @@ jobs:
           registry: docker.io
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Log in to Aliyun ACR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.ACR_REGISTRY }}
-          username: ${{ secrets.ALIYUN_ACR_USERNAME }}
-          password: ${{ secrets.ALIYUN_ACR_PASSWORD }}
 
       - name: Set version and prerelease flag
         id: vars
@@ -77,10 +69,9 @@ jobs:
           IS_PRERELEASE: ${{ steps.vars.outputs.is_prerelease }}
           HUBOS_DISABLED_CHANNELS: "imessage"
         run: |
-          TAGS="-t ${ACR_REGISTRY}/${IMAGE}:${VERSION} -t ${ACR_REGISTRY}/${IMAGE}:pre"
-          TAGS="${TAGS} -t docker.io/${IMAGE}:${VERSION} -t docker.io/${IMAGE}:pre"
+          TAGS="-t docker.io/${IMAGE}:${VERSION} -t docker.io/${IMAGE}:pre"
           if [ "${IS_PRERELEASE}" != "true" ]; then
-            TAGS="${TAGS} -t ${ACR_REGISTRY}/${IMAGE}:latest -t docker.io/${IMAGE}:latest"
+            TAGS="${TAGS} -t docker.io/${IMAGE}:latest"
           fi
           docker buildx build --platform linux/amd64,linux/arm64 \
             -f deploy/Dockerfile \

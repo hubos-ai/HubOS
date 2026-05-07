@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: build console frontend (dist not committed in repo).
 # -----------------------------------------------------------------------------
-FROM agentscope-registry.ap-southeast-1.cr.aliyuncs.com/agentscope/node:slim AS console-builder
+FROM node:20-slim AS console-builder
 WORKDIR /app
 COPY console /app/console
 RUN cd /app/console && npm ci --include=dev && npm run build
@@ -9,7 +9,7 @@ RUN cd /app/console && npm ci --include=dev && npm run build
 # -----------------------------------------------------------------------------
 # Stage 2: runtime image with Python, Chromium, and app.
 # -----------------------------------------------------------------------------
-FROM agentscope-registry.ap-southeast-1.cr.aliyuncs.com/agentscope/node:slim
+FROM node:20-slim
 
 # ENV variables
 ENV NODE_ENV=production
@@ -31,11 +31,11 @@ RUN apt-get update && apt-get install -y --fix-missing \
     python3  \
     python3-pip  \
     python3-venv \
-    build-essential  \
-    libssl-dev  \
-    git  \
-    supervisor  \
-    vim  \
+    build-essential \
+    libssl-dev \
+    git \
+    supervisor \
+    vim \
     gettext-base \
     xfce4 \
     xfce4-terminal \

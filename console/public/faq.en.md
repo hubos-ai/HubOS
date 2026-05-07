@@ -41,8 +41,8 @@ pip install -e .
 3. **Docker**:
 
 ```bash
-docker pull agentscope/hubos:latest
-docker run -p 127.0.0.1:8088:8088 -v hubos-data:/app/working agentscope/hubos:latest
+docker pull hubos/hubos:latest
+docker run -p 127.0.0.1:8088:8088 -v hubos-data:/app/working hubos/hubos:latest
 ```
 
 After upgrading, restart with `hubos app`.

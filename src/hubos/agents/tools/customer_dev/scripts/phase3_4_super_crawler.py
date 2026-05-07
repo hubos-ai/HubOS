@@ -290,7 +290,7 @@ def write_candidate_indexes(results):
 def call_super_crawler(tool, params):
     cmd = [
         "node",
-        f"{SUPER_CRAWLER_DIR}/src/openclaw-tools.js",
+        f"{SUPER_CRAWLER_DIR}/src/tools.js",
         "call",
         tool,
         json.dumps(params),
