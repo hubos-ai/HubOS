@@ -1,375 +1,611 @@
-# HubOS — Multi-User AI Employee Management Platform
+<p align="center">
+  <img src="https://raw.githubusercontent.com/hubos-ai/HubOS/main/assets/logo.svg" alt="HubOS Logo" width="120" />
+</p>
 
-> **TL;DR**: Turn AI into your digital workforce. Connect to 14+ messaging channels, orchestrate 9 specialized AI agents, automate everything from lead generation to financial reports.
+<h1 align="center">HubOS</h1>
 
-**[中文文档](#系统定位)**
+<p align="center">
+  <strong>Multi-User AI Employee Management Platform</strong><br>
+  <strong>多用户 AI 员工管理平台</strong>
+</p>
 
-## What is HubOS?
+<p align="center">
+  <a href="https://github.com/hubos-ai/HubOS/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-green.svg" alt="Python" /></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.x-blue.svg" alt="TypeScript" /></a>
+  <img src="https://img.shields.io/badge/Agents-9-orange" alt="9 Agents" />
+  <img src="https://img.shields.io/badge/Skills-24-purple" alt="24 Skills" />
+  <img src="https://img.shields.io/badge/Channels-14+-teal" alt="14+ Channels" />
+</p>
 
-HubOS is a **multi-user, multi-channel, multi-agent** AI platform. It's not a chatbot — it's a **digital employee management system** where each agent has its own identity, skills, memory, and job responsibilities, coordinated by a central dispatcher.
+<p align="center">
+  <a href="#english">English</a> · <a href="#中文">中文</a> · <a href="https://github.com/hubos-ai/HubOS/blob/main/CONTRIBUTING.md">Contributing</a> · <a href="https://github.com/hubos-ai/HubOS/issues">Issues</a>
+</p>
 
-**Key principle: everything runs locally. Your data never leaves your machine.**
+---
 
-### Highlights
+<a id="english"></a>
 
-- 🤖 **9 Specialized Agents** — Sales, Marketing, Research, R&D, Finance, HR, CS, Ops, and a GM to coordinate them
-- 📡 **14+ Channels** — Feishu, WeChat, DingTalk, Discord, Telegram, QQ, iMessage, and more
-- 🧠 **Self-Evolving Memory** — Three-layer memory system with automatic experience extraction
-- 🔒 **Security First** — File locks, RBAC, tool guards, agent sandboxing
-- 🛠️ **24 Built-in Skills** — PDF/Office processing, web crawling, email, cron, browser automation
-- ⚡ **Fast** — Agent instance pooling, async architecture, 200K context window
+## 🌟 What is HubOS?
 
-### Quick Start
+HubOS is an **open-source, self-hosted AI employee management platform**. It transforms large language models into a team of specialized digital employees that communicate through your existing messaging tools.
+
+**It's not a chatbot — it's an AI workforce.**
+
+Each agent has its own **identity, skills, memory, and job responsibilities**, coordinated by a central dispatcher (General Manager agent). You talk to them through Feishu, WeChat, Discord, or any of 14+ supported channels.
+
+### Why HubOS?
+
+| Problem | HubOS Solution |
+|---------|---------------|
+| ChatGPT/Claude are single-agent, general-purpose | 9 specialized agents with division of labor |
+| SaaS AI tools store your data in the cloud | Everything runs locally, data never leaves your machine |
+| One chatbot can't handle complex business workflows | Multi-agent orchestration with parallel/pipeline/DAG modes |
+| AI doesn't learn from experience | Self-evolving memory system extracts lessons automatically |
+| Every AI tool is a separate subscription | One platform, 24 built-in skills, 18 tools |
+
+### Key Numbers
+
+| Metric | Value |
+|--------|-------|
+| Code | 150,000+ lines (Python + TypeScript) |
+| API Endpoints | 170+ |
+| Built-in Tools | 18 |
+| Skills | 24 |
+| Messaging Channels | 14+ |
+| Agent Roles | 9 |
+| Frontend Pages | 28 |
+| Languages | 4 (EN / ZH / JA / RU) |
+
+---
+
+## ✨ Features
+
+### 🤖 Multi-Agent Team
+
+9 specialized agents, each with its own personality, skills, and model configuration:
+
+| Agent | Department | Role |
+|-------|-----------|------|
+| **HubOS** | General Manager | Task dispatch, coordination, decision-making |
+| **Sam** | Sales | Lead generation, outreach, quotations |
+| **Mavis** | Marketing | Content creation, competitive analysis, branding |
+| **Iris** | Research | Market research, data analysis, industry reports |
+| **Rex** | R&D | Development, system maintenance, automation |
+| **Felix** | Finance | Billing, financial reports, cost analysis |
+| **Harper** | HR | Documentation, scheduling, process management |
+| **Clara** | Customer Success | Support, feedback handling, FAQ maintenance |
+| **Oscar** | Operations | Task tracking, scheduled jobs, monitoring |
+
+**Three orchestration modes:**
+- **Parallel Delegation** (`spawn_subagents`) — Independent tasks run simultaneously
+- **Pipeline Coordination** (`coordinate_workflow`) — Sequential DAG with dependencies
+- **Background Tasks** (`delegate_task`) — Long-running jobs with progress tracking
+
+### 📡 14+ Messaging Channels
+
+All channels use a unified message format. One agent serves multiple channels simultaneously:
+
+**Console** (built-in web UI) · **Feishu** · **WeChat** · **DingTalk** · **Discord** · **Telegram** · **WeCom** · **QQ** · **Matrix** · **Mattermost** · **iMessage** · **MQTT** · **XiaoYi** · **Voice**
+
+### 🧠 Three-Layer Memory System
+
+| Layer | Loading | Purpose |
+|-------|---------|---------|
+| **Long-term Memory** (MEMORY.md) | Auto-loaded every session | Persistent knowledge, tool configs, lessons learned |
+| **Work Experience v4** | Auto-retrieved by task type | Methodology cards — one card per workflow |
+| **Daily Notes** (memory/) | On-demand search | Detailed session logs, troubleshooting records |
+
+**Work Experience v4 — Self-Evolving Engine:**
+- Automatically reflects after task completion → extracts lessons → merges into cards
+- LLM semantic matching replaces keyword matching for higher accuracy
+- Promotion pipeline: candidate → approved → mature
+- Users choose their own reflection model via the UI
+
+### 🛠️ 24 Built-in Skills
+
+| Category | Skills |
+|----------|--------|
+| **Document Processing** | PDF · Word (.docx) · Excel (.xlsx) · PowerPoint (.pptx) |
+| **Web & Search** | Web crawling · Tavily search · Browser automation |
+| **Communication** | Channel messaging · Email (himalaya) · Multi-agent collaboration |
+| **Business** | E-commerce price search · News aggregation · Cron scheduling |
+| **System** | HubOS setup guide · Frontend design · File reading |
+| **Platform Integration** | Feishu (Bitable/Doc/Wiki/Drive) · DingTalk channel setup |
+
+### 🔒 Security
+
+| Feature | Description |
+|---------|-------------|
+| **File Locking** | `fcntl.flock` per-file granularity, 30s timeout — prevents write conflicts |
+| **Agent Sandbox** | Each agent can only write to its own workspace |
+| **Write Whitelist** | Configurable external directory access (e.g., R&D agent → project dir) |
+| **Tool Guard** | Risk-level tool control with human-in-the-loop approval |
+| **RBAC** | Role-based access control (admin / user / viewer) |
+| **JWT Auth** | Web API and WebSocket authentication |
+
+### ⚡ Performance
+
+| Feature | Implementation |
+|---------|---------------|
+| **Async Architecture** | FastAPI + Uvicorn, each request as independent asyncio.Task |
+| **Agent Instance Pooling** | LRU cache with concurrency-safe borrowing, ~200× speedup on repeat requests |
+| **200K Context Window** | GLM-5.1 supports 200K tokens; auto-compression when exceeded |
+| **SSE Heartbeat** | 15s ping intervals to prevent proxy timeouts |
+
+---
+
+## 📸 Screenshots
+
+> *Coming soon — screenshots of the Web Console, Agent Management, and Chat interfaces.*
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python 3.10 - 3.13
+- Node.js 18+ (for frontend build)
+- At least one LLM API key (Zhipu GLM, MiniMax, OpenAI, Anthropic, etc.)
+
+### Option 1: pip install (Recommended)
 
 ```bash
 # Install
 pip install hubos
+
+# Initialize (creates ~/.hubos/ directory)
+hubos init
+
+# Start the server
+hubos app
+```
+
+Open http://localhost:8088 and start chatting.
+
+### Option 2: From Source
+
+```bash
+# Clone
+git clone https://github.com/hubos-ai/HubOS.git
+cd HubOS
+
+# Set up virtual environment
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+
+# Install
+pip install -e ".[dev]"
+
+# Initialize
 hubos init
 
 # Start
 hubos app
-
-# Or with Docker
-docker run -p 8088:8088 hubos/hubos:latest
 ```
 
-Open `http://localhost:8088` and start chatting with your AI team.
+### Option 3: Docker
+
+```bash
+docker pull hubos/hubos:latest
+docker run -p 8088:8088 -v hubos-data:/app/working hubos/hubos:latest
+```
+
+### Option 4: Electron Desktop App
+
+```bash
+hubos desktop
+```
+
+### First-Time Setup
+
+1. Open http://localhost:8088
+2. Register an account
+3. Go to **Settings → Models** and configure your LLM provider (API key + model)
+4. Go to **Settings → Agents** and verify agent configurations
+5. Start chatting with your AI team!
 
 ---
 
-## 系统定位
+## 🏗️ Architecture
 
-HubOS 是一个**多用户、多渠道、多 Agent** 的 AI 控制平台。它不是一个聊天机器人，而是一个**数字员工管理系统**——每个 Agent 有自己的身份、技能、记忆和工作职责，通过统一的调度中枢协调完成复杂任务。
+```
+┌─────────────────────────────────────────────────────────┐
+│                    User Interface                        │
+│  Web UI │ Electron Desktop │ Feishu │ WeChat │ ...      │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────┐
+│               FastAPI Backend (Async)                    │
+│  ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌────────┐ │
+│  │ Auth/RBAC │  │ Sessions  │  │ Tracker  │  │ Locks  │ │
+│  └──────────┘  └───────────┘  └──────────┘  └────────┘ │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────┐
+│              Agent Dispatch Layer (GM)                   │
+│  ┌────────────────────────────────────────────────────┐ │
+│  │ Agent Instance Pool (LRU + concurrency-safe)       │ │
+│  └────────────────────────────────────────────────────┘ │
+│  Parallel │ Pipeline │ Background   ← Task Modes       │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────┐
+│              9 Specialized Agents                        │
+│  Sales │ Marketing │ Research │ R&D │ Finance │ ...     │
+│  Each has: Identity + Skills + Memory + Model Config    │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────┐
+│              Infrastructure                              │
+│  Skills │ LLM Router │ Memory │ WE v4 │ MCP │ Cron     │
+│  Security │ DAG Engine │ Tool Guard │ File Guard        │
+└─────────────────────────────────────────────────────────┘
+```
 
-**核心特点：完全本地运行，数据不离开你的机器。**
+### Directory Structure
+
+```
+src/hubos/
+├── app/                    # Application layer
+│   ├── runner/             # Agent runners (with instance pooling)
+│   ├── routers/            # 22 API router modules
+│   ├── channels/           # 14+ channel adapters
+│   ├── mcp/                # MCP client management
+│   └── workspace/          # Workspace lifecycle
+├── agents/                 # Agent core
+│   ├── react_agent.py     # HubOSAgent (ReAct reasoning)
+│   ├── tools/              # 18 built-in tools
+│   ├── skills/             # 24 skill definitions
+│   ├── hooks/              # Agent lifecycle hooks
+│   └── memory/             # Memory managers
+├── config/                 # Configuration system (45+ classes)
+├── core/                   # Core engine
+│   ├── llm/                # LLM provider routing
+│   ├── memory/             # Memory storage (ChromaDB)
+│   ├── work_experience/    # Experience system (v4)
+│   ├── execution/          # Task execution engine
+│   ├── dag/                # DAG scheduling engine
+│   └── infra/              # RBAC, feature flags, metrics
+├── security/               # Tool guard, skill scanner
+└── cli/                    # CLI commands
+
+console/                    # React frontend (28 pages)
+desktop/                    # Electron desktop app
+```
+
+### Tech Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Backend | Python 3.10+ · FastAPI · Uvicorn |
+| Agent Framework | AgentScope 1.0.18 |
+| Frontend | React 18 · Vite · TypeScript · Ant Design 5 |
+| Desktop | Electron |
+| Vector Store | ChromaDB (SQLite backend) |
+| UI Components | [@agentscope-ai/chat](https://www.npmjs.com/package/@agentscope-ai/chat) · [@agentscope-ai/design](https://www.npmjs.com/package/@agentscope-ai/design) |
 
 ---
 
-## 系统架构概览
+## 🤝 Supported LLM Providers
+
+HubOS supports multiple LLM providers with per-agent model configuration:
+
+| Provider | Models | Best For |
+|----------|--------|----------|
+| **Zhipu (智谱)** | GLM-4, GLM-5.1 | Complex reasoning, long context (200K) |
+| **MiniMax** | M2.7-highspeed | Fast structured tasks |
+| **OpenAI** | GPT-4o, GPT-4-turbo | General purpose |
+| **Anthropic** | Claude 3.5/4 | Analysis, writing |
+| **Google** | Gemini 1.5/2.0 | Multimodal tasks |
+| **DeepSeek** | DeepSeek-V3 | Cost-effective reasoning |
+| **Qwen (通义千问)** | Qwen 2.5/3 | Chinese language tasks |
+| **Ollama** | Local models | Privacy-first, no API needed |
+
+---
+
+## 🔌 MCP (Model Context Protocol)
+
+HubOS supports MCP client integration with hot-reload:
+
+- Configure MCP servers via Web UI or config files
+- Each skill can define its own MCP dependencies
+- Built-in support for Zhipu MCP Server (Vision, Search, webReader, ZRead)
+
+---
+
+## 📋 CLI Reference
+
+```bash
+hubos app          # Start FastAPI server
+hubos desktop      # Start Electron desktop app
+hubos init         # Initialize working directory
+hubos agent        # Agent management & communication
+hubos cron         # Cron job management
+hubos channel      # Channel configuration
+hubos models       # Model provider configuration
+hubos skills       # Skill management
+hubos auth         # Authentication management
+hubos shutdown     # Stop all services
+```
+
+---
+
+## 🗺️ Roadmap
+
+- [ ] Plugin marketplace for community skills
+- [ ] Multi-language agent templates (DE, FR, ES, AR)
+- [ ] GPU-accelerated local model support (MLX, llama.cpp)
+- [ ] Collaborative workspaces for teams
+- [ ] Mobile companion app
+- [ ] REST API playground / Swagger UI
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
+
+- Development environment setup
+- Code style guidelines
+- PR submission process
+- How to add new skills, channels, and tools
+
+---
+
+## 📄 License
+
+HubOS is released under the [Apache License 2.0](LICENSE).
+
+---
+
+## 🙏 Acknowledgments
+
+HubOS builds upon the following excellent open-source projects:
+
+| Project | Usage | License |
+|---------|-------|---------|
+| [AgentScope](https://github.com/modelscope/agentscope) | Core agent framework, model routing, MCP integration | Apache-2.0 |
+| [AgentScope Runtime](https://github.com/agentscope-ai/agentscope-runtime) | Frontend UI components (@agentscope-ai/chat, @agentscope-ai/design) | Apache-2.0 |
+| [FastAPI](https://github.com/tiangolo/fastapi) | Async web framework | MIT |
+| [React](https://github.com/facebook/react) | Frontend UI library | MIT |
+| [Ant Design](https://github.com/ant-design/ant-design) | UI component library | MIT |
+| [Playwright](https://github.com/microsoft/playwright) | Browser automation | Apache-2.0 |
+| [ChromaDB](https://github.com/chroma-core/chroma) | Vector storage | Apache-2.0 |
+| [ReMe](https://github.com/virtUOS/reme-ai) | Long-term memory management | MIT |
+| [Uvicorn](https://github.com/encode/uvicorn) | ASGI server | BSD-3-Clause |
+| [Electron](https://github.com/electron/electron) | Desktop application framework | MIT |
+
+Special thanks to the open-source community and everyone who contributes to making AI more accessible.
+
+---
+
+<a id="中文"></a>
+
+## 🌟 HubOS 是什么？
+
+HubOS 是一个**开源、自托管的 AI 员工管理平台**。它将大语言模型转化为一支专业的数字员工团队，通过你已有的沟通工具与你协作。
+
+**它不是聊天机器人 — 它是 AI 劳动力。**
+
+每个 Agent 有自己的**身份、技能、记忆和工作职责**，由总经理 Agent 统一调度。你可以通过飞书、微信、钉钉等 14+ 渠道与团队沟通。
+
+### 为什么需要 HubOS？
+
+| 问题 | HubOS 的解决方案 |
+|------|----------------|
+| ChatGPT/Claude 是单 Agent、通用型 | 9 个专业 Agent，分工明确 |
+| SaaS AI 工具把数据存在云端 | 完全本地运行，数据不离开你的机器 |
+| 单个聊天机器人无法处理复杂业务流程 | 多 Agent 编排：并行/流水线/DAG 三种模式 |
+| AI 不会从经验中学习 | 自进化记忆系统，自动提取教训 |
+| 每个 AI 工具都是独立订阅 | 一个平台，24 个内置技能，18 个工具 |
+
+---
+
+## ✨ 核心特性
+
+### 🤖 多 Agent 团队协作
+
+9 个专业 Agent，各有自己的人格、技能和模型配置：
+
+| Agent | 部门 | 职责 |
+|-------|------|------|
+| **HubOS** | 总经理 | 任务调度、协调、决策 |
+| **Sam 张** | 销售 | 客户开发、报价、合同推进 |
+| **Mavis 王** | 市场 | 内容创作、竞品分析、品牌传播 |
+| **Iris 周** | 调研 | 市场调研、数据分析、行业报告 |
+| **Rex 陈** | 技术 | 开发、系统维护、自动化 |
+| **Felix 刘** | 财务 | 账单、财务报表、成本分析 |
+| **Harper 赵** | 人力 | 文档管理、日程协调、流程规范 |
+| **Clara 孙** | 客服 | 售后支持、反馈处理、FAQ 维护 |
+| **Oscar 吴** | 运维 | 任务追踪、定时作业、监控 |
+
+**三种协作模式：**
+- **并行委派**（`spawn_subagents`）— 独立任务同时执行
+- **流水线协作**（`coordinate_workflow`）— 有依赖的串行 DAG 工作流
+- **后台任务**（`delegate_task`）— 长时间运行的任务，带进度追踪
+
+### 📡 14+ 渠道接入
+
+所有渠道统一消息格式，同一个 Agent 同时服务多个渠道：
+
+**Web 控制台**（内置）· **飞书** · **微信** · **钉钉** · **Discord** · **Telegram** · **企业微信** · **QQ** · **Matrix** · **Mattermost** · **iMessage** · **MQTT** · **小蚁** · **语音**
+
+### 🧠 三层记忆系统
+
+| 层 | 加载方式 | 用途 |
+|----|---------|------|
+| **长期记忆**（MEMORY.md） | 每次自动加载 | 持久化知识、工具配置、经验教训 |
+| **经验技巧**（Work Experience v4） | 按任务类型自动检索 | 方法论卡片 — 一卡一流程 |
+| **每日笔记**（memory/） | 按需搜索 | 详细会话日志、踩坑记录 |
+
+**Work Experience v4 — 自进化引擎：**
+- 任务完成后自动反思 → 提取教训 → 合并去重到现有卡片
+- LLM 语义匹配替代关键词匹配，准确度大幅提升
+- 晋升管线：candidate → approved → mature
+- 用户可在前端自选反思模型
+
+### 🛠️ 24 个内置技能
+
+| 类别 | 技能 |
+|------|------|
+| **文档处理** | PDF · Word · Excel · PowerPoint |
+| **网络搜索** | 网页抓取 · Tavily 搜索 · 浏览器自动化 |
+| **沟通协作** | 渠道消息 · 邮件 · 多 Agent 协作 |
+| **业务工具** | 电商比价 · 新闻聚合 · 定时任务 |
+| **系统管理** | 安装指南 · 前端设计 · 文件读取 |
+| **平台集成** | 飞书（多维表格/文档/知识库/云盘）· 钉钉接入 |
+
+### 🔒 安全体系
+
+| 特性 | 说明 |
+|------|------|
+| **文件写锁** | `fcntl.flock` per-file 粒度，防止多用户写入冲突 |
+| **Agent 沙箱** | 每个 Agent 只能写自己的 workspace |
+| **工具防护** | 按风险级别控制工具调用，支持人机协同审批 |
+| **RBAC** | 基于角色的访问控制（admin / user / viewer） |
+| **JWT 认证** | Web API 和 WebSocket 认证 |
+
+---
+
+## 🚀 快速开始
+
+### 前提条件
+
+- Python 3.10 - 3.13
+- Node.js 18+（前端构建需要）
+- 至少一个 LLM API key（智谱 GLM、MiniMax、OpenAI、Anthropic 等）
+
+### 方式一：pip 安装（推荐）
+
+```bash
+pip install hubos
+hubos init
+hubos app
+```
+
+打开 http://localhost:8088 开始使用。
+
+### 方式二：从源码安装
+
+```bash
+git clone https://github.com/hubos-ai/HubOS.git
+cd HubOS
+
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+
+pip install -e ".[dev]"
+hubos init
+hubos app
+```
+
+### 方式三：Docker
+
+```bash
+docker pull hubos/hubos:latest
+docker run -p 8088:8088 -v hubos-data:/app/working hubos/hubos:latest
+```
+
+### 方式四：桌面应用
+
+```bash
+hubos desktop
+```
+
+### 首次配置
+
+1. 打开 http://localhost:8088
+2. 注册账号
+3. 进入 **设置 → 模型**，配置 LLM 供应商（API key + 模型）
+4. 进入 **设置 → Agent**，确认 Agent 配置
+5. 开始和你的 AI 团队对话！
+
+---
+
+## 🤝 支持的 LLM 供应商
+
+HubOS 支持多种 LLM 供应商，每个 Agent 可独立配置模型：
+
+| 供应商 | 模型 | 适用场景 |
+|--------|------|---------|
+| **智谱（Zhipu）** | GLM-4, GLM-5.1 | 复杂推理、长上下文（200K） |
+| **MiniMax** | M2.7-highspeed | 快速结构化任务 |
+| **OpenAI** | GPT-4o, GPT-4-turbo | 通用场景 |
+| **Anthropic** | Claude 3.5/4 | 分析、写作 |
+| **Google** | Gemini 1.5/2.0 | 多模态任务 |
+| **DeepSeek** | DeepSeek-V3 | 高性价比推理 |
+| **通义千问** | Qwen 2.5/3 | 中文场景 |
+| **Ollama** | 本地模型 | 隐私优先，无需 API |
+
+---
+
+## 🏗️ 系统架构
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    用户接入层                              │
-│  Web UI │ Electron 桌面 │ 飞书 │ 微信 │ 钉钉 │ 14+ 渠道    │
+│  Web 控制台 │ 桌面应用 │ 飞书 │ 微信 │ 钉钉 │ 14+ 渠道    │
 └──────────────────────┬──────────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────────┐
 │               FastAPI 后端 (异步)                         │
-│  ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌────────┐  │
-│  │ 认证/权限  │  │ 会话管理   │  │ 任务追踪  │  │ 文件锁  │  │
-│  └──────────┘  └───────────┘  └──────────┘  └────────┘  │
+│  认证/权限 │ 会话管理 │ 任务追踪 │ 文件锁                 │
 └──────────────────────┬──────────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────────┐
 │              Agent 调度层 (总经理)                         │
-│  ┌──────────────────────────────────────────────────┐   │
-│  │ Agent 实例池 (LRU 缓存 + 并发安全)                  │   │
-│  └──────────────────────────────────────────────────┘   │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐                   │
-│  │并行委派   │ │流水线协作│ │后台任务   │  ← 三种任务模式   │
-│  └─────────┘ └─────────┘ └─────────┘                   │
+│  Agent 实例池 (LRU 缓存 + 并发安全)                       │
+│  并行委派 │ 流水线协作 │ 后台任务                          │
 └──────────────────────┬──────────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────────┐
 │              9 个专业 Agent (数字员工)                      │
-│  销售│市场│调研│技术│财务│人力│客服│运营 ← 由总经理调度      │
-│  每个 Agent 有: 独立身份/技能/记忆/模型配置                  │
+│  每个 Agent: 身份 + 技能 + 记忆 + 模型配置                 │
 └──────────────────────┬──────────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────────┐
 │              基础设施层                                    │
-│  ┌─────────┐ ┌──────────┐ ┌─────────┐ ┌─────────────┐  │
-│  │ 24 技能  │ │ LLM 路由  │ │ 记忆系统 │ │ Work Exp v4 │  │
-│  └─────────┘ └──────────┘ └─────────┘ └─────────────┘  │
-│  ┌─────────┐ ┌──────────┐ ┌─────────┐ ┌─────────────┐  │
-│  │ MCP 集成 │ │ 定时任务  │ │ 安全防护 │ │ DAG 引擎    │  │
-│  └─────────┘ └──────────┘ └─────────┘ └─────────────┘  │
+│  技能 │ LLM 路由 │ 记忆系统 │ 自进化 │ MCP │ 定时任务     │
+│  安全防护 │ DAG 引擎 │ 工具防护 │ 文件防护                 │
 └─────────────────────────────────────────────────────────┘
 ```
 
----
-
-## 核心特性
-
-### 1. 多 Agent 团队协作
-
-| 特性 | 说明 |
-|------|------|
-| **9 个专业 Agent** | 销售(Sam)、市场(Mavis)、调研(Iris)、技术(Rex)、财务(Felix)、人力(Harper)、客服(Clara)、运营(Oscar)、总经理(HubOS) |
-| **人格化身份** | 每个 Agent 有 PROFILE.md（身份）、SOUL.md（价值观）、AGENTS.md（工作手册）|
-| **智能调度** | 总经理根据任务类型自动路由到对应部门，支持并行、串行、DAG 三种协作模式 |
-| **独立模型配置** | 复杂推理用 GLM-5.1，结构化任务用 MiniMax-M2.7-highspeed，按角色分配模型 |
-| **Agent 实例池化** | LRU 缓存 + 并发借用保护，二次请求跳过 skill/MCP 注册，响应速度提升 ~200× |
-
-### 2. 多渠道接入（14+）
-
-| 渠道 | 类型 | 渠道 | 类型 |
-|------|------|------|------|
-| Web Console | 内置 | 飞书 (Feishu) | IM |
-| 微信 (WeChat) | IM | 钉钉 (DingTalk) | IM |
-| Discord | IM | Telegram | IM |
-| 企业微信 (WeCom) | IM | QQ | IM |
-| Matrix | IM | Mattermost | IM |
-| iMessage | IM | MQTT | IoT |
-| 小蚁 (XiaoYi) | 语音 | 语音频道 | 语音 |
-
-所有渠道统一消息格式，同一个 Agent 可以同时服务多个渠道。
-
-### 3. 三层记忆系统
-
-| 层 | 加载方式 | 内容 | 用途 |
-|----|---------|------|------|
-| **长期记忆 (MEMORY.md)** | 每次自动加载 | 工具配置、API 经验、供应商清单 | 持久化知识 |
-| **经验技巧 (Work Experience v4)** | 自动检索+注入 | 方法论卡片（一卡一流程）| 自我进化 |
-| **每日笔记 (memory/)** | 按需检索 | 详细踩坑记录、完整会话上下文 | 原始日志 |
-
-**Work Experience v4（自我进化引擎）**：
-- 任务完成后自动反思 → 提取教训 → 合并去重到现有卡片
-- LLM 语义匹配替代关键词匹配，准确度大幅提升
-- 用户可在前端自选反思模型（GLM-5.1 / MiniMax）
-- 种子卡片 + 自动晋升机制（candidate → approved → mature）
-
-### 4. 24 个内置技能
-
-| 类别 | 技能 |
-|------|------|
-| **文档处理** | PDF、Word (.docx)、Excel (.xlsx)、PPT (.pptx) |
-| **网络搜索** | web_crawl (xcrawl)、tavily_search、super_crawler (深度 B2B) |
-| **浏览器控制** | browser_cdp (CDP 调试)、browser_visible (可见浏览器) |
-| **飞书全家桶** | feishu_bitable (多维表格)、feishu_doc (文档)、feishu_wiki (知识库)、feishu_drive (云盘) |
-| **客户开发** | 电商平台比价、客户线索发现 (find_customer_leads) |
-| **系统管理** | cron (定时任务)、channel_message (渠道消息)、multi_agent_collaboration |
-| **其他** | 新闻聚合、邮件 (himalaya)、前端设计、文件读取、HubOS 安装指南 |
-
-### 5. 内置工具（Agent 直接调用）
-
-| 工具 | 功能 |
-|------|------|
-| `execute_shell_command` | Shell 命令执行 |
-| `read_file / write_file / edit_file` | 文件读写（带并发安全文件锁） |
-| `grep_search / glob_search` | 文件内容搜索 |
-| `browser_use` | 浏览器自动化（Playwright） |
-| `desktop_screenshot` | 桌面截图 |
-| `delegate_task` | 后台任务委派 |
-| `spawn_subagents` | 并行多 Agent 调度 |
-| `coordinate_workflow` | 串行/DAG 工作流 |
-| `find_customer_leads` | B2B 客户开发管线 |
-| `memory_search / recall_long_term` | 记忆检索 |
-| `get_current_time / get_token_usage` | 时间和用量查询 |
-| `send_file_to_user` | 文件发送 |
-
-### 6. 任务模式系统（Task Modes）
-
-| 模式 | 配置项 | 说明 |
-|------|--------|------|
-| **并行委派** | max_concurrency, max_subagents, allow_nesting | 多个独立任务同时执行 |
-| **流水线协作** | max_steps, step_timeout, allow_nesting | 有依赖的多步 DAG 工作流 |
-| **后台任务** | timeout_seconds | 长时间运行的后台任务 |
-
-每个 Agent 可以独立配置不同的任务模式参数。
-
-### 7. 安全体系
-
-| 特性 | 说明 |
-|------|------|
-| **文件写锁** | `fcntl.flock` per-file 粒度，30s 超时，防止多用户写入冲突 |
-| **Agent 沙箱** | 每个 Agent 只能写自己的 workspace（除身份文件锁死）|
-| **写白名单** | 可配置 Agent 写入外部目录（如 Rex → ~/HubOS/）|
-| **工具防护 (Tool Guard)** | 按风险级别控制工具调用，支持人机协同审批 |
-| **文件防护 (File Guard)** | 限制 Agent 可读写的文件路径 |
-| **RBAC** | 基于角色的访问控制（admin/user/viewer）|
-| **JWT 认证** | Web API 和 Socket 认证 |
-| **Agent 工具权限注册表** | 每个 Agent 注册可用工具列表，越权调用被拒绝 |
-
-### 8. 智能调度引擎
-
-| 特性 | 说明 |
-|------|------|
-| **DAG 原生引擎** | 有向无环图任务编排，支持条件边、自适应并行 |
-| **自适应并行度** | 根据任务特征自动调整并行度 |
-| **执行器选择** | 智能选择最优执行器（LLM/代码/人工） |
-| **策略学习** | 从历史执行数据中学习优化调度策略 |
-| **Task Tracker** | 异步任务追踪，SSE 实时推送进度，支持断线重连 |
-
-### 9. 记忆管理
-
-| 特性 | 说明 |
-|------|------|
-| **上下文压缩** | 超长对话自动压缩，保留关键信息（独立高速模型 MiniMax-M2.7） |
-| **200K 上下文** | GLM-5.1 支持 200K token 上下文窗口 |
-| **Session 状态持久化** | per-session JSON 文件，线程安全 |
-| **对话存储** | ChromaDB (SQLite) 向量化存储，支持语义搜索 |
-| **ReMe 记忆** | 基于 reme-ai 的长期记忆管理 |
-| **Memory Compaction** | 可配置的压缩阈值和摘要模型 |
-
-### 10. MCP (Model Context Protocol) 集成
-
-- 支持 MCP 客户端热重载
-- 已接入智谱 MCP Server（视觉、搜索、webReader、ZRead）
-- 可通过 Web UI 配置和管理 MCP 客户端
-- 每个技能可以独立定义 MCP 依赖
-
-### 11. 定时任务 (Cron)
-
-- 支持标准 cron 表达式
-- 多种推送目标（console、飞书、微信等）
-- 任务启用/禁用/手动触发
-- 时区感知调度
-
-### 12. 技能市场 (Hub)
-
-- 内置技能搜索和安装
-- AI 辅助技能优化（流式输出）
-- 技能池管理（导入/导出/广播）
-- 内置技能源和自定义源
-
----
-
-## 前端功能（28 个页面）
-
-### 聊天
-- 💬 智能对话（SSE 流式输出）
-- 🤖 模型选择器（per-session 切换模型）
-- 📋 会话管理（创建/删除/切换）
-- 📎 文件上传和富文本展示
-
-### Agent 管理
-- ⚙️ Agent 配置（运行参数、记忆压缩、LLM 限速/重试）
-- 🛠️ Agent 工具列表
-- 📚 技能池（24 个技能管理）
-- 🔌 MCP 客户端配置
-- 📁 Workspace 文件编辑器
-
-### 系统设置
-- 👥 Agent 管理器（创建/编辑 Agent，模型选择）
-- 🔑 模型供应商配置
-- 🎯 Task Modes（工作流模式配置）
-- 🔒 安全设置
-- 🌐 环境变量管理
-- 🎙️ 语音转写配置
-- 📊 Token 用量统计
-
-### 运维控制
-- 📡 渠道管理（14+ 渠道配置）
-- ⏰ 定时任务管理
-- 💓 心跳监控
-- 📋 会话列表（管理员视图）
-
-### 经验系统
-- 🧠 Work Experience 卡片管理
-- 📈 卡片级别和统计
-
-### 其他
-- 🔐 登录/注册
-- 🌍 四语国际化（中文/英文/日文/俄文）
-
----
-
-## 后端架构
-
 ### 技术栈
-- **语言**: Python 3.10-3.13
-- **框架**: FastAPI + Uvicorn (异步)
-- **Agent 框架**: AgentScope 1.0.18
-- **向量存储**: ChromaDB (SQLite)
-- **前端**: React 18 + Vite + TypeScript + Ant Design 5
-- **桌面**: Electron
 
-### API 规模
-- **170 个 API 端点**
-- **118,000+ 行 Python**
-- **32,000+ 行 TypeScript**
-
-### 核心目录结构
-```
-src/hubos/
-├── app/                    # 应用层
-│   ├── _app.py            # FastAPI 入口
-│   ├── runner/             # Agent 运行器（含实例池化）
-│   ├── routers/            # 22 个 API 路由模块
-│   ├── channels/           # 14+ 渠道适配器
-│   ├── mcp/                # MCP 客户端管理
-│   └── workspace/          # Workspace 生命周期管理
-├── agents/                 # Agent 核心
-│   ├── react_agent.py     # HubOSAgent (ReAct 推理)
-│   ├── tools/              # 18 个内置工具
-│   ├── skills/             # 24 个技能定义
-│   ├── hooks/              # Agent 生命周期钩子
-│   └── memory/             # 记忆管理器
-├── config/                 # 配置系统
-│   └── config.py           # 45+ 配置类
-├── core/                   # 核心引擎
-│   ├── llm/                # LLM 提供商路由
-│   ├── memory/             # 记忆存储层
-│   ├── work_experience/    # 经验技巧系统 (v4)
-│   ├── execution/          # 任务执行引擎
-│   ├── orchestrator/       # 多 Agent 协调
-│   ├── dag/                # DAG 调度引擎
-│   ├── workflow/           # 工作流状态管理
-│   ├── workers/            # Worker 提供商
-│   └── infra/              # 基础设施（RBAC/FF/metrics）
-└── cli/                    # CLI 工具集
-```
-
-### CLI 命令
-```
-hubos app        # 启动 FastAPI 服务
-hubos desktop    # 启动 Electron 桌面应用
-hubos init       # 初始化工作目录
-hubos agent      # Agent 管理和通信
-hubos cron       # 定时任务管理
-hubos channel    # 渠道配置
-hubos models     # 模型供应商配置
-hubos skills     # 技能管理
-hubos auth       # 认证管理
-hubos daemon     # 守护进程管理
-hubos shutdown   # 强制停止
-hubos clean      # 清理工作目录
-```
-
----
-
-## 性能与并发
-
-| 特性 | 实现 |
+| 组件 | 技术 |
 |------|------|
-| **异步架构** | FastAPI + uvicorn，每个请求独立 asyncio.Task |
-| **Agent 实例池化** | LRU 缓存，二次请求跳过 skill/MCP 注册，~200× 提速 |
-| **文件写锁** | fcntl.flock per-file，防止多用户写入冲突 |
-| **SSE 心跳** | 15 秒 ping，防止代理超时断开 |
-| **上下文压缩** | 200K token 窗口，超出自动摘要压缩 |
+| 后端 | Python 3.10+ · FastAPI · Uvicorn |
+| Agent 框架 | AgentScope 1.0.18 |
+| 前端 | React 18 · Vite · TypeScript · Ant Design 5 |
+| 桌面端 | Electron |
+| 向量存储 | ChromaDB (SQLite) |
+| UI 组件 | [@agentscope-ai/chat](https://www.npmjs.com/package/@agentscope-ai/chat) · [@agentscope-ai/design](https://www.npmjs.com/package/@agentscope-ai/design) |
 
 ---
 
-## 部署
+## 📄 许可证
 
-### 快速部署（Mac）
-```bash
-git clone https://github.com/hubos-ai/HubOS.git
-cd HubOS
-bash scripts/deploy_mac_private.sh
-```
-
-### 访问
-- 本机：`http://localhost:8088`
-- 局域网：`http://<Mac-IP>:8088`
-- 桌面：`hubos desktop`
+HubOS 基于 [Apache License 2.0](LICENSE) 开源。
 
 ---
 
-## 项目数据
+## 🙏 致谢
 
-| 指标 | 数值 |
-|------|------|
-| 代码行数 | 150,000+ (Python + TypeScript) |
-| Git 提交 | 44 |
-| Python 包 | 118,000+ 行 |
-| TypeScript | 32,000+ 行 |
-| API 端点 | 170 |
-| 内置工具 | 18 |
-| 技能 | 24 |
-| 渠道 | 14+ |
-| 前端页面 | 28 |
-| 测试文件 | 2,448 |
-| 国际化语言 | 4 (中/英/日/俄) |
-| Agent 角色 | 9 |
+HubOS 基于以下优秀开源项目构建：
+
+| 项目 | 用途 | 许可证 |
+|------|------|--------|
+| [AgentScope](https://github.com/modelscope/agentscope) | 核心 Agent 框架、模型路由、MCP 集成 | Apache-2.0 |
+| [AgentScope Runtime](https://github.com/agentscope-ai/agentscope-runtime) | 前端 UI 组件 (@agentscope-ai/chat, @agentscape-ai/design) | Apache-2.0 |
+| [FastAPI](https://github.com/tiangolo/fastapi) | 异步 Web 框架 | MIT |
+| [React](https://github.com/facebook/react) | 前端 UI 库 | MIT |
+| [Ant Design](https://github.com/ant-design/ant-design) | UI 组件库 | MIT |
+| [Playwright](https://github.com/microsoft/playwright) | 浏览器自动化 | Apache-2.0 |
+| [ChromaDB](https://github.com/chroma-core/chroma) | 向量存储 | Apache-2.0 |
+| [ReMe](https://github.com/virtUOS/reme-ai) | 长期记忆管理 | MIT |
+| [Uvicorn](https://github.com/encode/uvicorn) | ASGI 服务器 | BSD-3-Clause |
+| [Electron](https://github.com/electron/electron) | 桌面应用框架 | MIT |
+
+特别感谢开源社区的每一位贡献者，是你们让 AI 变得更加普惠。
