@@ -73,7 +73,7 @@ Most AI platforms are single-agent chatbots. HubOS is fundamentally different:
 | **DAG Orchestration** | Complex multi-step workflows with dependencies: step B uses step A's output, step C+D run in parallel after B. Full pipeline coordination. |
 | **Self-Evolving Memory** | After each task, the system automatically reflects on what happened, extracts lessons, and merges them into reusable methodology cards. The more you use it, the smarter it gets. |
 | **Multi-User Isolation** | Each user gets independent workspaces, sessions, and memory. File locks (`fcntl.flock`) prevent write conflicts. Agent sandboxing prevents cross-user access. |
-| **Hot-Swappable Models** | Per-agent model configuration — use GLM-5.1 for complex reasoning and MiniMax for fast structured tasks. Change models without restarting. |
+| **Hot-Swappable Models** | Per-agent model configuration — assign GPT-4o for complex reasoning, Claude for writing, Gemini for multimodal tasks, or local Ollama models for privacy. Switch models without restarting. |
 | **Channel Multiplexing** | One agent team serves all channels simultaneously. A message on WeChat and a message on Discord go to the same agent with the same memory. |
 
 ### 🤖 Multi-Agent Team
@@ -434,7 +434,7 @@ HubOS 是一个**开源、自托管的 AI 员工管理平台**。它将大语言
 | **DAG 工作流编排** | 复杂的多步骤依赖工作流：步骤 B 使用步骤 A 的输出，步骤 C+D 在 B 完成后并行执行。完整的流水线协调。 |
 | **自进化记忆** | 每次任务完成后，系统自动反思、提取教训，合并为可复用的方法论卡片。越用越聪明。 |
 | **多用户隔离** | 每个用户拥有独立的 workspace、会话和记忆。文件锁（`fcntl.flock`）防止写入冲突。Agent 沙箱防止跨用户访问。 |
-| **模型热切换** | 按 Agent 配置模型 — 复杂推理用 GLM-5.1，快速结构化任务用 MiniMax。无需重启即可切换。 |
+| **模型热切换** | 按 Agent 配置模型 — 复杂推理用 GPT-4o，写作用 Claude，多模态用 Gemini，隐私场景用 Ollama 本地模型。用户自由选择供应商和模型，无需重启即可切换。 |
 | **渠道多路复用** | 一个 Agent 团队同时服务所有渠道。微信和 Discord 上的消息访问同一个 Agent 和同一套记忆。 |
 
 ### 🤖 多 Agent 团队协作
