@@ -1,3 +1,5 @@
+<!-- Architecture: State Machine Boundaries -->
+
 # HubOS State Machines — Canonical Boundaries
 
 > Status: **normative**. Last updated at end of Stage B / S6.

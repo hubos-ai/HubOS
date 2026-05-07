@@ -1,3 +1,5 @@
+<!-- Architecture: Session Isolation Model -->
+
 # 总经理 Agent 多 Session 隔离架构
 
 > **S2 决策文档** · 定格 HubOS-WebUI 总经理 agent 的 session 隔离模型，说明为什么

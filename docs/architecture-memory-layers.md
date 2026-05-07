@@ -1,3 +1,5 @@
+<!-- Architecture: Memory Layer Design (L1-L4) -->
+
 # HubOS 记忆分层架构 (L1–L4)
 
 > **Stage A.5 决策文档** · 定格 HubOS 总经理 agent + hubos.core 运行端的四层记忆模型，
