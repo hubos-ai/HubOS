@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/hubos-ai/HubOS/main/assets/logo.svg" alt="HubOS Logo" width="120" />
+  <img src="https://raw.githubusercontent.com/hubos-ai/HubOS/main/assets/logo.png" alt="HubOS Logo" width="400" />
 </p>
 
 <h1 align="center">HubOS</h1>
@@ -61,6 +61,21 @@ Each agent has its own **identity, skills, memory, and job responsibilities**, c
 
 ## ✨ Features
 
+### 🔥 What Makes HubOS Different
+
+Most AI platforms are single-agent chatbots. HubOS is fundamentally different:
+
+| Feature | Description |
+|---------|-------------|
+| **Multi-Task Concurrency** | Multiple users can chat simultaneously — each request spawns an independent agent session via FastAPI async. No queuing, no blocking. |
+| **Agent Instance Pooling** | LRU cache reuses initialized agent instances across requests. Second request for the same agent is ~200× faster (no skill/MCP re-registration). |
+| **Sub-Agent Spawning** | Any agent can independently spawn child agents (`spawn_subagents`) for parallel work — and those children can spawn their own children (up to configurable depth). |
+| **DAG Orchestration** | Complex multi-step workflows with dependencies: step B uses step A's output, step C+D run in parallel after B. Full pipeline coordination. |
+| **Self-Evolving Memory** | After each task, the system automatically reflects on what happened, extracts lessons, and merges them into reusable methodology cards. The more you use it, the smarter it gets. |
+| **Multi-User Isolation** | Each user gets independent workspaces, sessions, and memory. File locks (`fcntl.flock`) prevent write conflicts. Agent sandboxing prevents cross-user access. |
+| **Hot-Swappable Models** | Per-agent model configuration — use GLM-5.1 for complex reasoning and MiniMax for fast structured tasks. Change models without restarting. |
+| **Channel Multiplexing** | One agent team serves all channels simultaneously. A message on WeChat and a message on Discord go to the same agent with the same memory. |
+
 ### 🤖 Multi-Agent Team
 
 9 specialized agents, each with its own personality, skills, and model configuration:
@@ -76,6 +91,8 @@ Each agent has its own **identity, skills, memory, and job responsibilities**, c
 | **Harper** | HR | Documentation, scheduling, process management |
 | **Clara** | Customer Success | Support, feedback handling, FAQ maintenance |
 | **Oscar** | Operations | Task tracking, scheduled jobs, monitoring |
+
+> 💡 **Fully Customizable**: The 9 built-in agents are just a starting point. You can create any number of agents with custom roles, personalities, skills, and model configurations to match your specific business needs — from a solo assistant to a 50-person digital company.
 
 **Three orchestration modes:**
 - **Parallel Delegation** (`spawn_subagents`) — Independent tasks run simultaneously
@@ -405,6 +422,21 @@ HubOS 是一个**开源、自托管的 AI 员工管理平台**。它将大语言
 
 ## ✨ 核心特性
 
+### 🔥 HubOS 的独特之处
+
+大多数 AI 平台是单 Agent 聊天机器人。HubOS 从根本上不同：
+
+| 特性 | 说明 |
+|------|------|
+| **多任务并发** | 多个用户可以同时对话 — 每个请求通过 FastAPI 异步机制创建独立的 Agent 会话。无需排队，互不阻塞。 |
+| **Agent 实例池化** | LRU 缓存复用已初始化的 Agent 实例。同一 Agent 的第二次请求快 ~200 倍（无需重新注册 skill/MCP）。 |
+| **子 Agent 派生** | 任何 Agent 都可以独立派生子 Agent（`spawn_subagents`）并行工作 — 子 Agent 还可以继续派生自己的子 Agent（深度可配置）。 |
+| **DAG 工作流编排** | 复杂的多步骤依赖工作流：步骤 B 使用步骤 A 的输出，步骤 C+D 在 B 完成后并行执行。完整的流水线协调。 |
+| **自进化记忆** | 每次任务完成后，系统自动反思、提取教训，合并为可复用的方法论卡片。越用越聪明。 |
+| **多用户隔离** | 每个用户拥有独立的 workspace、会话和记忆。文件锁（`fcntl.flock`）防止写入冲突。Agent 沙箱防止跨用户访问。 |
+| **模型热切换** | 按 Agent 配置模型 — 复杂推理用 GLM-5.1，快速结构化任务用 MiniMax。无需重启即可切换。 |
+| **渠道多路复用** | 一个 Agent 团队同时服务所有渠道。微信和 Discord 上的消息访问同一个 Agent 和同一套记忆。 |
+
 ### 🤖 多 Agent 团队协作
 
 9 个专业 Agent，各有自己的人格、技能和模型配置：
@@ -420,6 +452,8 @@ HubOS 是一个**开源、自托管的 AI 员工管理平台**。它将大语言
 | **Harper 赵** | 人力 | 文档管理、日程协调、流程规范 |
 | **Clara 孙** | 客服 | 售后支持、反馈处理、FAQ 维护 |
 | **Oscar 吴** | 运维 | 任务追踪、定时作业、监控 |
+
+> 💡 **完全可定制**：内置的 9 个 Agent 只是起点。你可以创建任意数量的 Agent，自定义角色、人格、技能和模型配置，匹配你的业务需求 — 从单人助手到 50 人的数字公司都可以。
 
 **三种协作模式：**
 - **并行委派**（`spawn_subagents`）— 独立任务同时执行
