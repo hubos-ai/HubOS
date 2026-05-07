@@ -227,7 +227,7 @@ atexit.register(_atexit_cleanup)
 
 
 def _tool_response(text: str) -> ToolResponse:
-    """Wrap text for agentscope Toolkit (return ToolResponse)."""
+    """Wrap text for HubOS Toolkit (return ToolResponse)."""
     return ToolResponse(
         content=[TextBlock(type="text", text=text)],
     )

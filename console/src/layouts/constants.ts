@@ -2,7 +2,7 @@
 
 export const PYPI_URL = "https://pypi.org/pypi/hubos/json";
 
-export const GITHUB_URL = "https://github.com/agentscope-ai/HubOS" as const;
+export const GITHUB_URL = "https://github.com/hubos-ai/HubOS" as const;
 
 // ── Timing ────────────────────────────────────────────────────────────────
 
@@ -156,8 +156,8 @@ pip install -e .
 4. 如果你使用的是 Docker，拉取最新镜像并重启容器：
 
 \`\`\`
-docker pull agentscope/hubos:latest
-docker run -p 127.0.0.1:8088:8088 -v hubos-data:/app/working agentscope/hubos:latest
+docker pull hubos/hubos:latest
+docker run -p 127.0.0.1:8088:8088 -v hubos-data:/app/working hubos/hubos:latest
 \`\`\`
 
 升级后重启服务 hubos app。`,
@@ -185,8 +185,8 @@ pip install -e .
 4. Если используете Docker, загрузите новый образ и перезапустите контейнер:
 
 \`\`\`
-docker pull agentscope/hubos:latest
-docker run -p 127.0.0.1:8088:8088 -v hubos-data:/app/working agentscope/hubos:latest
+docker pull hubos/hubos:latest
+docker run -p 127.0.0.1:8088:8088 -v hubos-data:/app/working hubos/hubos:latest
 \`\`\`
 
 После обновления перезапустите сервис с помощью \`hubos app\`.`,
@@ -214,8 +214,8 @@ pip install -e .
 4. If using Docker, pull the latest image and restart the container:
 
 \`\`\`
-docker pull agentscope/hubos:latest
-docker run -p 127.0.0.1:8088:8088 -v hubos-data:/app/working agentscope/hubos:latest
+docker pull hubos/hubos:latest
+docker run -p 127.0.0.1:8088:8088 -v hubos-data:/app/working hubos/hubos:latest
 \`\`\`
 
 After upgrading, restart the service with \`hubos app\`.`,

@@ -25,7 +25,7 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
     msg.includes("i18next is maintained with support from Locize");
 
   const isIgnoredDebugNoise = (msg: string) =>
-    msg.includes("hubos-spark") || msg.includes("copaw-spark");
+    msg.includes("hubos-spark");
 
   const isIgnoredVendorWarning = (msg: string) =>
     msg.includes(
@@ -43,7 +43,7 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
     (msg.includes(
       'Warning: Each child in a list should have a unique "key" prop.',
     ) &&
-      msg.includes("@agentscope-ai_chat.js"));
+      msg.includes("hubos_chat.js"));
 
   console.warn = function (...args: any[]) {
     const msg = stringifyConsoleArgs(args);
