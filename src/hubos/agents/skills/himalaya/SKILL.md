@@ -5,7 +5,7 @@ homepage: https://github.com/pimalaya/himalaya
 metadata:
   {
     "builtin_skill_version": "1.1",
-    "openclaw":
+    "hubos":
       {
         "emoji": "📧",
         "requires": { "bins": ["himalaya"] },

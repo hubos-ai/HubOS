@@ -910,8 +910,8 @@ def _extract_skillsmp_spec(
     Parse SkillsMP URL slug into (owner, repo, skill_hint).
 
     Example:
-      openclaw-openclaw-skills-himalaya-skill-md
-      -> owner=openclaw, repo=openclaw-skills, skill_hint=himalaya
+      hubos-ai-hubos-skills-himalaya-skill-md
+      -> owner=hubos-ai, repo=hubos-skills, skill_hint=himalaya
     """
     slug = _extract_skillsmp_slug(url)
     if not slug:

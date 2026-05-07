@@ -243,7 +243,7 @@ GET/PUT  /api/user-profile           ← 对应
 ### 8. Chat — 🟡 PARTIAL_BUT_HONEST
 
 **HubOS Chat 页面架构**:
-- 使用 `@agentscope-ai/chat` 组件库
+- 使用 `@hubos-ai/chat` 组件库
 - `sessionApi` → HubOS 自实现的会话管理（基于 `/chats/*` 端点）
 - `chatApi` → 文件上传（`/console/upload`）、streaming chat
 - `customFetch` → `POST /console/chat`（streaming 实时对话）

@@ -173,7 +173,7 @@ NON_BUSINESS_EMAIL_DOMAINS = {
 INDEX_DIR = Path(
     os.environ.get(
         "HUNTER_INDEX_DIR",
-        os.path.expanduser("~/.openclaw/agents/hunter/workspace/data/index"),
+        os.path.expanduser("~/.hubos/hunter/data/index"),
     ),
 )
 

@@ -75,10 +75,10 @@ def test_is_newer_version(
         ),
         (
             {
-                "url": "https://github.com/agentscope-ai/HubOS.git",
+                "url": "https://github.com/hubos-ai/HubOS.git",
                 "vcs_info": {"vcs": "git", "commit_id": "abc123"},
             },
-            ("vcs", "https://github.com/agentscope-ai/HubOS.git"),
+            ("vcs", "https://github.com/hubos-ai/HubOS.git"),
         ),
         (
             {"url": "file:///tmp/hubos.whl"},

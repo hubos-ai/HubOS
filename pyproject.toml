@@ -1,9 +1,30 @@
 [project]
 name = "hubos"
 dynamic = ["version"]
-description = "HubOS is a **personal assistant** that runs in your own environment. It talks to you over multiple channels (DingTalk, Feishu, QQ, Discord, iMessage, etc.) and runs scheduled tasks according to your configuration. **What it can do is driven by Skills — the possibilities are open-ended.** Built-in skills include cron, PDF/Office handling, news digest, file reading, and more; you can add custom skills. All data and tasks run on your machine; no third-party hosting."
+description = "Multi-user AI employee management platform. Runs locally, connects to 14+ messaging channels, orchestrates 9 specialized AI agents to automate business tasks."
 readme = "README.md"
+license = {text = "Apache-2.0"}
 requires-python = ">=3.10,<3.14"
+authors = [
+    {name = "HubOS Contributors"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "agentscope==1.0.18",
     "agentscope-runtime==1.1.3",
@@ -60,6 +81,12 @@ include-package-data = true
     "security/skill_scanner/rules/**",
     "security/skill_scanner/data/**",
 ]
+
+[project.urls]
+Homepage = "https://github.com/hubos-ai/HubOS"
+Repository = "https://github.com/hubos-ai/HubOS"
+Issues = "https://github.com/hubos-ai/HubOS/issues"
+Discussions = "https://github.com/hubos-ai/HubOS/discussions"
 
 [build-system]
 requires = ["setuptools>=42", "wheel"]

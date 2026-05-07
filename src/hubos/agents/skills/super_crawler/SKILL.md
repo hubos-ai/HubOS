@@ -22,7 +22,7 @@ metadata:
 
 # super_crawler — 深度客户开发工具集
 
-基于 `~/projects/super-crawler/src/openclaw-tools.js` 的封装，集成了：
+基于 `~/projects/super-crawler` 的封装，集成了：
 - **深度网页爬虫**：支持递归爬取、SPA 渲染、结构化选择器提取
 - **企业邮箱发现**：通过域名批量发现企业联系人
 - **邮箱验证与生成**：验证邮箱有效性，预测邮件格式
@@ -42,7 +42,7 @@ bash scripts/call.sh <tool> '<json_params>'
 或直接调用：
 
 ```bash
-node ~/projects/super-crawler/src/openclaw-tools.js call <tool> '<json_params>'
+node ~/projects/super-crawler/src/tools.js call <tool> '<json_params>'
 ```
 
 列出所有可用工具：

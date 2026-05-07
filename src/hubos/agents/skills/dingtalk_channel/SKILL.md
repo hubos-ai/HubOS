@@ -51,8 +51,8 @@ metadata:
 3. 明确告知默认值（用户不指定时自动采用）：
    - 应用名称：`HubOS`
    - 应用描述：`Your personal assistant`
-   - 机器人图标：`https://img.alicdn.com/imgextra/i4/O1CN01M0iyHF1FVNzM9qjC0_!!6000000000492-2-tps-254-254.png`
-   - 机器人消息预览图：`https://img.alicdn.com/imgextra/i4/O1CN01M0iyHF1FVNzM9qjC0_!!6000000000492-2-tps-254-254.png`
+   - 机器人图标：HubOS 默认图标
+   - 机器人消息预览图：HubOS 默认图标
 
 4. 若用户未给任何自定义值，必须先明确回复：
    - “将全部采用默认设置（HubOS / Your personal assistant / 默认图片）后继续执行。”
@@ -125,12 +125,11 @@ metadata:
 3. 填写**机器人名称**，**机器人简介**和**机器人描述**
 4. 上传**机器人图标**（用户自定义或默认图）：
    - 点击机器人图标下面的图片
-   - 默认图链接：`https://img.alicdn.com/imgextra/i4/O1CN01M0iyHF1FVNzM9qjC0_!!6000000000492-2-tps-254-254.png`
-   - 若为 link，先下载到本地再上传
+   - 默认图：HubOS 默认图标（本地 assets 目录）
    - 若提示图片不合规，暂停并让用户手动上传合规图片后继续
 5. 上传**机器人消息预览图**（用户自定义或默认图）：
    - 点击机器人消息预览图下面的图片
-   - 默认图链接：`https://img.alicdn.com/imgextra/i4/O1CN01M0iyHF1FVNzM9qjC0_!!6000000000492-2-tps-254-254.png`
+   - 默认图：HubOS 默认图标（本地 assets 目录）
    - 若为 link，先下载到本地再上传
    - 若提示图片不合规，暂停并让用户手动上传合规图片后继续
 6. 确认消息接收模式设置为 `Stream 模式`

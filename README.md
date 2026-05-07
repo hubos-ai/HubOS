@@ -1,6 +1,41 @@
-# HubOS — 多用户 AI 员工管理平台
+# HubOS — Multi-User AI Employee Management Platform
 
-> **一句话**：把 AI 变成你的数字员工团队，接入你已有的沟通工具，自动完成从客户开发到财务报表的全部工作。
+> **TL;DR**: Turn AI into your digital workforce. Connect to 14+ messaging channels, orchestrate 9 specialized AI agents, automate everything from lead generation to financial reports.
+
+**[中文文档](#系统定位)**
+
+## What is HubOS?
+
+HubOS is a **multi-user, multi-channel, multi-agent** AI platform. It's not a chatbot — it's a **digital employee management system** where each agent has its own identity, skills, memory, and job responsibilities, coordinated by a central dispatcher.
+
+**Key principle: everything runs locally. Your data never leaves your machine.**
+
+### Highlights
+
+- 🤖 **9 Specialized Agents** — Sales, Marketing, Research, R&D, Finance, HR, CS, Ops, and a GM to coordinate them
+- 📡 **14+ Channels** — Feishu, WeChat, DingTalk, Discord, Telegram, QQ, iMessage, and more
+- 🧠 **Self-Evolving Memory** — Three-layer memory system with automatic experience extraction
+- 🔒 **Security First** — File locks, RBAC, tool guards, agent sandboxing
+- 🛠️ **24 Built-in Skills** — PDF/Office processing, web crawling, email, cron, browser automation
+- ⚡ **Fast** — Agent instance pooling, async architecture, 200K context window
+
+### Quick Start
+
+```bash
+# Install
+pip install hubos
+hubos init
+
+# Start
+hubos app
+
+# Or with Docker
+docker run -p 8088:8088 hubos/hubos:latest
+```
+
+Open `http://localhost:8088` and start chatting with your AI team.
+
+---
 
 ## 系统定位
 
@@ -310,7 +345,7 @@ hubos clean      # 清理工作目录
 
 ### 快速部署（Mac）
 ```bash
-git clone https://github.com/allenzh0115/HubOS.git
+git clone https://github.com/hubos-ai/HubOS.git
 cd HubOS
 bash scripts/deploy_mac_private.sh
 ```

@@ -28,7 +28,7 @@ from agentscope.tool import ToolResponse
 
 logger = logging.getLogger(__name__)
 
-# HubOS 自带的客户开发脚本和配置（独立于 openclaw）
+# HubOS 自带的客户开发脚本和配置
 _TOOLS_DIR = Path(__file__).parent / "customer_dev"
 DEFAULT_SCRIPTS_DIR = Path(
     os.environ.get(
@@ -165,7 +165,7 @@ def _load_tavily_keys() -> list[str]:
     seen: set[str] = set()
 
     # 1) hunter workspace .env — collect TAVILY_API_KEY* (all suffixed variants)
-    env_path = Path("~/.openclaw/agents/hunter/workspace/.env").expanduser()
+    env_path = Path("~/.hubos/hunter/.env").expanduser()
     if env_path.exists():
         for line in env_path.read_text().splitlines():
             line = line.strip()

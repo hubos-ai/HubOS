@@ -529,7 +529,7 @@ def _resolve_skill_name(skill_dir: Path) -> str:
 def _extract_requirements(post: dict[str, Any]) -> SkillRequirements:
     """Extract requirements from a parsed frontmatter dict."""
     metadata = post.get("metadata") or {}
-    if "openclaw" in metadata:
+    if "openclaw" in metadata:  # backward compat
         requires = metadata["openclaw"].get("requires", {})
     elif "hubos" in metadata:
         requires = metadata["hubos"].get("requires", {})

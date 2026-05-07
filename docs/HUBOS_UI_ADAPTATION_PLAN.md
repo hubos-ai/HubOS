@@ -41,7 +41,7 @@ Each page is classified as:
 | Page | Route | Classification | Notes |
 |------|-------|---------------|-------|
 | **Login** | `/login` | `NEEDS_API_ADAPTER` | Auth endpoints (`/auth/login`, `/auth/register`, `/auth/status`) match exactly. Adapter may need token-storage key change (`hubos_auth_token` → HubOS token key). |
-| **Chat** | `/chat/*` | `NEEDS_API_ADAPTER` | HubOS uses `@agentscope-ai/chat` + `/api/chat/` routes. HubOS has `chat_hubos` router. Needs adapter mapping for chat + session endpoints. |
+| **Chat** | `/chat/*` | `NEEDS_API_ADAPTER` | HubOS uses `@hubos-ai/chat` + `/api/chat/` routes. HubOS has `chat_hubos` router. Needs adapter mapping for chat + session endpoints. |
 | **Control/Channels** | `/channels` | `READY_TO_ADAPT` | HubOS/XClaw has full `/api/channels` CRUD via `channels.py` router. Adapter needed for `channelApi` mapping. |
 | **Control/Sessions** | `/sessions` | `NEEDS_BACKEND_CAPABILITY` | HubOS has no `/api/sessions` router. Will be honest stub. |
 | **Control/CronJobs** | `/cron-jobs` | `READY_TO_ADAPT` | HubOS has `jobs.py` router at `/api/jobs` with full CRUD. Adapter needed for `cronJobApi` mapping. |
@@ -102,9 +102,9 @@ Each page is classified as:
 ### Priority 2: Medium-effort pages
 
 **Chat** (`/chat/*`) — `NEEDS_API_ADAPTER`
-- HubOS uses `@agentscope-ai/chat` + `/api/chat/` + `/api/sessions/`
+- HubOS uses `@hubos-ai/chat` + `/api/chat/` + `/api/sessions/`
 - HubOS has `chat_hubos.py` router at `/api/chat-hubos`
-- Action: Map chat and session endpoints; verify `@agentscope-ai/chat` component compatibility
+- Action: Map chat and session endpoints; verify `@hubos-ai/chat` component compatibility
 - Expected effort: Medium — route name differs
 
 **Settings/Agents** (`/agents`) — `READY_TO_ADAPT`
