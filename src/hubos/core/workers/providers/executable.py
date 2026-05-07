@@ -52,7 +52,7 @@ class ExecutableWorkerProvider(WorkerProvider):
     Executable worker provider with timeout, retry, and error classification.
 
     Per IMPLEMENTATION_STANDARDS.md:
-    - Unified interface for Claude Code/Codex/XClaw worker.
+    - Unified interface for Claude Code/Codex worker.
     - Timeout, retry, and result normalization.
     - Explicit error classification.
 

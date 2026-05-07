@@ -1156,7 +1156,7 @@ async def find_customer_leads(
 
     log_chunks: list[str] = []
 
-    # ---- Phase 1-3: OpenClaw pipeline ----
+    # ---- Phase 1-3: search pipeline ----
     for idx, cmd in enumerate(phases, 1):
         yield _progress_response(
             f"Phase {idx}/3：{phase_names[idx]}，开始执行。",

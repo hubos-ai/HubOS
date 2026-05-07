@@ -1083,8 +1083,8 @@ def _default_builtin_tools() -> Dict[str, BuiltinToolConfig]:
             name="find_customer_leads",
             enabled=True,
             description=(
-                "Find and score B2B customer leads by country without "
-                "drafting or sending emails"
+                "Find potential customer leads — placeholder for "
+                "custom lead discovery extensions"
             ),
         ),
     }

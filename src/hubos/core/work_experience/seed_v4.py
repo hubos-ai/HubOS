@@ -18,7 +18,7 @@ _SEED_FILE = Path(__file__).parent / "seed_data" / "seed_cards_v4.json"
 def seed_v4_cards(store: CardStore | None = None) -> int:
     """Load seed cards into the store. Returns count of new cards created."""
     if not _SEED_FILE.exists():
-        logger.warning("Seed file not found: %s", _SEED_FILE)
+        logger.debug("Seed file not found: %s", _SEED_FILE)
         return 0
 
     store = store or CardStore()

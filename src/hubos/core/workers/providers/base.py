@@ -56,7 +56,7 @@ class WorkerProvider(ABC):
     Unified interface for worker providers.
 
     Per IMPLEMENTATION_STANDARDS.md:
-    - Unified interface for Claude Code/Codex/XClaw worker.
+    - Unified interface for Claude Code/Codex worker.
     - Timeout, retry, and result normalization.
 
     Workers never message each other directly (ARCHITECTURE.md Cross-Agent Collaboration Rule #1).

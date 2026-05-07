@@ -50,12 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Heartbeat system for periodic health checks
 - Docker support with multi-arch builds (amd64/arm64)
 
-#### Customer Development
-- Multi-phase B2B lead discovery pipeline
-- Government procurement intelligence (EduBid methodology)
-- Brazilian Compras.gov.br API integration
-- Email discovery and verification
-- Feishu Bitable CRM with 95 customers across 7 countries
+#### Extensibility
+- Extensible tool and skill framework for custom business integrations
+- MCP (Model Context Protocol) client support with hot-reload
 
 #### LLM Providers
 - Multi-provider routing (Zhipu GLM, MiniMax, OpenAI, Anthropic, Google Gemini, DeepSeek, Qwen, etc.)
