@@ -166,22 +166,7 @@ All channels use a unified message format. One agent serves multiple channels si
 - Node.js 18+ (for frontend build)
 - At least one LLM API key (Zhipu GLM, MiniMax, OpenAI, Anthropic, etc.)
 
-### Option 1: pip install (Recommended)
-
-```bash
-# Install
-pip install hubos
-
-# Initialize (creates ~/.hubos/ directory)
-hubos init
-
-# Start the server
-hubos app
-```
-
-Open http://localhost:8088 and start chatting.
-
-### Option 2: From Source
+### From Source
 
 ```bash
 # Clone
@@ -192,28 +177,23 @@ cd HubOS
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# Install
-pip install -e ".[dev]"
+# Install Python dependencies
+pip install -e .
 
-# Initialize
+# Build frontend
+cd console
+npm ci
+npm run build
+cd ..
+
+# Initialize (creates ~/.hubos/ directory)
 hubos init
 
-# Start
+# Start the server
 hubos app
 ```
 
-### Option 3: Docker
-
-```bash
-docker pull hubos/hubos:latest
-docker run -p 8088:8088 -v hubos-data:/app/working hubos/hubos:latest
-```
-
-### Option 4: Electron Desktop App
-
-```bash
-hubos desktop
-```
+Open http://localhost:8088 and start chatting.
 
 ### First-Time Setup
 
@@ -336,7 +316,6 @@ HubOS supports MCP client integration with hot-reload:
 
 ```bash
 hubos app          # Start FastAPI server
-hubos desktop      # Start Electron desktop app
 hubos init         # Initialize working directory
 hubos agent        # Agent management & communication
 hubos cron         # Cron job management
@@ -511,17 +490,7 @@ HubOS 是一个**开源、自托管的 AI 员工管理平台**。它将大语言
 - Node.js 18+（前端构建需要）
 - 至少一个 LLM API key（智谱 GLM、MiniMax、OpenAI、Anthropic 等）
 
-### 方式一：pip 安装（推荐）
-
-```bash
-pip install hubos
-hubos init
-hubos app
-```
-
-打开 http://localhost:8088 开始使用。
-
-### 方式二：从源码安装
+### 从源码安装
 
 ```bash
 git clone https://github.com/hubos-ai/HubOS.git
@@ -530,23 +499,18 @@ cd HubOS
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-pip install -e ".[dev]"
+pip install -e .
+
+cd console
+npm ci
+npm run build
+cd ..
+
 hubos init
 hubos app
 ```
 
-### 方式三：Docker
-
-```bash
-docker pull hubos/hubos:latest
-docker run -p 8088:8088 -v hubos-data:/app/working hubos/hubos:latest
-```
-
-### 方式四：桌面应用
-
-```bash
-hubos desktop
-```
+打开 http://localhost:8088 开始使用。
 
 ### 首次配置
 
