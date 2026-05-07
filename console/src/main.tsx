@@ -24,8 +24,7 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
   const isIgnoredInfoNoise = (msg: string) =>
     msg.includes("i18next is maintained with support from Locize");
 
-  const isIgnoredDebugNoise = (msg: string) =>
-    msg.includes("hubos-spark");
+  const isIgnoredDebugNoise = (msg: string) => msg.includes("hubos-spark");
 
   const isIgnoredVendorWarning = (msg: string) =>
     msg.includes(
