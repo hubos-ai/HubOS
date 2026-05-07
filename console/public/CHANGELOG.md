@@ -31,5 +31,5 @@
 
 HubOS 是一个自托管的多 Agent 协作平台，支持多频道消息接入、技能扩展与 MCP 工具集成。
 
-- **GitHub**：https://github.com/agentscope-ai/HubOS
-- **问题反馈**：https://github.com/agentscope-ai/HubOS/issues
+- **GitHub**：https://github.com/hubos-ai/HubOS
+- **问题反馈**：https://github.com/hubos-ai/HubOS/issues

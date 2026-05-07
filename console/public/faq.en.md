@@ -108,5 +108,5 @@ Delete or back up `~/.hubos/workspaces/<agent-id>/agent.json`. A default configu
 
 ## More Help
 
-- **GitHub Issues**: https://github.com/agentscope-ai/HubOS/issues
+- **GitHub Issues**: https://github.com/hubos-ai/HubOS/issues
 - **Changelog**: See the **Changelog** button at the top of the dashboard

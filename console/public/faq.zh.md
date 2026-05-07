@@ -108,5 +108,5 @@ docker run -p 127.0.0.1:8088:8088 -v hubos-data:/app/working hubos/hubos:latest
 
 ## 更多帮助
 
-- **GitHub Issues**：https://github.com/agentscope-ai/HubOS/issues
+- **GitHub Issues**：https://github.com/hubos-ai/HubOS/issues
 - **更新日志**：查看管理台顶部 **更新日志** 按钮
