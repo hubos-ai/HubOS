@@ -1,6 +1,7 @@
 name: NPM Format (website & console)
 
-on: [push, pull_request]
+on:
+  workflow_dispatch:
 
 jobs:
   website:
