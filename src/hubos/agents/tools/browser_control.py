@@ -99,9 +99,7 @@ def _sanitize_eval_result(text: str) -> str:
             replacement = filepath
             saved.append(filepath)
         except Exception:
-            replacement = (
-                f"[base64 image stripped: {len(b64_data) // 1024}KB]"
-            )
+            replacement = f"[base64 image stripped: {len(b64_data) // 1024}KB]"
         result = result[: match.start()] + replacement + result[match.end() :]
 
     if saved:
@@ -626,9 +624,9 @@ async def _ensure_browser(
                     )
                     _attach_context_listeners(state, context)
                     state["playwright"] = pw
-                    state[
-                        "browser"
-                    ] = None  # not needed for persistent context
+                    state["browser"] = (
+                        None  # not needed for persistent context
+                    )
                     state["context"] = context
                 else:
                     launch_kwargs: dict[str, Any] = {
@@ -809,9 +807,9 @@ async def _action_start(
                     # launch_persistent_context returns context directly; no separate browser object
                     _attach_context_listeners(state, context)
                     state["playwright"] = pw
-                    state[
-                        "browser"
-                    ] = None  # not needed for persistent context
+                    state["browser"] = (
+                        None  # not needed for persistent context
+                    )
                     state["context"] = context
                 else:
                     launch_kwargs = {"headless": state["headless"]}

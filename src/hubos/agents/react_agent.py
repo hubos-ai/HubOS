@@ -226,11 +226,13 @@ class HubOSAgent(ToolGuardMixin, ReActAgent):
                 }
                 # Only execute_shell_command supports async_execution
                 async_execution_tools = {
-                    "execute_shell_command": builtin_tools.get(
-                        "execute_shell_command",
-                    ).async_execution
-                    if "execute_shell_command" in builtin_tools
-                    else False,
+                    "execute_shell_command": (
+                        builtin_tools.get(
+                            "execute_shell_command",
+                        ).async_execution
+                        if "execute_shell_command" in builtin_tools
+                        else False
+                    ),
                 }
         except Exception as e:
             logger.warning(
@@ -956,7 +958,8 @@ class HubOSAgent(ToolGuardMixin, ReActAgent):
                     and isinstance(block.get("output"), list)
                 ):
                     block = self._clean_tool_result_output(
-                        block, media_types,
+                        block,
+                        media_types,
                     )
                     total_stripped += block.pop("_stripped", 0)
 
@@ -1001,6 +1004,7 @@ class HubOSAgent(ToolGuardMixin, ReActAgent):
             ):
                 text = item["text"]
                 import re
+
                 cleaned = re.sub(
                     r"data:image/[^;]+;base64,[A-Za-z0-9+/=]{100,}",
                     "[base64 image saved to file]",
