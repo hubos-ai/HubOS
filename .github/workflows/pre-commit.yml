@@ -22,13 +22,9 @@ jobs:
         run: |
           pip install setuptools==68.2.2 wheel==0.41.2
 
-      - name: Install HubOS with dev dependencies
+      - name: Install pre-commit
         run: |
-          pip install -q -e ".[dev]"
-
-      - name: Install pre-commit hooks
-        run: |
-          pre-commit install
+          pip install pre-commit
 
       - name: Run pre-commit
         run: |
