@@ -113,3 +113,4 @@ desktop/release/
 # Codex backups and deploy venv
 .codex-backups/
 .venv-deploy/
+*.lock
