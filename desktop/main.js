@@ -327,8 +327,17 @@ function buildMenu() {
         },
       },
       {
-        label: "重启服务",
+        label: "强制刷新（清缓存）",
         accelerator: "CmdOrCtrl+Shift+R",
+        click: () => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.reloadIgnoringCache();
+          }
+        },
+      },
+      {
+        label: "重启服务",
+        accelerator: "CmdOrCtrl+Shift+Alt+R",
         click: () => {
           restartBackend().catch((e) => {
             log("restartBackend error:", e.stack || e.message);
