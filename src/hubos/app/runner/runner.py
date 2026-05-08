@@ -622,6 +622,15 @@ class AgentRunner(Runner):
                         final_response_text = text
                 yield msg, last
 
+            if not final_response_text.strip():
+                logger.warning(
+                    "Agent returned empty response for session=%s "
+                    "channel=%s — session may be too large or LLM "
+                    "returned empty content",
+                    session_id[:20],
+                    channel,
+                )
+
         except asyncio.CancelledError as exc:
             logger.info(f"query_handler: {session_id} cancelled!")
             if agent is not None:

@@ -11,11 +11,13 @@ wait_for, pdf, close. Uses refs from snapshot for ref-based actions.
 
 import asyncio
 import atexit
+import base64 as _base64
 from concurrent import futures
 import json
 import logging
 import os
 from pathlib import Path
+import re as _re
 import subprocess
 import sys
 import time
@@ -44,6 +46,72 @@ def _resolve_output_path(path: str) -> str:
     base_dir = (get_current_workspace_dir() or WORKING_DIR) / "browser"
     base_dir.mkdir(parents=True, exist_ok=True)
     return str(base_dir / path)
+
+
+# Base64 data URL pattern for detecting inline images in eval results.
+_B64_DATA_URL_RE = _re.compile(
+    r"data:image/(png|jpe?g|gif|webp|bmp);base64,([A-Za-z0-9+/=]{100,})",
+    _re.IGNORECASE,
+)
+_SANITIZE_B64_THRESHOLD = 50_000  # Process base64 strings > 50KB
+
+
+def _sanitize_eval_result(text: str) -> str:
+    """Save large base64 data URLs from eval/evaluate results to local files.
+
+    When JS code returns image data URLs (e.g. canvas.toDataURL()), the
+    result can be tens of MB. This function detects large base64 data,
+    saves each image to workspace/browser/, and replaces the inline data
+    with the file path so the session stays small.
+
+    Args:
+        text: JSON string from eval/evaluate result.
+
+    Returns:
+        Modified text with base64 replaced by file paths.
+    """
+    if "base64," not in text:
+        return text
+
+    matches = list(_B64_DATA_URL_RE.finditer(text))
+    if not matches:
+        return text
+
+    total_b64 = sum(len(m.group(2)) for m in matches)
+    if total_b64 < _SANITIZE_B64_THRESHOLD:
+        return text
+
+    saved: list[str] = []
+    result = text
+    for match in reversed(matches):
+        img_fmt = match.group(1).lower()
+        b64_data = match.group(2)
+        try:
+            img_bytes = _base64.b64decode(b64_data)
+            ext = "jpg" if img_fmt in ("jpeg", "jpg") else img_fmt
+            filename = (
+                f"eval_img_{int(time.time())}"
+                f"_{len(img_bytes) // 1024}kb.{ext}"
+            )
+            filepath = _resolve_output_path(filename)
+            with open(filepath, "wb") as f:
+                f.write(img_bytes)
+            replacement = filepath
+            saved.append(filepath)
+        except Exception:
+            replacement = (
+                f"[base64 image stripped: {len(b64_data) // 1024}KB]"
+            )
+        result = result[: match.start()] + replacement + result[match.end() :]
+
+    if saved:
+        logger.info(
+            "browser eval: saved %d base64 image(s) to files: %s",
+            len(saved),
+            ", ".join(saved),
+        )
+
+    return result
 
 
 # Hybrid mode detection: Windows + Uvicorn reload mode requires sync Playwright
@@ -1454,7 +1522,7 @@ async def _action_eval(state: dict, page_id: str, code: str) -> ToolResponse:
                 ensure_ascii=False,
                 indent=2,
             )
-        return _tool_response(out)
+        return _tool_response(_sanitize_eval_result(out))
     except Exception as e:
         return _tool_response(
             json.dumps(
@@ -1717,7 +1785,7 @@ async def _action_evaluate(
                 ensure_ascii=False,
                 indent=2,
             )
-        return _tool_response(out)
+        return _tool_response(_sanitize_eval_result(out))
     except Exception as e:
         return _tool_response(
             json.dumps(
@@ -2257,7 +2325,7 @@ async def _action_run_code(
                 ensure_ascii=False,
                 indent=2,
             )
-        return _tool_response(out)
+        return _tool_response(_sanitize_eval_result(out))
     except Exception as e:
         return _tool_response(
             json.dumps(

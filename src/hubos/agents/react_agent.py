@@ -920,11 +920,14 @@ class HubOSAgent(ToolGuardMixin, ReActAgent):
     _MEDIA_PLACEHOLDER = (
         "[Media content removed - model does not support this media type]"
     )
+    _LARGE_B64_THRESHOLD = 50_000  # Strip base64 text blocks > 50KB
 
     def _strip_media_blocks_from_memory(self) -> int:
         """Remove media blocks (image/audio/video) from all messages.
 
-        Also strips media blocks nested inside ToolResultBlock outputs.
+        Also strips media blocks nested inside ToolResultBlock outputs
+        and large base64 data URLs embedded in text blocks.
+
         Inserts placeholder text when stripping leaves content empty to
         avoid malformed API requests.
 
@@ -952,19 +955,10 @@ class HubOSAgent(ToolGuardMixin, ReActAgent):
                     and block.get("type") == "tool_result"
                     and isinstance(block.get("output"), list)
                 ):
-                    original_len = len(block["output"])
-                    block["output"] = [
-                        item
-                        for item in block["output"]
-                        if not (
-                            isinstance(item, dict)
-                            and item.get("type") in media_types
-                        )
-                    ]
-                    stripped_count = original_len - len(block["output"])
-                    total_stripped += stripped_count
-                    if stripped_count > 0 and not block["output"]:
-                        block["output"] = self._MEDIA_PLACEHOLDER
+                    block = self._clean_tool_result_output(
+                        block, media_types,
+                    )
+                    total_stripped += block.pop("_stripped", 0)
 
                 new_content.append(block)
 
@@ -976,6 +970,59 @@ class HubOSAgent(ToolGuardMixin, ReActAgent):
             msg.content = new_content
 
         return total_stripped
+
+    def _clean_tool_result_output(
+        self,
+        block: dict,
+        media_types: frozenset,
+    ) -> dict:
+        """Strip media blocks and large base64 text from tool_result."""
+        output = block.get("output", [])
+        if not isinstance(output, list):
+            return block
+
+        new_output = []
+        stripped = 0
+        for item in output:
+            if not isinstance(item, dict):
+                new_output.append(item)
+                continue
+
+            # Strip known media types
+            if item.get("type") in media_types:
+                stripped += 1
+                continue
+
+            # Strip text blocks with large base64 data URLs
+            if (
+                item.get("type") == "text"
+                and "base64," in (item.get("text") or "")
+                and len(item.get("text", "")) > self._LARGE_B64_THRESHOLD
+            ):
+                text = item["text"]
+                import re
+                cleaned = re.sub(
+                    r"data:image/[^;]+;base64,[A-Za-z0-9+/=]{100,}",
+                    "[base64 image saved to file]",
+                    text,
+                )
+                if cleaned != text:
+                    new_output.append({**item, "text": cleaned})
+                    stripped += 1
+                    logger.info(
+                        "Stripped large base64 data from tool_result "
+                        "(%dKB → %dKB)",
+                        len(text) // 1024,
+                        len(cleaned) // 1024,
+                    )
+                    continue
+
+            new_output.append(item)
+
+        if stripped > 0 and not new_output:
+            new_output = [self._MEDIA_PLACEHOLDER]
+
+        return {**block, "output": new_output, "_stripped": stripped}
 
     # pylint: disable=protected-access
     async def reply(
