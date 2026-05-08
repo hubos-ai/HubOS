@@ -101,6 +101,18 @@ html.dark-mode .ant-table-thead > tr > td {
   border-bottom-color: rgba(255, 255, 255, 0.08) !important;
 }
 
+/* Fixed columns must be opaque in dark mode to prevent scroll overlap */
+html.dark-mode .hubos-table-wrapper .hubos-table-container .hubos-table-cell-fix-left,
+html.dark-mode .hubos-table-wrapper .hubos-table-container .hubos-table-cell-fix-right {
+  background: #1f1f1f !important;
+}
+
+html.dark-mode .hubos-table-wrapper .hubos-table-container .hubos-table-thead .hubos-table-cell-fix-left,
+html.dark-mode .hubos-table-wrapper .hubos-table-container .hubos-table-thead .hubos-table-cell-fix-right {
+  background: #262626 !important;
+  z-index: 3 !important;
+}
+
 html.dark-mode .hubos-table-tbody > tr > td,
 html.dark-mode .ant-table-tbody > tr > td {
   background: #1f1f1f !important;

@@ -6,6 +6,16 @@
     .hubos-table-wrapper .hubos-table-container .hubos-table-thead > tr > th {
       background: #f9f8f4 !important;
     }
+    // Fixed columns: explicit background + z-index to prevent overlap when scrolling
+    .hubos-table-cell-fix-left,
+    .hubos-table-cell-fix-right {
+      background: #fff !important;
+    }
+    .hubos-table-thead .hubos-table-cell-fix-left,
+    .hubos-table-thead .hubos-table-cell-fix-right {
+      background: #f9f8f4 !important;
+      z-index: 3 !important;
+    }
   }
 }
 
