@@ -98,7 +98,7 @@ class LocalMemoryStore:
         msg_line = json.dumps(message, ensure_ascii=False) + "\n"
         with (session_dir / "messages.jsonl").open("a", encoding="utf-8") as f:
             f.write(msg_line)
-        self._refresh_message_count(session_id)
+        self._increment_message_count(session_id)
 
     def save_tool_call(
         self,
@@ -172,18 +172,26 @@ class LocalMemoryStore:
         archive_subdir = self.archives_dir / started.strftime("%Y-%m")
         archive_subdir.mkdir(exist_ok=True)
         archive_file = archive_subdir / f"{session_id}.json.gz"
+        # Stream messages directly into gzip to avoid loading all into
+        # memory at once.  Each line in messages.jsonl is already valid
+        # JSON, so we can write them verbatim into the JSON array.
         with gzip.open(archive_file, "wt", encoding="utf-8") as f:
-            session_data = {
-                "metadata": metadata,
-                "messages": [
-                    json.loads(line)
-                    for line in (session_dir / "messages.jsonl").open(
-                        encoding="utf-8",
-                    )
-                    if line.strip()
-                ],
-            }
-            json.dump(session_data, f, ensure_ascii=False)
+            f.write('{"metadata":')
+            json.dump(metadata, f, ensure_ascii=False)
+            f.write(',"messages":[')
+            first = True
+            with (session_dir / "messages.jsonl").open(
+                encoding="utf-8",
+            ) as mf:
+                for line in mf:
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    if not first:
+                        f.write(",")
+                    first = False
+                    f.write(stripped)
+            f.write("]}")
         shutil.rmtree(session_dir)
 
     def auto_archive(self) -> List[str]:
@@ -246,6 +254,20 @@ class LocalMemoryStore:
             ) as f:
                 f.write(line)
         except (TypeError, ValueError):
+            pass
+
+    def _increment_message_count(self, session_id: str) -> None:
+        """Increment message_count in metadata without reading messages file."""
+        session_dir = self.sessions_dir / session_id
+        try:
+            meta_path = session_dir / "metadata.json"
+            metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+            metadata["message_count"] = metadata.get("message_count", 0) + 1
+            meta_path.write_text(
+                json.dumps(metadata, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except (FileNotFoundError, json.JSONDecodeError):
             pass
 
     def _refresh_message_count(self, session_id: str) -> None:

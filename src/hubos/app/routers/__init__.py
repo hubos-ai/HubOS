@@ -23,6 +23,9 @@ from .files import router as files_router
 from .settings import router as settings_router
 from .admin_sessions import router as admin_sessions_router
 from .work_experience import router as work_experience_router
+from .task_monitor import router as task_monitor_router
+from .task_plan import router as task_plan_router
+from .run_control import router as run_control_router
 
 router = APIRouter()
 
@@ -47,6 +50,9 @@ router.include_router(files_router)
 router.include_router(settings_router)
 router.include_router(admin_sessions_router)
 router.include_router(work_experience_router)
+router.include_router(task_monitor_router)
+router.include_router(task_plan_router)
+router.include_router(run_control_router)
 
 
 def create_agent_scoped_router() -> APIRouter:

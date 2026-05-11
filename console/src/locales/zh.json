@@ -50,7 +50,81 @@
     "adminGroup": "管理员",
     "adminSessions": "全部会话",
     "workExperience": "经验技巧",
-    "taskModes": "任务模式"
+    "taskModes": "任务模式",
+    "taskMonitor": "任务流程",
+    "taskPlans": "任务计划"
+  },
+  "taskMonitor": {
+    "pageTitle": "任务流程",
+    "refresh": "刷新",
+    "filterAll": "全部",
+    "statusPending": "等待中",
+    "statusRunning": "运行中",
+    "statusWaiting": "等待",
+    "statusDone": "完成",
+    "statusFailed": "失败",
+    "statusCancelled": "已取消",
+    "noTasks": "暂无运行中的任务",
+    "selectTask": "选择任务查看详情",
+    "source": "来源",
+    "toolName": "工具",
+    "agent": "智能体",
+    "duration": "耗时",
+    "created": "创建时间",
+    "finished": "完成时间",
+    "events": "事件",
+    "metadata": "元数据",
+    "error": "错误",
+    "resultSummary": "结果",
+    "connected": "实时",
+    "disconnected": "离线",
+    "cancel": "取消",
+    "markOnly": "仅标记"
+  },
+  "chatTask": {
+    "panelTitle": "任务流程",
+    "toggleBtn": "任务流程",
+    "close": "关闭",
+    "chatRun": "聊天任务"
+  },
+  "taskPlan": {
+    "pageTitle": "任务计划",
+    "refresh": "刷新",
+    "filterAll": "全部",
+    "statusDraft": "草稿",
+    "statusRunning": "运行中",
+    "statusWaitingUser": "等待用户",
+    "statusDone": "完成",
+    "statusFailed": "失败",
+    "statusCancelled": "已取消",
+    "stepPending": "等待中",
+    "stepRunning": "运行中",
+    "stepWaitingUser": "等待用户",
+    "stepDone": "完成",
+    "stepFailed": "失败",
+    "stepCancelled": "已取消",
+    "noPlans": "暂无计划",
+    "selectPlan": "选择计划查看详情",
+    "steps": "步骤",
+    "stepsLabel": "步骤",
+    "metadata": "元数据",
+    "connected": "实时",
+    "disconnected": "离线",
+    "cancel": "取消",
+    "start": "开始",
+    "pause": "暂停",
+    "resume": "恢复",
+    "riskWarning": "此计划包含高风险操作，执行前需要确认。",
+    "confirmationRequired": "需要确认后才能执行",
+    "noAgentHint": "未指定执行者，将按默认模拟步骤处理",
+    "createDemo": "演示"
+  },
+  "chatPlan": {
+    "panelTitle": "任务计划",
+    "toggleBtn": "计划",
+    "close": "关闭",
+    "addPlaceholder": "添加指令\u2026",
+    "addBtn": "添加"
   },
   "adminSessions": {
     "title": "全部会话",
@@ -1144,6 +1218,113 @@
       "multimodalWarning": "当前模型未检测到多模态能力，图片或视频可能无法被正确处理",
       "imageOnlyAccept": "当前模型仅支持图片文件",
       "imageOnlyWarning": "当前模型仅检测到图片支持，视频等非图片文件可能无法被正确处理"
+    },
+    "guidance": {
+      "guide": "引导",
+      "terminate": "终止",
+      "stopped": "已终止当前任务",
+      "sent": "📤 引导已发送，任务将使用新指令继续",
+      "discard": "丢弃"
+    },
+    "slashCommands": {
+      "stop": {
+        "description": "停止当前正在执行的任务",
+        "category": "任务控制"
+      },
+      "approve": {
+        "description": "批准待执行的工具操作并继续执行",
+        "category": "审批"
+      },
+      "deny": {
+        "description": "拒绝待执行的工具操作",
+        "category": "审批"
+      },
+      "restart": {
+        "description": "重启当前会话",
+        "category": "任务控制"
+      },
+      "clear": {
+        "description": "清空对话上下文",
+        "category": "上下文"
+      },
+      "compact": {
+        "description": "压缩对话上下文并生成摘要，支持附带说明",
+        "category": "上下文",
+        "usage": "/compact <说明>"
+      },
+      "compact_str": {
+        "description": "以字符串形式输出压缩后的上下文摘要",
+        "category": "上下文"
+      },
+      "history": {
+        "description": "查看当前对话历史摘要",
+        "category": "上下文"
+      },
+      "await_summary": {
+        "description": "等待并返回对话摘要",
+        "category": "上下文"
+      },
+      "long_term_memory": {
+        "description": "查看或管理长期记忆",
+        "category": "上下文"
+      },
+      "new": {
+        "description": "新建聊天会话",
+        "category": "聊天"
+      },
+      "message": {
+        "description": "向指定序号的消息发送内容",
+        "category": "调试",
+        "usage": "/message <序号>"
+      },
+      "dump_history": {
+        "description": "导出当前对话历史到文件",
+        "category": "调试"
+      },
+      "load_history": {
+        "description": "从文件加载对话历史",
+        "category": "调试"
+      },
+      "status": {
+        "description": "查看当前任务运行状态",
+        "category": "调试"
+      },
+      "reloadConfig": {
+        "description": "重新加载配置文件",
+        "category": "调试"
+      },
+      "version": {
+        "description": "查看当前版本号",
+        "category": "调试"
+      },
+      "logs": {
+        "description": "查看最近日志",
+        "category": "调试"
+      },
+      "daemonStatus": {
+        "description": "查看 Daemon 运行状态",
+        "category": "Daemon"
+      },
+      "daemonRestart": {
+        "description": "重启 Daemon 服务",
+        "category": "Daemon"
+      },
+      "daemonReloadConfig": {
+        "description": "重新加载 Daemon 配置",
+        "category": "Daemon"
+      },
+      "daemonVersion": {
+        "description": "查看 Daemon 版本号",
+        "category": "Daemon"
+      },
+      "daemonLogs": {
+        "description": "查看 Daemon 日志",
+        "category": "Daemon"
+      },
+      "daemonApprove": {
+        "description": "批准 Daemon 待执行操作",
+        "category": "Daemon"
+      }
     }
   },
   "security": {

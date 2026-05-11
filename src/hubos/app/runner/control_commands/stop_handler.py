@@ -75,9 +75,22 @@ class StopCommandHandler(BaseControlCommandHandler):
             20,
         )
 
-        if stopped or cleared > 0:
+        # RunControl: cancel all background runs (sub-agents, workflows, plans)
+        bg_cancelled = 0
+        try:
+            from ...run_control import get_run_control_store
+
+            _cancelled_ids = await get_run_control_store().cancel_all(
+                target_session_id,
+            )
+            bg_cancelled = len(_cancelled_ids)
+        except Exception:  # noqa: BLE001
+            pass
+
+        if stopped or cleared > 0 or bg_cancelled > 0:
             logger.info(
                 f"/stop: stopped={stopped} cleared={cleared} "
+                f"bg_cancelled={bg_cancelled} "
                 f"chat_id={chat_id} session={target_session_id[:30]}",
             )
             status_parts = []
@@ -85,6 +98,10 @@ class StopCommandHandler(BaseControlCommandHandler):
                 status_parts.append("running task stopped")
             if cleared > 0:
                 status_parts.append(f"{cleared} queued message(s) cleared")
+            if bg_cancelled > 0:
+                status_parts.append(
+                    f"{bg_cancelled} background task(s) cancelled",
+                )
             status_text = " and ".join(status_parts)
             return (
                 f"**Task Stopped**\n\n"

@@ -9,6 +9,7 @@ endpoint or via POST /console/chat. This channel handles the **output** side:
 whenever a completed message event or a proactive send arrives, it is
 pretty-printed to the terminal.
 """
+
 from __future__ import annotations
 
 import copy
@@ -42,7 +43,6 @@ from ..base import (
     TextContent,
 )
 from ..utils import file_url_to_local_path
-
 
 logger = logging.getLogger(__name__)
 

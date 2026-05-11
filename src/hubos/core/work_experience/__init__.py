@@ -30,7 +30,12 @@ try:
 
     seed_v4_cards()
 except Exception:
-    pass
+    import logging
+
+    logging.getLogger(__name__).debug(
+        "work_experience: v4 seed skipped",
+        exc_info=True,
+    )
 
 __all__ = [
     # v4 (active)

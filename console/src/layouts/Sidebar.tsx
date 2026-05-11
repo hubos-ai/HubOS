@@ -165,6 +165,12 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
       label: t("nav.heartbeat"),
     },
     {
+      key: "task-monitor",
+      icon: <SparkBrowseLine size={18} />,
+      path: "/task-monitor",
+      label: t("nav.taskMonitor"),
+    },
+    {
       key: "workspace",
       icon: <SparkLocalFileLine size={18} />,
       path: "/workspace",
@@ -291,6 +297,11 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
           key: "heartbeat",
           label: collapsed ? null : t("nav.heartbeat"),
           icon: <SparkVoiceChat01Line size={16} />,
+        },
+        {
+          key: "task-monitor",
+          label: collapsed ? null : t("nav.taskMonitor"),
+          icon: <SparkBrowseLine size={16} />,
         },
       ],
     },

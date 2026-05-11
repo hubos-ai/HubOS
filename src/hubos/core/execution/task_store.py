@@ -4,6 +4,7 @@
 In-memory task storage with local store authoritative semantics.
 """
 
+import heapq
 import threading
 import uuid
 from dataclasses import dataclass, field
@@ -330,11 +331,21 @@ class TaskStore:
                 if target:
                     tasks = [t for t in tasks if t.current_status == target]
 
-            sorted_tasks = sorted(
-                tasks,
-                key=lambda t: t.created_at,
-                reverse=True,
-            )
+            # Use heapq.nsmallest which is O(n + k·log n) instead of
+            # sorted() which is O(n log n) on the full list.
+            needed = offset + limit
+            if needed >= len(tasks):
+                sorted_tasks = sorted(
+                    tasks,
+                    key=lambda t: t.created_at,
+                    reverse=True,
+                )
+            else:
+                sorted_tasks = heapq.nlargest(
+                    needed,
+                    tasks,
+                    key=lambda t: t.created_at,
+                )
             return sorted_tasks[offset : offset + limit]
 
     def count(self) -> int:

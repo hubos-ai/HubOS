@@ -37,6 +37,7 @@ class CardStore:
         try:
             return json.loads(self._index_path.read_text("utf-8"))
         except Exception:
+            logger.debug("store_v4: failed to load index", exc_info=True)
             return {}
 
     def _save_index(self, index: dict[str, str]) -> None:
@@ -64,6 +65,11 @@ class CardStore:
         try:
             return WorkflowCard.from_json(path.read_text("utf-8"))
         except Exception:
+            logger.debug(
+                "store_v4: failed to load card %s",
+                card_id,
+                exc_info=True,
+            )
             return None
 
     def get_by_task_type(self, task_type: str) -> Optional[WorkflowCard]:
@@ -81,6 +87,11 @@ class CardStore:
             try:
                 results.append(WorkflowCard.from_json(path.read_text("utf-8")))
             except Exception:
+                logger.debug(
+                    "store_v4: skipping invalid card file %s",
+                    path.name,
+                    exc_info=True,
+                )
                 continue
         return results
 

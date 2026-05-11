@@ -55,4 +55,7 @@ async def put_language(
     data = _load()
     data["language"] = language
     _save(data)
+    from ..ui_language import clear_language_cache
+
+    clear_language_cache()
     return {"language": language}

@@ -81,6 +81,9 @@ class MemoryCompactionHook:
         Returns:
             None (hook doesn't modify kwargs)
         """
+        import time as _time
+
+        _hook_start = _time.monotonic()
         try:
             # Get hot-reloaded agent config
             agent_config = load_agent_config(self.memory_manager.agent_id)
@@ -90,7 +93,12 @@ class MemoryCompactionHook:
             memory = agent.memory
 
             system_prompt = agent.sys_prompt
-            compressed_summary = memory.get_compressed_summary()
+            get_summary = getattr(memory, "get_compressed_summary", None)
+            compressed_summary = (
+                get_summary()
+                if callable(get_summary)
+                else getattr(memory, "_compressed_summary", "")
+            ) or ""
             str_token_count = await token_counter.count(
                 messages=[],
                 text=(system_prompt or "") + (compressed_summary or ""),
@@ -113,8 +121,14 @@ class MemoryCompactionHook:
                 return None
 
             messages = await memory.get_memory(prepend_summary=False)
+            logger.info(
+                f"[CompactHook] step=get_memory, "
+                f"msgs={len(messages)}, "
+                f"elapsed={_time.monotonic() - _hook_start:.2f}s",
+            )
 
             # Compact tool results with configured thresholds
+            _t_trc = _time.monotonic()
             trc = running_config.tool_result_compact
             if trc.enabled:
                 await self.memory_manager.compact_tool_result(
@@ -124,8 +138,13 @@ class MemoryCompactionHook:
                     recent_max_bytes=trc.recent_max_bytes,
                     retention_days=trc.retention_days,
                 )
+            logger.info(
+                f"[CompactHook] step=tool_result_compact, "
+                f"elapsed={_time.monotonic() - _t_trc:.2f}s",
+            )
 
             # memory_compact_reserve is always available from config
+            _t_check = _time.monotonic()
             (
                 messages_to_compact,
                 _,
@@ -136,8 +155,21 @@ class MemoryCompactionHook:
                 memory_compact_reserve=running_config.memory_compact_reserve,
                 as_token_counter=token_counter,
             )
+            logger.info(
+                f"[CompactHook] step=check_context, "
+                f"to_compact={len(messages_to_compact)}, "
+                f"elapsed={_time.monotonic() - _t_check:.2f}s",
+            )
 
             if not messages_to_compact:
+                return None
+
+            if not callable(getattr(memory, "mark_messages_compressed", None)):
+                logger.warning(
+                    "Memory compaction skipped: memory backend %s does not "
+                    "support mark_messages_compressed().",
+                    memory.__class__.__name__,
+                )
                 return None
 
             if not is_valid:
@@ -175,9 +207,15 @@ class MemoryCompactionHook:
             )
 
             if running_config.context_compact.context_compact_enabled:
+                _t_llm = _time.monotonic()
                 compact_content = await self.memory_manager.compact_memory(
                     messages=messages_to_compact,
-                    previous_summary=memory.get_compressed_summary(),
+                    previous_summary=compressed_summary,
+                )
+                logger.info(
+                    f"[CompactHook] step=compact_memory(LLM), "
+                    f"elapsed={_time.monotonic() - _t_llm:.2f}s, "
+                    f"result={len(compact_content) if compact_content else 0} chars",
                 )
                 if not compact_content:
                     await self._print_status_message(
@@ -199,7 +237,11 @@ class MemoryCompactionHook:
             updated_count = await memory.mark_messages_compressed(
                 messages_to_compact,
             )
-            logger.info(f"Marked {updated_count} messages as compacted")
+            logger.info(
+                f"[CompactHook] step=mark_compressed, "
+                f"count={updated_count}, "
+                f"total={_time.monotonic() - _hook_start:.2f}s",
+            )
 
             await memory.update_compressed_summary(compact_content)
 

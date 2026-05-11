@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import shutil
 from typing import Any, Dict, List, TYPE_CHECKING
 
 from agentscope.mcp import HttpStatefulClient, StdIOStatefulClient
@@ -297,25 +298,80 @@ class MCPClientManager:
                     pass
 
     @staticmethod
+    def _resolve_stdio_command(command: str) -> str:
+        """Resolve stdio command for GUI/LaunchAgent environments.
+
+        macOS LaunchAgents often run with a minimal PATH, so commands that are
+        available in an interactive shell (for example ``npx`` from Homebrew)
+        may fail with ``FileNotFoundError``. Resolve common binary locations up
+        front and pass an absolute executable path to the MCP client.
+        """
+        expanded = os.path.expanduser(os.path.expandvars(command.strip()))
+        if not expanded:
+            return command
+
+        if os.path.sep in expanded:
+            return expanded
+
+        path_parts = [
+            os.environ.get("PATH", ""),
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+            "/opt/homebrew/sbin",
+            "/usr/local/sbin",
+        ]
+        resolved = shutil.which(
+            expanded,
+            path=os.pathsep.join(part for part in path_parts if part),
+        )
+        return resolved or expanded
+
+    @staticmethod
+    def _build_stdio_env(extra_env: Dict[str, str]) -> Dict[str, str]:
+        """Merge stdio MCP env with a robust PATH for GUI launches."""
+        env = dict(extra_env or {})
+        current_path = env.get("PATH") or os.environ.get("PATH", "")
+        additions = [
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+            "/opt/homebrew/sbin",
+            "/usr/local/sbin",
+        ]
+        parts = [p for p in current_path.split(os.pathsep) if p]
+        for item in additions:
+            if item not in parts:
+                parts.append(item)
+        env["PATH"] = os.pathsep.join(parts)
+        return env
+
+    @staticmethod
     def _build_client(client_config: "MCPClientConfig") -> Any:
         """Build MCP client instance by configured transport."""
+        command = MCPClientManager._resolve_stdio_command(
+            client_config.command,
+        )
+        env = MCPClientManager._build_stdio_env(client_config.env)
         rebuild_info = {
             "name": client_config.name,
             "transport": client_config.transport,
             "url": client_config.url,
             "headers": client_config.headers or None,
-            "command": client_config.command,
+            "command": command,
             "args": list(client_config.args),
-            "env": dict(client_config.env),
+            "env": dict(env),
             "cwd": client_config.cwd or None,
         }
 
         if client_config.transport == "stdio":
             client = StdIOStatefulClient(
                 name=client_config.name,
-                command=client_config.command,
+                command=command,
                 args=client_config.args,
-                env=client_config.env,
+                env=env,
                 cwd=client_config.cwd or None,
             )
             setattr(client, "_hubos_rebuild_info", rebuild_info)

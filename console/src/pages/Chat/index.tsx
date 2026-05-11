@@ -3,16 +3,29 @@ import {
   IAgentScopeRuntimeWebUIOptions,
   type IAgentScopeRuntimeWebUIRef,
 } from "@agentscope-ai/chat";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  lazy,
+  Suspense,
+} from "react";
 import { Button, Modal, Result, Tooltip } from "antd";
 import { useAppMessage } from "../../hooks/useAppMessage";
 import { ExclamationCircleOutlined, SettingOutlined } from "@ant-design/icons";
 import { SparkCopyLine, SparkAttachmentLine } from "@agentscope-ai/icons";
+const ChatTaskPanel = lazy(() => import("./ChatTaskPanel"));
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import sessionApi, { clearAllPendingUserMessages } from "./sessionApi";
 import defaultConfig, { getDefaultConfig } from "./OptionsPanel/defaultConfig";
 import { chatApi } from "../../api/modules/chat";
+import {
+  runControlApi,
+  findControllableRun,
+} from "../../api/modules/runControl";
 import { getApiUrl } from "../../api/config";
 import { buildAuthHeaders } from "../../api/authHeaders";
 import { providerApi } from "../../api/modules/provider";
@@ -27,6 +40,7 @@ import ChatActionGroup from "./components/ChatActionGroup";
 import ChatHeaderTitle from "./components/ChatHeaderTitle";
 import ChatSessionInitializer from "./components/ChatSessionInitializer";
 import SelectiveTextCard from "./components/SelectiveTextCard";
+import { SLASH_COMMANDS } from "./slashCommands";
 import {
   toDisplayUrl,
   copyText,
@@ -35,8 +49,10 @@ import {
   normalizeContentUrls,
   createSseChunkParser,
   extractUserMessageText,
+  appendRuntimeNotice,
   type CopyableResponse,
   type RuntimeLoadingBridgeApi,
+  type SseChunkParser,
 } from "./utils";
 
 const CHAT_ATTACHMENT_MAX_MB = 10;
@@ -60,21 +76,6 @@ interface CustomWindow extends Window {
 }
 
 declare const window: CustomWindow;
-
-interface CommandSuggestion {
-  command: string;
-  value: string;
-  description: string;
-}
-
-function renderSuggestionLabel(command: string, description: string) {
-  return (
-    <div className={styles.suggestionLabel}>
-      <span className={styles.suggestionCommand}>{command}</span>
-      <span className={styles.suggestionDescription}>{description}</span>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -146,6 +147,31 @@ function useIMEComposition(isChatActive: () => boolean) {
   return isComposingRef;
 }
 
+// ---------------------------------------------------------------------------
+// Slash command overlay
+// ---------------------------------------------------------------------------
+
+/**
+ * Set the textarea value in a way React / AgentScope can detect.
+ * Uses the native setter so React's synthetic system picks up the change,
+ * then dispatches a bubbling "input" event and repositions the caret.
+ */
+function setTextareaValue(
+  ta: HTMLTextAreaElement,
+  value: string,
+  caret: number,
+) {
+  const nativeSetter = Object.getOwnPropertyDescriptor(
+    HTMLTextAreaElement.prototype,
+    "value",
+  )?.set;
+  if (nativeSetter) {
+    nativeSetter.call(ta, value);
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  ta.setSelectionRange(caret, caret);
+}
+
 /** Fetch and track multimodal capabilities for the active model. */
 function useMultimodalCapabilities(
   refreshKey: number,
@@ -159,6 +185,10 @@ function useMultimodalCapabilities(
     supportsVideo: boolean;
   }>({ supportsMultimodal: false, supportsImage: false, supportsVideo: false });
 
+  // Cache whether a valid model is configured — customFetch reads this
+  // synchronously instead of making a network call on every message.
+  const hasValidModelRef = useRef(false);
+
   const fetchMultimodalCaps = useCallback(async () => {
     try {
       const [providers, activeModels] = await Promise.all([
@@ -171,6 +201,7 @@ function useMultimodalCapabilities(
       const activeProviderId = activeModels?.active_llm?.provider_id;
       const activeModelId = activeModels?.active_llm?.model;
       if (!activeProviderId || !activeModelId) {
+        hasValidModelRef.current = false;
         setMultimodalCaps({
           supportsMultimodal: false,
           supportsImage: false,
@@ -178,10 +209,12 @@ function useMultimodalCapabilities(
         });
         return;
       }
+      hasValidModelRef.current = true;
       const provider = (providers as ProviderInfo[]).find(
         (p) => p.id === activeProviderId,
       );
       if (!provider) {
+        hasValidModelRef.current = false;
         setMultimodalCaps({
           supportsMultimodal: false,
           supportsImage: false,
@@ -200,6 +233,7 @@ function useMultimodalCapabilities(
         supportsVideo: model?.supports_video ?? false,
       });
     } catch {
+      hasValidModelRef.current = false;
       setMultimodalCaps({
         supportsMultimodal: false,
         supportsImage: false,
@@ -229,21 +263,69 @@ function useMultimodalCapabilities(
     return () => window.removeEventListener("model-switched", handler);
   }, [fetchMultimodalCaps]);
 
-  return multimodalCaps;
+  return { caps: multimodalCaps, hasValidModelRef };
 }
 
+/**
+ * RuntimeLoadingBridge — separates AgentScope's loading from HubOS's running.
+ *
+ * When AgentScope internally calls setLoading(true) (SSE stream started),
+ * we capture it as HubOS "running" state but immediately reset the context
+ * loading to false. This keeps the Sender component fully interactive
+ * (textarea + send button always available) while we manage the stop/guidance
+ * UI ourselves.
+ *
+ * Two-layer state:
+ * - AgentScope context loading: always false → Sender never blocks submission
+ * - HubOS runtimeLoading (via onLoadingChange): true while work is happening
+ *
+ * Ending the run:
+ * - SSE stream ends → customFetch calls bridgeRef.setLoading(false)
+ * - User stops → stopCurrentRun calls bridgeRef.setLoading(false)
+ * - NOT triggered by AgentScope's internal setLoading(false) to avoid races
+ */
 function RuntimeLoadingBridge({
   bridgeRef,
+  onLoadingChange,
 }: {
   bridgeRef: { current: RuntimeLoadingBridgeApi | null };
+  onLoadingChange?: (loading: boolean) => void;
 }) {
-  const { setLoading, getLoading } = useChatAnywhereInput(
+  const { loading, setLoading, getLoading } = useChatAnywhereInput(
     (value) =>
       ({
+        loading: value.loading,
         setLoading: value.setLoading,
         getLoading: value.getLoading,
-      }) as RuntimeLoadingBridgeApi,
+      }) as RuntimeLoadingBridgeApi & { loading?: boolean | string },
   );
+
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
+
+  // When AgentScope sets loading=true, treat it as "run started" signal.
+  // Record the state for HubOS UI, then immediately reset context loading
+  // to false so the Sender stays interactive.
+  useEffect(() => {
+    const isLoading = Boolean(loading);
+    if (isLoading) {
+      onLoadingChange?.(true);
+      // queueMicrotask avoids setState-during-render and batches the reset
+      // within the same task so the Sender never sees loading=true for long.
+      queueMicrotask(() => {
+        if (mountedRef.current) setLoading?.(false);
+      });
+    }
+    // Deliberately NOT calling onLoadingChange(false) here — loading=false
+    // from AgentScope should NOT end the HubOS running state. Only our own
+    // code (customFetch SSE end, stopCurrentRun) resets runtimeLoading via
+    // bridgeRef.current.setLoading(false).
+  }, [loading, onLoadingChange, setLoading]);
 
   useEffect(() => {
     if (!setLoading || !getLoading) {
@@ -252,16 +334,20 @@ function RuntimeLoadingBridge({
     }
 
     bridgeRef.current = {
-      setLoading,
-      getLoading,
+      // Called by HubOS code (customFetch, stopCurrentRun) to signal "work done".
+      // This resets HubOS runtimeLoading — does NOT affect AgentScope context.
+      setLoading: (value: boolean | string) => {
+        if (!value) {
+          onLoadingChange?.(false);
+        }
+      },
+      getLoading: () => false,
     };
 
     return () => {
-      if (bridgeRef.current?.setLoading === setLoading) {
-        bridgeRef.current = null;
-      }
+      bridgeRef.current = null;
     };
-  }, [getLoading, setLoading, bridgeRef]);
+  }, [onLoadingChange, bridgeRef]);
 
   return null;
 }
@@ -283,6 +369,47 @@ export default function ChatPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const runtimeLoadingBridgeRef = useRef<RuntimeLoadingBridgeApi | null>(null);
   const { message } = useAppMessage();
+  const [taskPanelOpen, setTaskPanelOpen] = useState(false);
+  const [pendingGuidanceText, setPendingGuidanceText] = useState("");
+  // Ref (not state): AgentScope Input freezes beforeSubmit via useCallback([],…)
+  // so beforeSubmit can only read a ref, never a stale state closure.
+  const runtimeLoadingRef = useRef(false);
+  const currentAbortRef = useRef<AbortController | null>(null);
+
+  // Stream lifecycle tracking — prevents old SSE chunks from bleeding into
+  // new guidance/submit streams by ensuring the old reader is fully drained
+  // before starting a new one.
+  const activeStreamDoneRef = useRef<Promise<void> | null>(null);
+  const resolveActiveStreamDoneRef = useRef<(() => void) | null>(null);
+  // Monotonically increasing ID — stale readers check this and stop enqueuing.
+  const latestRequestIdRef = useRef(0);
+  // Guard: only one guidance submit in-flight at a time.
+  const submittingGuidanceRef = useRef(false);
+
+  // Stream lifecycle helpers (stable callbacks — only access refs).
+  const markStreamStarted = useCallback(() => {
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => {
+      resolve = r;
+    });
+    activeStreamDoneRef.current = promise;
+    resolveActiveStreamDoneRef.current = resolve;
+  }, []);
+
+  const markStreamDone = useCallback(() => {
+    resolveActiveStreamDoneRef.current?.();
+    activeStreamDoneRef.current = null;
+    resolveActiveStreamDoneRef.current = null;
+  }, []);
+
+  const waitActiveStreamDone = useCallback(async (timeoutMs = 800) => {
+    const promise = activeStreamDoneRef.current;
+    if (!promise) return;
+    await Promise.race([
+      promise,
+      new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+    ]);
+  }, []);
 
   const isChatActiveRef = useRef(false);
   isChatActiveRef.current =
@@ -291,8 +418,8 @@ export default function ChatPage() {
   const isChatActive = useCallback(() => isChatActiveRef.current, []);
 
   // Use custom hooks for better separation of concerns
-  const isComposingRef = useIMEComposition(isChatActive);
-  const multimodalCaps = useMultimodalCapabilities(
+  useIMEComposition(isChatActive);
+  const { caps: multimodalCaps, hasValidModelRef } = useMultimodalCapabilities(
     refreshKey,
     location.pathname,
     isChatActive,
@@ -505,6 +632,147 @@ export default function ChatPage() {
     [t],
   );
 
+  const getVisibleSessionId = useCallback(
+    () => window.currentSessionId || chatIdRef.current || "",
+    [],
+  );
+
+  const findCurrentControllableRun = useCallback(async () => {
+    const visibleSessionId = getVisibleSessionId();
+    if (visibleSessionId) {
+      const activeRuns = await runControlApi.getActiveRuns(visibleSessionId);
+      const target = findControllableRun(activeRuns.runs ?? []);
+      if (target) return target;
+    }
+    // Fallback for console/tool runs whose backend session id can differ from
+    // the AgentScope visible tab id. This keeps guidance available while a
+    // task is visibly running instead of leaving only the native stop button.
+    const allRuns = await runControlApi.listRuns({ activeOnly: true });
+    return findControllableRun(allRuns.runs ?? []);
+  }, [getVisibleSessionId]);
+
+  const stopCurrentRun = useCallback(async () => {
+    const visibleSessionId = getVisibleSessionId();
+    const backendChatId =
+      sessionApi.getRealIdForSession(visibleSessionId) ??
+      chatIdRef.current ??
+      visibleSessionId;
+    if (!backendChatId) return false;
+
+    // Try RunControl first: find best controllable run for session
+    try {
+      const target = await findCurrentControllableRun();
+      if (target) {
+        await runControlApi.cancelRun(target.run_id);
+        runtimeLoadingBridgeRef.current?.setLoading?.(false);
+        return true;
+      }
+    } catch {
+      // RunControl unavailable — fallback below
+    }
+
+    // Fallback: legacy stopChat (only when RunControl has no active runs)
+    try {
+      await chatApi.stopChat(backendChatId);
+      runtimeLoadingBridgeRef.current?.setLoading?.(false);
+      return true;
+    } catch (err) {
+      console.error("Failed to stop current run:", err);
+      return false;
+    }
+  }, [findCurrentControllableRun, getVisibleSessionId]);
+
+  // One stateful SSE parser per Chat mount. The closure accumulates streamed
+  // assistant tokens and resets on each `metadata: started` event from the
+  // backend, so successive runs do not bleed into one another.
+  const sseChunkParser = useMemo<SseChunkParser>(
+    () => createSseChunkParser(),
+    [],
+  );
+
+  const guidePendingText = useCallback(async () => {
+    const text = pendingGuidanceText.trim();
+    if (!text || submittingGuidanceRef.current) return;
+    submittingGuidanceRef.current = true;
+
+    try {
+      // 1. Abort the active SSE stream immediately
+      currentAbortRef.current?.abort();
+      currentAbortRef.current = null;
+
+      // 2. Wait for old stream to fully drain so stale chunks cannot
+      //    write to the new currentQARef.current.response.
+      await waitActiveStreamDone(800);
+
+      // 3. Reset parser — clear all accumulated state from previous stream
+      sseChunkParser.reset();
+
+      // 4. Reset UI state (user sees instant feedback)
+      runtimeLoadingRef.current = false;
+      runtimeLoadingBridgeRef.current?.setLoading?.(false);
+      setPendingGuidanceText("");
+
+      // 5. Call RunControl guidance API to get guidance_ack
+      let guidanceAck: string | undefined;
+      let guidedFromRunId: string | undefined;
+      try {
+        const target = await findCurrentControllableRun();
+        if (target) {
+          guidedFromRunId = target.run_id;
+          const resp = await runControlApi.guidance(target.run_id, text);
+          guidanceAck = resp.guidance_ack;
+        }
+      } catch {
+        // RunControl unavailable — degrade to guidance without ack
+      }
+
+      // 6. Inject guidance notice into chat timeline
+      appendRuntimeNotice(chatRef, "↪️ 已收到引导，正在按新方向继续");
+
+      // 7. Submit guidance. The backend sees runtime_guidance=true and uses
+      //    TaskTracker.force_new to atomically cancel the previous producer
+      //    without replaying old buffers.
+      chatRef.current?.input.submit({
+        query: text,
+        biz_params: {
+          runtime_guidance: true,
+          guidance_text: text,
+          ...(guidanceAck ? { guidance_ack: guidanceAck } : {}),
+          ...(guidedFromRunId ? { guided_from_run_id: guidedFromRunId } : {}),
+        } as Record<string, unknown>,
+      });
+    } finally {
+      submittingGuidanceRef.current = false;
+    }
+  }, [
+    pendingGuidanceText,
+    findCurrentControllableRun,
+    sseChunkParser,
+    waitActiveStreamDone,
+  ]);
+
+  const discardPendingGuidance = useCallback(() => {
+    setPendingGuidanceText("");
+  }, []);
+
+  const terminateCurrentRun = useCallback(async () => {
+    // Abort the active SSE stream immediately
+    currentAbortRef.current?.abort();
+    currentAbortRef.current = null;
+
+    // Wait for old stream to fully drain so stale chunks cannot pollute UI
+    await waitActiveStreamDone(800);
+
+    // Reset parser — clear accumulated state from current stream
+    sseChunkParser.reset();
+
+    const stopped = await stopCurrentRun();
+    if (stopped) {
+      setPendingGuidanceText("");
+      appendRuntimeNotice(chatRef, "⏹️ 任务已终止");
+    }
+  }, [stopCurrentRun, sseChunkParser, waitActiveStreamDone]);
+
   const customFetch = useCallback(
     async (data: {
       input?: Array<Record<string, unknown>>;
@@ -520,6 +788,10 @@ export default function ChatPage() {
       };
 
       const requestController = new AbortController();
+      currentAbortRef.current = requestController;
+      // Stale-request guard: each invocation gets a unique ID. If a newer
+      // invocation arrives (guidance, new submit), the old pump stops enqueuing.
+      const localRequestId = ++latestRequestIdRef.current;
       const abortRequest = () => requestController.abort();
 
       if (data.signal) {
@@ -535,19 +807,7 @@ export default function ChatPage() {
         ...buildAuthHeaders(),
       };
 
-      try {
-        const activeModels = await providerApi.getActiveModels({
-          scope: "effective",
-          agent_id: selectedAgent,
-        });
-        if (
-          !activeModels?.active_llm?.provider_id ||
-          !activeModels?.active_llm?.model
-        ) {
-          setShowModelPrompt(true);
-          return buildModelError();
-        }
-      } catch {
+      if (!hasValidModelRef.current) {
         setShowModelPrompt(true);
         return buildModelError();
       }
@@ -572,22 +832,34 @@ export default function ChatPage() {
         user_id: window.currentUserId || session?.user_id || DEFAULT_USER_ID,
         channel: window.currentChannel || session?.channel || DEFAULT_CHANNEL,
         stream: true,
-        ...biz_params,
+        biz_params: biz_params || {},
       };
+
+      // For non-guidance submits, reset the parser so old accumulated state
+      // from a previous stream does not bleed into the new one.
+      // Guidance submits already call reset in guidePendingText.
+      if (!biz_params?.runtime_guidance) {
+        sseChunkParser.reset();
+      }
 
       const backendChatId =
         sessionApi.getRealIdForSession(requestBody.session_id) ??
         chatIdRef.current ??
         requestBody.session_id;
-      if (backendChatId) {
-        const userText = rewrittenInput
-          .filter((m: any) => m.role === "user")
-          .map(extractUserMessageText)
-          .join("\n")
-          .trim();
-        if (userText) {
-          sessionApi.setLastUserMessage(backendChatId, userText);
-        }
+      const userText = rewrittenInput
+        .filter((m: any) => m.role === "user")
+        .map(extractUserMessageText)
+        .join("\n")
+        .trim();
+      if (userText) {
+        // Store under ALL possible session IDs so the pending user message
+        // can be recovered regardless of which ID is used on reload.
+        const allIds = new Set<string>();
+        if (backendChatId) allIds.add(backendChatId);
+        if (requestBody.session_id) allIds.add(requestBody.session_id);
+        if (chatIdRef.current) allIds.add(chatIdRef.current);
+        if (window.currentSessionId) allIds.add(window.currentSessionId);
+        sessionApi.setLastUserMessage([...allIds], userText);
       }
 
       const response = await fetch(getApiUrl("/console/chat"), {
@@ -603,6 +875,8 @@ export default function ChatPage() {
       ) {
         return response;
       }
+
+      markStreamStarted();
 
       const reader = response.body.getReader();
 
@@ -624,6 +898,7 @@ export default function ChatPage() {
               message.error(t("chat.requestTimeout", "Reply timed out"));
               requestController.abort();
               reader.cancel("chat-stream-timeout").catch(() => {});
+              markStreamDone();
               controller.error(new Error("Chat stream timed out"));
             }, CHAT_STREAM_IDLE_TIMEOUT_MS);
           };
@@ -635,6 +910,22 @@ export default function ChatPage() {
               .then(({ done, value }) => {
                 if (done) {
                   clearTimer();
+                  currentAbortRef.current = null;
+                  // Immediate release: SSE stream ended → task complete.
+                  // This lets beforeSubmit see runtimeLoading=false instantly,
+                  // without waiting for the next heartbeat cycle.
+                  runtimeLoadingRef.current = false;
+                  stopRuntimeLoading();
+                  markStreamDone();
+                  controller.close();
+                  return;
+                }
+                // Stale request guard — if a newer fetch has started, stop
+                // feeding old data to AgentScope's response builder.
+                if (localRequestId !== latestRequestIdRef.current) {
+                  clearTimer();
+                  currentAbortRef.current = null;
+                  markStreamDone();
                   controller.close();
                   return;
                 }
@@ -644,7 +935,11 @@ export default function ChatPage() {
               })
               .catch((error) => {
                 clearTimer();
+                currentAbortRef.current = null;
+                // Release on error too — no point keeping runtimeLoading true.
+                runtimeLoadingRef.current = false;
                 stopRuntimeLoading();
+                markStreamDone();
                 controller.error(error);
               });
           };
@@ -652,6 +947,7 @@ export default function ChatPage() {
           pump();
         },
         cancel(reason) {
+          markStreamDone();
           return reader.cancel(reason);
         },
       });
@@ -662,7 +958,14 @@ export default function ChatPage() {
         headers: response.headers,
       });
     },
-    [message, selectedAgent, t],
+    [
+      message,
+      selectedAgent,
+      sseChunkParser,
+      t,
+      markStreamStarted,
+      markStreamDone,
+    ],
   );
 
   const handleFileUpload = useCallback(
@@ -709,40 +1012,8 @@ export default function ChatPage() {
     [multimodalCaps, t],
   );
 
-  // One stateful SSE parser per Chat mount. The closure accumulates streamed
-  // assistant tokens and resets on each `metadata: started` event from the
-  // backend, so successive runs do not bleed into one another.
-  const sseChunkParser = useMemo(() => createSseChunkParser(), []);
-
   const options = useMemo(() => {
     const i18nConfig = getDefaultConfig(t);
-    const commandSuggestions: CommandSuggestion[] = [
-      {
-        command: "/clear",
-        value: "clear",
-        description: t("chat.commands.clear.description"),
-      },
-      {
-        command: "/compact",
-        value: "compact",
-        description: t("chat.commands.compact.description"),
-      },
-      {
-        command: "/approve",
-        value: "approve",
-        description: t("chat.commands.approve.description"),
-      },
-      {
-        command: "/deny",
-        value: "deny",
-        description: t("chat.commands.deny.description"),
-      },
-    ];
-
-    const handleBeforeSubmit = async () => {
-      if (isComposingRef.current) return false;
-      return true;
-    };
 
     return {
       ...i18nConfig,
@@ -755,10 +1026,27 @@ export default function ChatPage() {
         rightHeader: (
           <>
             <ChatSessionInitializer />
-            <RuntimeLoadingBridge bridgeRef={runtimeLoadingBridgeRef} />
+            <RuntimeLoadingBridge
+              bridgeRef={runtimeLoadingBridgeRef}
+              onLoadingChange={(loading: boolean) => {
+                runtimeLoadingRef.current = loading;
+              }}
+            />
             <ChatHeaderTitle />
             <span style={{ flex: 1 }} />
             <ModelSelector />
+            <Tooltip title={t("chatTask.toggleBtn", "Tasks")}>
+              <Button
+                size="small"
+                type={taskPanelOpen ? "primary" : "default"}
+                onClick={() => {
+                  setTaskPanelOpen((open) => !open);
+                }}
+                style={{ marginLeft: 4 }}
+              >
+                {t("chatTask.toggleBtn", "Tasks")}
+              </Button>
+            </Tooltip>
             <ChatActionGroup />
           </>
         ),
@@ -770,7 +1058,51 @@ export default function ChatPage() {
       },
       sender: {
         ...(i18nConfig as any)?.sender,
-        beforeSubmit: handleBeforeSubmit,
+        beforeSubmit: async () => {
+          // Read textarea from DOM (beforeSubmit receives no arguments per
+          // library API).
+          const textarea = document.querySelector<HTMLTextAreaElement>(
+            [
+              ".chat-anywhere-sender textarea",
+              'textarea[class*="sender"]',
+              'textarea[class*="chat-anywhere"]',
+            ].join(", "),
+          );
+          const text = textarea?.value?.trim();
+
+          // /stop during active run: invoke stopCurrentRun directly instead
+          // of sending as a chat message (which would be queued behind the
+          // running producer and never processed).
+          if (text === "/stop" && runtimeLoadingRef.current) {
+            if (textarea) {
+              setTextareaValue(textarea, "", 0);
+            }
+            stopCurrentRun();
+            return false;
+          }
+
+          if (!runtimeLoadingRef.current) return true;
+
+          // Guard: if no active abort controller and no active stream, the
+          // runtimeLoadingRef is stale (e.g. stream ended but ref wasn't
+          // cleared yet). Allow normal submit.
+          if (!currentAbortRef.current && !activeStreamDoneRef.current) {
+            runtimeLoadingRef.current = false;
+            return true;
+          }
+
+          // Agent generating — intercept.
+          if (!text || text.startsWith("/")) return true;
+
+          setPendingGuidanceText(text);
+
+          // Clear textarea via native setter (React-compatible).
+          if (textarea) {
+            setTextareaValue(textarea, "", 0);
+          }
+
+          return false; // suppress AgentScope submit, input not cleared
+        },
         allowSpeech: true,
         attachments: {
           trigger: function (props: any) {
@@ -793,9 +1125,16 @@ export default function ChatPage() {
           customRequest: handleFileUpload,
         },
         placeholder: t("chat.inputPlaceholder"),
-        suggestions: commandSuggestions.map((item) => ({
-          label: renderSuggestionLabel(item.command, item.description),
-          value: item.value,
+        suggestions: SLASH_COMMANDS.map((cmd) => ({
+          value: cmd.command.replace(/^\//, ""),
+          label: (
+            <div className={styles.suggestionLabel}>
+              <span className={styles.suggestionCommand}>{cmd.command}</span>
+              <span className={styles.suggestionDescription}>
+                {t(`${cmd.i18nKey}.description`)}
+              </span>
+            </div>
+          ),
         })),
       },
       session: {
@@ -864,27 +1203,64 @@ export default function ChatPage() {
     t,
     isDark,
     multimodalCaps,
+    taskPanelOpen,
     sseChunkParser,
   ]);
 
   return (
-    <div
-      style={{
-        height: "100%",
-        width: "100%",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <div className={styles.chatMessagesArea}>
-        {routeSessionValidated ? (
-          <AgentScopeRuntimeWebUI
-            ref={chatRef}
-            key={refreshKey}
-            options={options}
-          />
-        ) : null}
+    <div className={styles.chatPageRoot}>
+      <div
+        style={{
+          position: "relative",
+          height: "100%",
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div className={styles.chatMessagesArea}>
+          {routeSessionValidated ? (
+            <AgentScopeRuntimeWebUI
+              ref={chatRef}
+              key={refreshKey}
+              options={options}
+            />
+          ) : null}
+        </div>
+        {/* Pending Guidance Card — positioned above the input, outside scroll area */}
+        {pendingGuidanceText && (
+          <div className={styles.pendingGuidanceCard}>
+            <span className={styles.pendingGuidanceDot} />
+            <span className={styles.pendingGuidanceText}>
+              {pendingGuidanceText}
+            </span>
+            <div className={styles.pendingGuidanceActions}>
+              <Button size="small" type="link" onClick={guidePendingText}>
+                {t("chat.guidance.guide", "引导")}
+              </Button>
+              <Button size="small" type="link" onClick={terminateCurrentRun}>
+                {t("chat.guidance.terminate", "终止")}
+              </Button>
+              <Button
+                size="small"
+                type="link"
+                danger
+                onClick={discardPendingGuidance}
+              >
+                {t("chat.guidance.discard", "丢弃")}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
+
+      <Suspense fallback={null}>
+        <ChatTaskPanel
+          sessionId={window.currentSessionId || chatId || ""}
+          open={taskPanelOpen}
+          onClose={() => setTaskPanelOpen(false)}
+        />
+      </Suspense>
 
       <Modal
         open={showModelPrompt}

@@ -699,7 +699,10 @@ class ExecutionOrchestrator:
                             cards,
                         )
                     except Exception:
-                        pass  # Never let effective-use tracking block execution
+                        logger.debug(
+                            "orchestrator: effective-use tracking failed",
+                            exc_info=True,
+                        )
                 return {
                     "content": result.text,
                     "artifacts": [],

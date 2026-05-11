@@ -1,29 +1,15 @@
-/* Disabled input overlay */
-.chatDisabledOverlay {
-  position: relative;
+/* Chat page root — horizontal flex for chat + task panel */
+.chatPageRoot {
   height: 100%;
   width: 100%;
-}
-
-.chatDisabledOverlay :global([class*="chat-anywhere-input"]),
-.chatDisabledOverlay :global([class*="chat-input"]),
-.chatDisabledOverlay :global(textarea),
-.chatDisabledOverlay :global(input[type="text"]) {
-  pointer-events: none !important;
-  opacity: 0.5 !important;
-  background-color: #f5f5f5 !important;
-  cursor: not-allowed !important;
-}
-
-.chatDisabledOverlay :global(button[class*="send"]),
-.chatDisabledOverlay :global(button[class*="submit"]) {
-  pointer-events: none !important;
-  opacity: 0.3 !important;
-  cursor: not-allowed !important;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
 }
 
 /* Chat messages scrollable area */
 .chatMessagesArea {
+  position: relative;
   flex: 1;
   min-height: 0;
   height: 100%;
@@ -77,6 +63,73 @@
   }
 }
 
+.pendingGuidanceCard {
+  position: absolute;
+  left: 50%;
+  bottom: 148px;
+  transform: translateX(-50%);
+  width: min(850px, calc(100% - 148px));
+  z-index: 20;
+  padding: 8px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px 10px 0 0;
+  background: rgba(246, 246, 246, 0.98);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: guidanceSlideUp 0.2s ease-out;
+}
+
+@keyframes guidanceSlideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.pendingGuidanceDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff7f16;
+  flex-shrink: 0;
+  animation: guidancePulse 1.4s ease-in-out infinite;
+}
+
+@keyframes guidancePulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(255, 127, 22, 0.4);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 0 4px rgba(255, 127, 22, 0);
+  }
+}
+
+.pendingGuidanceText {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.65);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pendingGuidanceActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 .suggestionLabel {
   display: flex;
   align-items: flex-start;
@@ -111,6 +164,15 @@
   .suggestionDescription {
     color: rgba(255, 255, 255, 0.65);
   }
+
+  .pendingGuidanceCard {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(40, 40, 40, 0.98);
+  }
+
+  .pendingGuidanceText {
+    color: rgba(255, 255, 255, 0.55);
+  }
 }
 
 /* Prompt star icon - use theme color */
@@ -122,15 +184,7 @@
   }
 }
 
-/* Dark mode scrollbar for disabled overlay */
-:global(.dark-mode) {
-  .chatDisabledOverlay :global([class*="chat-anywhere-input"]),
-  .chatDisabledOverlay :global([class*="chat-input"]),
-  .chatDisabledOverlay :global(textarea),
-  .chatDisabledOverlay :global(input[type="text"]) {
-    background-color: #2a2a2a !important;
-  }
-}
+/* Dark mode scrollbar for chat area */
 
 /* Chat content dark-mode fallback for rich HTML/markdown forms rendered
    inside assistant messages, e.g. fieldset/legend/input/textarea blocks. */
@@ -397,6 +451,7 @@
 /* 4. Sender (input box): ChatGPT-style floating pill */
 .chatMessagesArea {
   :global(.hubos-sender) {
+    overflow: visible !important;
     border-radius: 20px !important;
     border: 1px solid rgba(0, 0, 0, 0.1) !important;
     background: rgba(255, 255, 255, 0.96) !important;
@@ -421,6 +476,7 @@
   }
 
   :global(.hubos-sender-content) {
+    overflow: visible !important;
     background: transparent !important;
   }
 
@@ -439,6 +495,7 @@
 :global(.dark-mode) {
   .chatMessagesArea {
     :global(.hubos-sender) {
+      overflow: visible !important;
       border-color: rgba(255, 255, 255, 0.12) !important;
       background: rgba(36, 36, 36, 0.96) !important;
       box-shadow:
@@ -454,6 +511,7 @@
     }
 
     :global(.hubos-sender-content) {
+      overflow: visible !important;
       background: transparent !important;
     }
 
@@ -465,6 +523,47 @@
 
     :global(.hubos-sender-input) textarea::placeholder {
       color: rgba(255, 255, 255, 0.38) !important;
+    }
+  }
+}
+
+/* 4c. Slash suggestion popup — compact, scrollable */
+:global {
+  :global(.ant-cascader-dropdown),
+  :global(.ant-suggestion) {
+    z-index: 2000 !important;
+  }
+
+  .ant-cascader-dropdown {
+    .ant-cascader-menus {
+      max-height: 320px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+
+      &::-webkit-scrollbar {
+        width: 4px;
+      }
+      &::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.12);
+        border-radius: 2px;
+      }
+    }
+
+    .ant-cascader-menu {
+      max-height: 320px !important;
+      min-width: 280px !important;
+      border-inline-end: 0 !important;
+    }
+
+    .ant-cascader-menu-item {
+      padding: 5px 12px !important;
+      line-height: 1.35 !important;
+      font-size: 13px;
+    }
+
+    .ant-suggestion-item {
+      padding: 2px 4px;
+      line-height: 1.35;
     }
   }
 }

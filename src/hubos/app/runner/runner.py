@@ -7,6 +7,7 @@ import json
 import logging
 import threading
 import time
+import uuid
 from collections import OrderedDict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -239,10 +240,21 @@ class AgentRunner(Runner):
         set_runtime_request_context(agent._request_context)  # noqa: SLF001
 
         # Reset in-memory conversation history so stale messages from
-        # the previous session don't leak into the new one.
-        from agentscope.memory import InMemoryMemory
+        # the previous session don't leak into the new one. Keep using
+        # the ReMe-compatible memory when the memory manager is enabled;
+        # the plain AgentScope InMemoryMemory lacks HubOS/ReMe compaction
+        # methods such as mark_messages_compressed(), which causes repeated
+        # compaction loops.
+        if self.memory_manager is not None:
+            memory = self.memory_manager.get_in_memory_memory()
+        else:
+            from agentscope.memory import InMemoryMemory
 
-        agent.memory = InMemoryMemory()
+            memory = InMemoryMemory()
+
+        agent.memory = memory
+        if getattr(agent, "command_handler", None) is not None:
+            agent.command_handler.memory = memory
 
         # Console output stays disabled
         agent.set_console_output_enabled(enabled=False)
@@ -440,6 +452,7 @@ class AgentRunner(Runner):
         session_state_loaded = False
         chat_turn_started_at = time.time()
         final_response_text = ""
+        pre_agent_status_msgs: list[Msg] = []
         try:
             session_id = request.session_id
             user_id = request.user_id
@@ -460,6 +473,23 @@ class AgentRunner(Runner):
                 ),
             )
 
+            # --- Phase 1: Context Understanding ---
+            ctx_call_id = f"status-{uuid.uuid4().hex[:8]}"
+            _ctx_start = Msg(
+                name="assistant",
+                role="assistant",
+                content=[
+                    {
+                        "type": "tool_use",
+                        "id": ctx_call_id,
+                        "name": "Context understanding",
+                        "input": {},
+                    },
+                ],
+            )
+            yield _ctx_start, True
+            pre_agent_status_msgs.append(_ctx_start)
+
             env_context = build_env_context(
                 session_id=session_id,
                 user_id=user_id,
@@ -471,11 +501,47 @@ class AgentRunner(Runner):
                 ),
             )
 
+            _ctx_done = Msg(
+                name="assistant",
+                role="assistant",
+                content=[
+                    {
+                        "type": "tool_result",
+                        "id": ctx_call_id,
+                        "tool_use_id": ctx_call_id,
+                        "name": "Context understanding",
+                        "output": "done",
+                        "content": "done",
+                        "status": "completed",
+                    },
+                ],
+            )
+            yield _ctx_done, True
+            pre_agent_status_msgs.append(_ctx_done)
+
+            # --- Phase 2: Experience matching (if WE enabled) ---
+            matched_card = None
             try:
                 from ...core.infra.feature_flags import get_feature_flags
 
                 flags = get_feature_flags()
                 if flags.use_work_experience():
+                    exp_call_id = f"status-{uuid.uuid4().hex[:8]}"
+                    _exp_start = Msg(
+                        name="assistant",
+                        role="assistant",
+                        content=[
+                            {
+                                "type": "tool_use",
+                                "id": exp_call_id,
+                                "name": "Experience matching",
+                                "input": {},
+                            },
+                        ],
+                    )
+                    yield _exp_start, True
+                    pre_agent_status_msgs.append(_exp_start)
+
                     from ...core.work_experience.integration_v4 import (
                         get_work_experience_interceptor,
                     )
@@ -485,29 +551,46 @@ class AgentRunner(Runner):
                         user_message=query or "",
                         session_id=session_id,
                     )
-                else:
-                    matched_card = None
-                if matched_card:
-                    card_guidance = matched_card.formatted_for_injection()
-                    env_context = (
-                        f"{env_context}\n\n---\n"
-                        f"📌 相关工作经验（参考以下流程执行，但不要逐字复述）：\n"
-                        f"{card_guidance}\n---\n"
+
+                    _exp_done = Msg(
+                        name="assistant",
+                        role="assistant",
+                        content=[
+                            {
+                                "type": "tool_result",
+                                "id": exp_call_id,
+                                "tool_use_id": exp_call_id,
+                                "name": "Experience matching",
+                                "output": "done",
+                                "content": "done",
+                                "status": "completed",
+                            },
+                        ],
                     )
-                    logger.info(
-                        "WorkExperience v4 guidance injected",
-                        extra={
-                            "session_id": session_id,
-                            "agent_id": self.agent_id,
-                            "card_id": matched_card.card_id,
-                            "task_type": matched_card.task_type,
-                        },
-                    )
+                    yield _exp_done, True
+                    pre_agent_status_msgs.append(_exp_done)
             except Exception:
                 logger.warning(
                     "WorkExperience v4 retrieval/injection failed; "
                     "continuing without guidance",
                     exc_info=True,
+                )
+
+            if matched_card:
+                card_guidance = matched_card.formatted_for_injection()
+                env_context = (
+                    f"{env_context}\n\n---\n"
+                    f"📌 相关工作经验（参考以下流程执行，但不要逐字复述）：\n"
+                    f"{card_guidance}\n---\n"
+                )
+                logger.info(
+                    "WorkExperience v4 guidance injected",
+                    extra={
+                        "session_id": session_id,
+                        "agent_id": self.agent_id,
+                        "card_id": matched_card.card_id,
+                        "task_type": matched_card.task_type,
+                    },
                 )
 
             # Get MCP clients from manager (hot-reloadable)
@@ -608,6 +691,13 @@ class AgentRunner(Runner):
             # in the session state.
             agent.rebuild_sys_prompt()
 
+            # Inject pre-agent status messages into memory AFTER
+            # load_session_state so they are not overwritten by the
+            # restored session state.  They persist across page refresh
+            # because the session state is saved again when the run ends.
+            if pre_agent_status_msgs:
+                await agent.memory.add(pre_agent_status_msgs)
+
             async for msg, last in stream_printing_messages(
                 agents=[agent],
                 coroutine_task=agent(msgs),
@@ -658,29 +748,52 @@ class AgentRunner(Runner):
                 ) + e.args[1:]
             raise
         finally:
+            # -- WorkExperience v4 reflection (fire-and-forget) --
+            # Previously this was a synchronous call that blocked the runner,
+            # delaying RunControl "done" status by 3-10 seconds (LLM latency).
+            # Now runs in background so the runner returns immediately.
             if agent is not None and final_response_text.strip():
                 try:
                     from ...core.infra.feature_flags import get_feature_flags
 
                     if get_feature_flags().use_work_experience():
+                        import asyncio
+
                         from ...core.work_experience.integration_v4 import (
                             get_work_experience_interceptor,
                         )
 
-                        interceptor = get_work_experience_interceptor()
-                        interceptor.post_chat_turn(
-                            session_id=session_id,
-                            user_input=query or "",
-                            assistant_response=final_response_text,
-                            channel=channel,
-                            agent_id=self.agent_id,
-                            execution_time_ms=int(
-                                (time.time() - chat_turn_started_at) * 1000,
-                            ),
+                        _wx_interceptor = get_work_experience_interceptor()
+                        _wx_query = query or ""
+                        _wx_response = final_response_text
+                        _wx_session_id = session_id
+                        _wx_channel = channel
+                        _wx_agent_id = self.agent_id
+                        _wx_exec_ms = int(
+                            (time.time() - chat_turn_started_at) * 1000,
                         )
+
+                        def _wx_bg_task():
+                            try:
+                                _wx_interceptor.post_chat_turn(
+                                    session_id=_wx_session_id,
+                                    user_input=_wx_query,
+                                    assistant_response=_wx_response,
+                                    channel=_wx_channel,
+                                    agent_id=_wx_agent_id,
+                                    execution_time_ms=_wx_exec_ms,
+                                )
+                            except Exception:
+                                logger.warning(
+                                    "WorkExperience v4 background task failed",
+                                    exc_info=True,
+                                )
+
+                        loop = asyncio.get_event_loop()
+                        loop.run_in_executor(None, _wx_bg_task)
                 except Exception:
                     logger.warning(
-                        "Failed to persist WorkExperience v4 from chat turn",
+                        "Failed to dispatch WorkExperience v4 background task",
                         exc_info=True,
                     )
 

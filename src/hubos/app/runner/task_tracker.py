@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import uuid
 import weakref
 from dataclasses import dataclass, field
 from typing import Any, AsyncGenerator, Callable, Coroutine
@@ -25,6 +26,7 @@ class _RunState:
     task: asyncio.Future
     queues: list[asyncio.Queue] = field(default_factory=list)
     buffer: list[str] = field(default_factory=list)
+    stream_id: str = ""
 
 
 class TaskTracker:
@@ -144,19 +146,44 @@ class TaskTracker:
         run_key: str,
         payload: Any,
         stream_fn: Callable[..., Coroutine],
+        *,
+        force_new: bool = False,
+        reconnect: bool = False,
     ) -> tuple[asyncio.Queue, bool]:
         """Attach to an existing run or start a new one.
 
         Returns ``(queue, is_new_run)``.
+
+        When *force_new* is ``True`` and an active run exists, the old run
+        is cancelled, its subscribers are sent the sentinel, and a brand-new
+        run is created without replaying the old buffer.  This is used for
+        runtime-guidance restarts where the caller wants a clean stream.
+
+        When *reconnect* is ``True`` and an active run exists (without
+        *force_new*), the subscriber receives a replay of the buffered events.
+        This is only appropriate for SSE reconnects, not for new user messages
+        or guidance submits.
         """
         async with self._lock:
             state = self._runs.get(run_key)
             if state is not None and not state.task.done():
-                q: asyncio.Queue = asyncio.Queue()
-                for sse in state.buffer:
-                    q.put_nowait(sse)
-                state.queues.append(q)
-                return q, False
+                if force_new:
+                    # Guidance restart: cancel old producer, purge old state,
+                    # then fall through to create a fresh run (no buffer replay).
+                    state.task.cancel()
+                    for subscriber_queue in state.queues:
+                        subscriber_queue.put_nowait(_SENTINEL)
+                    self._runs.pop(run_key, None)
+                else:
+                    # Attach to existing run.
+                    new_queue: asyncio.Queue = asyncio.Queue()
+                    if reconnect:
+                        # Reconnect: replay buffer so subscriber catches up.
+                        for sse in state.buffer:
+                            new_queue.put_nowait(sse)
+                    # Non-reconnect (new submit / session-switch): no replay.
+                    state.queues.append(new_queue)
+                    return new_queue, False
 
             my_queue: asyncio.Queue = asyncio.Queue()
             run = _RunState(
@@ -170,12 +197,37 @@ class TaskTracker:
 
             async def _producer() -> None:
                 try:
+                    # Emit a stream-start marker so the frontend can
+                    # distinguish this run from a previous one and reset
+                    # its parser state.
+                    stream_id = uuid.uuid4().hex[:12]
+                    run.stream_id = stream_id
+                    start_evt = (
+                        "data: "
+                        + json.dumps(
+                            {
+                                "_hubos_stream_id": stream_id,
+                                "status": "started",
+                            },
+                        )
+                        + "\n\n"
+                    )
+                    tracker = tracker_ref()
+                    if tracker is not None:
+                        async with tracker.lock:
+                            run.buffer.append(start_evt)
+                            for q in run.queues:
+                                q.put_nowait(start_evt)
+
                     async for sse in stream_fn(payload):
                         tracker = tracker_ref()
                         if tracker is None:
                             return
                         async with tracker.lock:
                             run.buffer.append(sse)
+                            # Cap buffer to bound memory for long streams.
+                            if len(run.buffer) > 200:
+                                run.buffer = run.buffer[-200:]
                             for q in run.queues:
                                 q.put_nowait(sse)
                 except asyncio.CancelledError:
@@ -198,11 +250,16 @@ class TaskTracker:
                         async with tracker.lock:
                             for q in run.queues:
                                 q.put_nowait(_SENTINEL)
+                            # Only pop if this run is still the active entry.
+                            # A force_new replacement may have already replaced
+                            # the entry — popping unconditionally would delete
+                            # the new run.
                             # pylint: disable=protected-access
-                            tracker._runs.pop(
-                                run_key,
-                                None,
-                            )
+                            if tracker._runs.get(run_key) is run:
+                                tracker._runs.pop(
+                                    run_key,
+                                    None,
+                                )
 
             run.task = asyncio.create_task(_producer())
             return my_queue, True

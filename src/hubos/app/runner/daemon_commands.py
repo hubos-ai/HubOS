@@ -196,11 +196,18 @@ async def run_daemon_approve(
     """
     try:
         from ..approvals import get_approval_service
+        from ..ui_language import is_zh
         from ...security.tool_guard.approval import ApprovalDecision
 
         svc = get_approval_service()
         pending = await svc.get_pending_by_session(session_id)
         if pending is None:
+            if is_zh():
+                return (
+                    "**暂无待审批操作**\n\n"
+                    "当前会话没有等待审批的工具操作。\n"
+                    "只有在敏感工具调用等待你确认时，才能使用此命令。"
+                )
             return (
                 "**No pending approval**\n\n"
                 "- There is no tool-guard approval waiting for this "
@@ -212,6 +219,12 @@ async def run_daemon_approve(
             pending.request_id,
             ApprovalDecision.APPROVED,
         )
+        if is_zh():
+            return (
+                f"**工具已批准执行** ✅\n\n"
+                f"- 工具：`{pending.tool_name}`\n"
+                f"- 请求：`{pending.request_id[:8]}…`"
+            )
         return (
             f"**Tool execution approved** ✅\n\n"
             f"- Tool: `{pending.tool_name}`\n"

@@ -14,7 +14,7 @@
 //     rabbit hole (PyInstaller + code signing for each provider's .so files).
 
 const { app, BrowserWindow, Menu, shell, dialog, nativeImage } = require("electron");
-const { spawn } = require("child_process");
+const { spawn, execSync } = require("child_process");
 const http = require("http");
 const fs = require("fs");
 const os = require("os");
@@ -67,6 +67,13 @@ let backendProc = null;
  */
 let spawnedByUs = false;
 let shuttingDown = false;
+
+function loadBackendUrlIgnoringCache() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.loadURL(BACKEND_URL, {
+    extraHeaders: "Cache-Control: no-cache\nPragma: no-cache",
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Logging
@@ -192,29 +199,52 @@ function startBackend() {
 }
 
 function stopBackend() {
-  if (!backendProc || backendProc.killed) return;
-  if (!spawnedByUs) {
-    log("stopBackend: backend was not spawned by us — leaving it alone");
-    return;
-  }
-  log("stopBackend: sending SIGTERM pid=", backendProc.pid);
-  try {
-    backendProc.kill("SIGTERM");
-  } catch (e) {
-    log("stopBackend: kill error", e.message);
-  }
-  // Escalate if it doesn't die within 4s.
-  const proc = backendProc;
-  setTimeout(() => {
-    if (proc && !proc.killed) {
-      log("stopBackend: escalating to SIGKILL");
+  // 1. Kill the process we spawned (if any).
+  if (backendProc && !backendProc.killed) {
+    if (spawnedByUs) {
+      log("stopBackend: sending SIGTERM to spawned pid=", backendProc.pid);
       try {
-        proc.kill("SIGKILL");
-      } catch (_) {
-        /* ignore */
+        backendProc.kill("SIGTERM");
+      } catch (e) {
+        log("stopBackend: kill error", e.message);
       }
+      const proc = backendProc;
+      setTimeout(() => {
+        if (proc && !proc.killed) {
+          log("stopBackend: escalating to SIGKILL");
+          try { proc.kill("SIGKILL"); } catch (_) {}
+        }
+      }, 4000);
+    } else {
+      log("stopBackend: backend was not spawned by us — will find by port");
     }
-  }, 4000);
+    backendProc = null;
+    spawnedByUs = false;
+  }
+
+  // 2. Also kill any hubos process on our port (regardless of who started it).
+  const BACKEND_PORT = parseInt(process.env.HUBOS_PORT || "8088", 10);
+  try {
+    const result = execSync(`lsof -ti :${BACKEND_PORT} -sTCP:LISTEN 2>/dev/null`, {
+      encoding: "utf-8",
+      timeout: 5000,
+    }).trim();
+    if (result) {
+      const pids = result.split("\n").filter(Boolean);
+      for (const pid of pids) {
+        log("stopBackend: killing port-based pid=", pid);
+        try { process.kill(parseInt(pid, 10), "SIGTERM"); } catch (_) {}
+      }
+      // Escalate after 4s.
+      setTimeout(() => {
+        for (const pid of pids) {
+          try { process.kill(parseInt(pid, 10), 9); } catch (_) {}
+        }
+      }, 4000);
+    }
+  } catch (_) {
+    // lsof returns non-zero when nothing is listening — that's fine.
+  }
 }
 
 async function restartBackend() {
@@ -238,7 +268,7 @@ async function restartBackend() {
   }
   // Reload the UI once the backend answers.
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.loadURL(BACKEND_URL);
+    loadBackendUrlIgnoringCache();
   }
   log("restartBackend: done");
 }
@@ -273,7 +303,7 @@ function createWindow() {
   if (iconPath) winOpts.icon = nativeImage.createFromPath(iconPath);
 
   mainWindow = new BrowserWindow(winOpts);
-  mainWindow.loadURL(BACKEND_URL);
+  loadBackendUrlIgnoringCache();
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
@@ -475,7 +505,12 @@ async function bootstrap() {
   } else {
     // Re-load in case the initial loadURL fired before the server answered.
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.loadURL(BACKEND_URL);
+      try {
+        await mainWindow.webContents.session.clearCache();
+      } catch (e) {
+        log("clearCache failed:", e.message);
+      }
+      loadBackendUrlIgnoringCache();
     }
   }
 }

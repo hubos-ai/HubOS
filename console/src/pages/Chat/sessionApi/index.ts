@@ -185,11 +185,25 @@ function contentToRequestParts(
  * frequently use a plain string content field; AgentScope expects an array
  * of typed parts (`{ type: "text", text, status: "completed" }`).
  */
-function normalizeOutputMessageContent(content: unknown): unknown {
+function normalizeOutputMessageContent(
+  content: unknown,
+  msgType?: string,
+): unknown {
   if (typeof content === "string") {
     return [{ type: "text", text: content, status: "completed" }];
   }
   if (!Array.isArray(content)) return content;
+  // plugin_call / plugin_call_output carry structured DataContent with tool
+  // call/response info (name, arguments, output).  Do NOT transform these —
+  // the Card component expects the raw data shape for rendering.
+  if (
+    msgType === "plugin_call" ||
+    msgType === "plugin_call_output" ||
+    msgType === "function_call" ||
+    msgType === "function_call_output"
+  ) {
+    return content;
+  }
   return (content as ContentItem[]).map(resolveContentItemUrl);
 }
 
@@ -200,12 +214,14 @@ function normalizeOutputMessageContent(content: unknown): unknown {
  */
 function resolveMessageRole(msg: Message): string {
   const role = (msg.role as string) || "";
+  // plugin_call_output always maps to "tool" so it renders inside the
+  // response card alongside the corresponding plugin_call.
+  if (msg.type === TYPE_PLUGIN_CALL_OUTPUT) {
+    return ROLE_TOOL;
+  }
+  // plugin_call keeps its original role (usually "assistant") so the
+  // response card groups it correctly with surrounding assistant messages.
   if (role) {
-    // plugin_call_output messages occasionally arrive with role "system";
-    // surface them as "tool" so the response card groups them correctly.
-    if (msg.type === TYPE_PLUGIN_CALL_OUTPUT && role === ROLE_SYSTEM) {
-      return ROLE_TOOL;
-    }
     return role;
   }
   switch (msg.type) {
@@ -299,7 +315,10 @@ const buildResponseCard = (
 
   const normalizedMessages = outputMessages.map((msg) => ({
     ...msg,
-    content: normalizeOutputMessageContent(msg.content),
+    content: normalizeOutputMessageContent(
+      msg.content,
+      msg.type as string | undefined,
+    ),
   }));
 
   return {
@@ -509,9 +528,12 @@ class SessionApi implements IAgentScopeRuntimeWebUISessionAPI {
    * history during reconnect (the backend only persists it after generation
    * completes). Persisted to sessionStorage so it survives page refresh.
    */
-  setLastUserMessage(sessionId: string, text: string): void {
-    if (!sessionId || !text) return;
-    savePendingUserMessage(sessionId, text);
+  setLastUserMessage(sessionId: string | string[], text: string): void {
+    if (!text) return;
+    const ids = Array.isArray(sessionId) ? sessionId : [sessionId];
+    for (const id of ids) {
+      if (id) savePendingUserMessage(id, text);
+    }
   }
 
   /**
@@ -599,34 +621,55 @@ class SessionApi implements IAgentScopeRuntimeWebUISessionAPI {
   private patchLastUserMessage(
     messages: IAgentScopeRuntimeWebUIMessage[],
     generating: boolean,
-    backendSessionId: string,
+    sessionIds: string[],
   ): void {
     if (!generating) {
-      clearPendingUserMessage(backendSessionId);
+      for (const id of sessionIds) clearPendingUserMessage(id);
       return;
     }
 
-    const cachedText = loadPendingUserMessage(backendSessionId);
+    // Try all known session IDs to find the cached user message.
+    let cachedText = "";
+    for (const id of sessionIds) {
+      cachedText = loadPendingUserMessage(id);
+      if (cachedText) break;
+    }
     if (!cachedText) return;
+
+    // Avoid inserting a duplicate user message that already exists in history.
+    const hasDuplicate = messages.some((m) => {
+      if (m.role !== ROLE_USER) return false;
+      const text = extractTextFromContent(
+        m?.cards?.[0]?.data?.input?.[0]?.content,
+      );
+      return text === cachedText;
+    });
+    if (hasDuplicate) return;
+
+    const userCard = buildUserCard({
+      content: [{ type: "text", text: cachedText }],
+      role: ROLE_USER,
+    } as Message);
 
     const lastMsg = messages[messages.length - 1];
     if (lastMsg?.role === ROLE_USER) {
+      // Existing user card with empty content — fill it.
       const text = extractTextFromContent(
         lastMsg?.cards?.[0]?.data?.input?.[0]?.content,
       );
       if (!text) {
-        lastMsg.cards = buildUserCard({
-          content: [{ type: "text", text: cachedText }],
-          role: ROLE_USER,
-        } as Message).cards;
+        lastMsg.cards = userCard.cards;
       }
+      // else: user card already has matching content — skip.
     } else {
-      messages.push(
-        buildUserCard({
-          content: [{ type: "text", text: cachedText }],
-          role: ROLE_USER,
-        } as Message),
-      );
+      // Last message is assistant/generating or no messages at all.
+      // Insert user card before the last non-user message so the timeline
+      // reads: ...userCard → assistantCard.
+      if (lastMsg) {
+        messages.splice(messages.length - 1, 0, userCard);
+      } else {
+        messages.push(userCard);
+      }
     }
   }
 
@@ -761,7 +804,10 @@ class SessionApi implements IAgentScopeRuntimeWebUISessionAPI {
           const chatHistory = await api.getChat(fromList.realId);
           const generating = isGenerating(chatHistory);
           const messages = convertMessages(chatHistory.messages || []);
-          this.patchLastUserMessage(messages, generating, fromList.realId);
+          this.patchLastUserMessage(messages, generating, [
+            sessionId,
+            fromList.realId,
+          ]);
           const session: ExtendedSession = {
             id: sessionId,
             name: fromList.name || DEFAULT_SESSION_NAME,
@@ -787,13 +833,19 @@ class SessionApi implements IAgentScopeRuntimeWebUISessionAPI {
 
       // Pure local session (not yet sent to backend): wait until updateSession
       // resolves the realId, then fetch history with the real UUID.
-      await new Promise<void>((resolve) => {
+      await new Promise<void>((resolve, reject) => {
+        let attempts = 0;
+        const maxAttempts = 50; // 5 seconds max (50 × 100ms)
         const check = () => {
           const s = this.sessionList.find((x) => x.id === sessionId) as
             | ExtendedSession
             | undefined;
           if (s?.realId) {
             resolve();
+          } else if (++attempts >= maxAttempts) {
+            reject(
+              new Error(`waitForRealId timed out for session ${sessionId}`),
+            );
           } else {
             setTimeout(check, 100);
           }
@@ -809,7 +861,10 @@ class SessionApi implements IAgentScopeRuntimeWebUISessionAPI {
           const chatHistory = await api.getChat(refreshed.realId);
           const generating = isGenerating(chatHistory);
           const messages = convertMessages(chatHistory.messages || []);
-          this.patchLastUserMessage(messages, generating, refreshed.realId);
+          this.patchLastUserMessage(messages, generating, [
+            sessionId,
+            refreshed.realId,
+          ]);
           const session: ExtendedSession = {
             id: sessionId,
             name: refreshed.name || DEFAULT_SESSION_NAME,
@@ -873,7 +928,15 @@ class SessionApi implements IAgentScopeRuntimeWebUISessionAPI {
       const chatHistory = await api.getChat(sessionId);
       const generating = isGenerating(chatHistory);
       const messages = convertMessages(chatHistory.messages || []);
-      this.patchLastUserMessage(messages, generating, sessionId);
+      this.patchLastUserMessage(
+        messages,
+        generating,
+        [
+          sessionId,
+          fromList?.id ?? "",
+          (fromList as ExtendedSession)?.realId ?? "",
+        ].filter(Boolean),
+      );
       const session: ExtendedSession = {
         id: sessionId,
         name: fromList?.name || sessionId,

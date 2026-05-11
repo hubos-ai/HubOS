@@ -46,14 +46,18 @@ class CardRetriever:
         )
 
         prompt = (
-            "你是一个任务分类器。根据用户的任务描述，判断它属于以下哪个已有任务类型。\n\n"
-            f"已有任务类型：\n{card_list}\n\n"
+            "你是任务分类器。根据用户任务描述，从已有类型中找到最接近的匹配。\n\n"
+            "**核心原则：优先复用已有类型，避免碎片化。**\n"
+            "只要任务的大方向一致就匹配到同一类型。例如：代码格式修复、CI配置调试、"
+            '开源代码清理都属于"代码/项目维护"大类，应匹配到同一个已有类型。\n\n'
+            f"已有类型：\n{card_list}\n\n"
             f"用户任务：{user_message[:500]}\n\n"
             "回复规则：\n"
-            '- 如果匹配某个已有类型，输出：{"match": "任务类型名"}\n'
-            '- 如果不匹配任何已有类型，输出：{"match": null, "new_type": "建议的新类型名", '
+            '- 匹配到某个已有类型：{"match": "已有的任务类型名"}\n'
+            '- 确实没有任何已有类型能覆盖（全新领域）：{"match": null, "new_type": "新类型名", '
             '"description": "一句话描述"}\n'
-            "- 只输出JSON，不要解释"
+            "注意：90%以上的任务都应该匹配到已有类型。新建类型仅限于完全不同的工作领域。\n"
+            "只输出JSON，不要解释。"
         )
 
         try:
@@ -174,6 +178,7 @@ class CardRetriever:
                 )
             return json.loads(text)
         except Exception:
+            logger.debug("retriever_v4: LLM JSON parse failed", exc_info=True)
             return None
 
     @staticmethod
