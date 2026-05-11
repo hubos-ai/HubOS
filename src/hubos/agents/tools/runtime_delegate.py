@@ -40,6 +40,13 @@ import httpx
 from agentscope.message import TextBlock
 from agentscope.tool import ToolResponse
 
+from hubos.app.task_monitor import TaskEventType, TaskStatus
+from hubos.app.task_monitor_helpers import (
+    safe_add_event,
+    safe_create_task,
+    safe_update_task,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -316,37 +323,139 @@ async def delegate_task(
         return _err("delegate_task: goal cannot be empty")
 
     mode = _get_runtime_mode()
-    if mode == "agent_bridge":
-        return await _delegate_task_agent_bridge(
-            goal,
-            priority,
-            workflow,
-            wait,
-            timeout_seconds,
-            extra_context,
-        )
-    if mode == "inprocess":
-        return await _delegate_task_inprocess(
-            goal,
-            priority,
-            workflow,
-            wait,
-            timeout_seconds,
-            extra_context,
-        )
-    if mode == "http":
-        return await _delegate_task_http(
-            goal,
-            priority,
-            workflow,
-            wait,
-            timeout_seconds,
-            extra_context,
-        )
-    return _err(
-        f"❌ Unknown HUBOS_RUNTIME_MODE: {mode!r} "
-        f"(expected 'agent_bridge' | 'inprocess' | 'http')",
+
+    # -- Apply task_modes config limits (same pattern as agent_workforce) ---
+    try:
+        from hubos.config.config import load_agent_config
+
+        _cfg = load_agent_config("default")
+        if _cfg and _cfg.task_modes and _cfg.task_modes.delegate_task:
+            _dtm = _cfg.task_modes.delegate_task
+            if hasattr(_dtm, "timeout_seconds") and _dtm.timeout_seconds:
+                # Use the larger of caller-supplied and configured timeout,
+                # so the user's task_modes setting always takes effect.
+                timeout_seconds = max(timeout_seconds, _dtm.timeout_seconds)
+    except Exception:  # noqa: BLE001
+        pass
+
+    # -- TaskMonitor: create monitoring task for delegate_task ---------------
+    _ctx = _current_runtime_ctx()
+    _monitor_task_id = await safe_create_task(
+        session_id=_ctx.get("session_id") or "unknown",
+        source="tool",
+        title=goal.strip()[:80],
+        tool_name="delegate_task",
+        metadata={"runtime_mode": mode},
     )
+    await safe_update_task(_monitor_task_id, status=TaskStatus.RUNNING)
+    await safe_add_event(
+        _monitor_task_id,
+        TaskEventType.LOG,
+        f"Selected runtime mode: {mode}",
+    )
+
+    # -- RunControl: register for unified cancel ----------------------------
+    _delegate_run_id: str | None = None
+    try:
+        from hubos.app.run_control import (
+            get_run_control_store,
+            RunEntry,
+            RunType,
+            get_current_run_id,
+        )
+
+        _parent_run_id = get_current_run_id()
+        _is_cancellable = mode == "agent_bridge"
+        _cancel_behavior = "real" if _is_cancellable else "mark_only"
+        _delegate_run_id = await get_run_control_store().register(
+            RunEntry(
+                run_id="",
+                run_type=RunType.DELEGATE,
+                session_id=_ctx.get("session_id") or "unknown",
+                monitor_task_id=_monitor_task_id,
+                parent_run_id=_parent_run_id,
+                cancellable=_is_cancellable,
+                cancel_behavior=_cancel_behavior,
+            ),
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning("delegate: RunControl registration failed")
+
+    if mode == "agent_bridge":
+        result = await _delegate_task_agent_bridge(
+            goal,
+            priority,
+            workflow,
+            wait,
+            timeout_seconds,
+            extra_context,
+        )
+    elif mode == "inprocess":
+        result = await _delegate_task_inprocess(
+            goal,
+            priority,
+            workflow,
+            wait,
+            timeout_seconds,
+            extra_context,
+        )
+    elif mode == "http":
+        result = await _delegate_task_http(
+            goal,
+            priority,
+            workflow,
+            wait,
+            timeout_seconds,
+            extra_context,
+        )
+    else:
+        await safe_update_task(
+            _monitor_task_id,
+            status=TaskStatus.FAILED,
+            error=f"Unknown HUBOS_RUNTIME_MODE: {mode!r}",
+        )
+        return _err(
+            f"❌ Unknown HUBOS_RUNTIME_MODE: {mode!r} "
+            f"(expected 'agent_bridge' | 'inprocess' | 'http')",
+        )
+
+    # -- TaskMonitor: finalize based on result text -------------------------
+    _result_text = ""
+    if result.content and hasattr(result.content[0], "text"):
+        _result_text = result.content[0].text
+    _delegate_final_status = "done"
+    if "❌" in _result_text or "FAILED" in _result_text.upper():
+        _delegate_final_status = "failed"
+        await safe_update_task(
+            _monitor_task_id,
+            status=TaskStatus.FAILED,
+            error=_result_text[:200],
+        )
+    else:
+        await safe_update_task(
+            _monitor_task_id,
+            status=TaskStatus.DONE,
+            progress=100,
+            result_summary=_result_text[:200],
+        )
+
+    # RunControl: finalize
+    if _delegate_run_id:
+        try:
+            from hubos.app.run_control import get_run_control_store
+
+            await get_run_control_store().update_status(
+                _delegate_run_id,
+                _delegate_final_status,
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "delegate: RunControl status update (%s) failed for %s",
+                _delegate_final_status,
+                _delegate_run_id,
+            )
+
+    return result
 
 
 async def _delegate_task_http(

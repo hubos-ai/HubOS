@@ -24,6 +24,7 @@ import AgentsPage from "../../pages/Settings/Agents";
 import TaskModesPage from "../../pages/Settings/TaskModes";
 import AdminSessionsPage from "../../pages/Admin/Sessions";
 import WorkExperiencePage from "../../pages/WorkExperience";
+import TaskMonitorPage from "../../pages/TaskMonitor";
 
 const { Content } = Layout;
 
@@ -88,6 +89,7 @@ export default function MainLayout() {
               />
               <Route path="/admin/sessions" element={<AdminSessionsPage />} />
               <Route path="/work-experience" element={<WorkExperiencePage />} />
+              <Route path="/task-monitor" element={<TaskMonitorPage />} />
             </Routes>
           </div>
         </Content>

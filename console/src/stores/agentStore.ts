@@ -56,13 +56,27 @@ export const useAgentStore = create<AgentStore>()(
             return null;
           }
         },
-        setItem: (name, value) => {
-          try {
-            sessionStorage.setItem(name, JSON.stringify(value));
-          } catch (error) {
-            console.error(`Failed to save agent storage "${name}":`, error);
-          }
-        },
+        setItem: (() => {
+          const timers = new Map<string, ReturnType<typeof setTimeout>>();
+          return (name: string, value: unknown) => {
+            const existing = timers.get(name);
+            if (existing) clearTimeout(existing);
+            timers.set(
+              name,
+              setTimeout(() => {
+                timers.delete(name);
+                try {
+                  sessionStorage.setItem(name, JSON.stringify(value));
+                } catch (error) {
+                  console.error(
+                    `Failed to save agent storage "${name}":`,
+                    error,
+                  );
+                }
+              }, 100),
+            );
+          };
+        })(),
         removeItem: (name) => {
           sessionStorage.removeItem(name);
         },

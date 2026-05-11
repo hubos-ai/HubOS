@@ -57,6 +57,18 @@ function buildHeaders(method?: string, extra?: HeadersInit): Headers {
   return headers;
 }
 
+// In-flight deduplication for GET requests.
+const inflightRequests = new Map<string, Promise<unknown>>();
+
+function makeDedupeKey(
+  url: string,
+  method: string,
+  body?: BodyInit | null,
+): string {
+  const bodyKey = body ? String(body) : "";
+  return `${method}:${url}:${bodyKey}`;
+}
+
 export async function request<T = unknown>(
   path: string,
   options: RequestInit = {},
@@ -65,10 +77,24 @@ export async function request<T = unknown>(
   const method = options.method || "GET";
   const headers = buildHeaders(method, options.headers);
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  // Deduplicate identical in-flight GET requests
+  if (method.toUpperCase() === "GET") {
+    const key = makeDedupeKey(url, method);
+    const existing = inflightRequests.get(key) as Promise<T> | undefined;
+    if (existing) return existing;
+
+    const promise = _doFetch<T>(url, { ...options, headers }).finally(() => {
+      inflightRequests.delete(key);
+    });
+    inflightRequests.set(key, promise);
+    return promise;
+  }
+
+  return _doFetch<T>(url, { ...options, headers });
+}
+
+async function _doFetch<T>(url: string, options: RequestInit): Promise<T> {
+  const response = await fetch(url, options);
 
   if (!response.ok) {
     if (response.status === 401) {

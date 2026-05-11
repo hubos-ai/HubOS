@@ -178,6 +178,13 @@ type RuntimeStreamChunk =
   | AgentScopeStreamResponse
   | RuntimeResponseChunk;
 
+/** A stateful SSE chunk parser with an explicit reset method. */
+export interface SseChunkParser {
+  (raw: string): RuntimeStreamChunk;
+  /** Clear all accumulated stream state (output messages, accumulators). */
+  reset: () => void;
+}
+
 /** Map LangChain BaseMessage discriminators to AgentScope message types. */
 function mapLangchainTypeToAgentscope(rawType: string): {
   type: string;
@@ -189,6 +196,18 @@ function mapLangchainTypeToAgentscope(rawType: string): {
     case "AIMessageChunk":
     case "assistant":
       return { type: "message", role: "assistant" };
+    case "reasoning":
+      return { type: "reasoning", role: "assistant" };
+    case "plugin_call":
+    case "function_call":
+    case "component_call":
+    case "mcp_call":
+      return { type: rawType, role: "assistant" };
+    case "plugin_call_output":
+    case "function_call_output":
+    case "component_call_output":
+    case "mcp_call_output":
+      return { type: rawType, role: "tool" };
     case "tool":
     case "ToolMessage":
       return { type: "plugin_call_output", role: "tool" };
@@ -243,15 +262,26 @@ function toAgentScopeContent(
  * - The very first `metadata: started` event resets state, so back-to-back
  *   conversations never bleed into each other.
  */
-export function createSseChunkParser(): (raw: string) => RuntimeStreamChunk {
+export function createSseChunkParser(
+  onPlanCreated?: (data: Record<string, unknown>) => void,
+): SseChunkParser {
   const accumulators = new Map<string, string>();
+  const contentAccumulators = new Map<string, string>();
+  const messageMeta = new Map<
+    string,
+    Pick<AgentScopeStreamMessage, "id" | "role" | "type">
+  >();
   let outputMessages: AgentScopeStreamMessage[] = [];
   let assistantSeq = 0;
+  let activeStreamId: string | null = null;
 
   const reset = () => {
     accumulators.clear();
+    contentAccumulators.clear();
+    messageMeta.clear();
     outputMessages = [];
     assistantSeq = 0;
+    activeStreamId = null;
   };
 
   const upsertMessage = (msg: AgentScopeStreamMessage) => {
@@ -259,6 +289,12 @@ export function createSseChunkParser(): (raw: string) => RuntimeStreamChunk {
     if (idx >= 0) outputMessages[idx] = msg;
     else outputMessages.push(msg);
   };
+
+  const keepAlive = (): AgentScopeStreamResponse => ({
+    object: "response",
+    status: "in_progress",
+    output: outputMessages.map((m) => ({ ...m })),
+  });
 
   const finalize = (
     status: "completed" | "failed",
@@ -286,7 +322,7 @@ export function createSseChunkParser(): (raw: string) => RuntimeStreamChunk {
     return result;
   };
 
-  return function parseChunk(raw: string): RuntimeStreamChunk {
+  const parseChunk = function (raw: string): RuntimeStreamChunk {
     // Guard: the library may pass null/undefined at end-of-stream.
     // Using optional chaining instead of raw.trim() directly avoids a
     // TypeError that would leave the loading spinner stuck forever.
@@ -317,13 +353,92 @@ export function createSseChunkParser(): (raw: string) => RuntimeStreamChunk {
 
     // Pass-through for chunks already shaped as AgentScope envelopes.
     if (data && typeof data.object === "string") {
+      // A non-terminal response without output is just stream/run metadata.
+      // Passing it through as `output: []` makes AgentScope's Builder replace
+      // the accumulated output with an empty array, which can erase a real
+      // reasoning/thinking message that arrived just before a heartbeat or
+      // response-start event. Preserve the current output instead.
+      if (
+        data.object === "response" &&
+        !Array.isArray(data.output) &&
+        data.status !== "completed" &&
+        data.status !== "failed"
+      ) {
+        return keepAlive();
+      }
+
+      // AgentScope's useChatRequest only calls updateMessage when
+      // Builder.data has content in output[0]. Content-delta events
+      // (object: "content") are handled by Builder's handleContent which
+      // correctly accumulates deltas, but the resulting Builder.data still
+      // has content → useChatRequest skips the updateMessage call.
+      //
+      // To force a re-render after each content delta, we convert the
+      // content event into a message event.  We track accumulated text per
+      // msg_id so the fake message carries the full text so far (not just
+      // the delta), which keeps Builder's output consistent.
+      if (data.object === "content" && typeof data.msg_id === "string") {
+        const text = typeof data.text === "string" ? data.text : "";
+        const prev = contentAccumulators.get(data.msg_id) || "";
+        const full = data.delta ? prev + text : text;
+        contentAccumulators.set(data.msg_id, full);
+
+        // Look up the message type from metadata.  We intentionally do not
+        // upsert empty message shells into outputMessages because the
+        // AgentScope chat hook only decides whether to update by checking
+        // output[0].content.length.  A leading empty shell would make real
+        // reasoning/content deltas later in the output invisible.
+        const msg =
+          outputMessages.find((m) => m.id === data.msg_id) ||
+          messageMeta.get(data.msg_id);
+        const converted: AgentScopeStreamMessage = {
+          object: "message",
+          id: data.msg_id,
+          role: msg?.role || "assistant",
+          type: msg?.type || "message",
+          status: "in_progress",
+          content: full
+            ? [{ type: "text", text: full, status: "in_progress" }]
+            : [],
+        };
+        upsertMessage(converted);
+        return converted;
+      }
+
+      // Track message metadata for content→message conversion above.
+      if (data.object === "message") {
+        const msg = data as AgentScopeStreamMessage;
+        messageMeta.set(msg.id, {
+          id: msg.id,
+          role: msg.role,
+          type: msg.type,
+        });
+        // Do not push empty message shells into output. They can block
+        // AgentScope's update guard and hide later reasoning/content.
+        if (Array.isArray(msg.content) && msg.content.length > 0) {
+          upsertMessage(msg);
+        }
+      }
+
       return data as RuntimeResponseChunk;
     }
 
-    // Stream start: backend emits {thread_id, status:"started"} first.
+    // Stream start: backend may emit {thread_id, status:"started"} first.
+    // Also check for _hubos_stream_id which TaskTracker injects on every new
+    // run.  When the stream id changes, all accumulated state is cleared so
+    // the old stream's output cannot bleed into the new one.
     if (data && (data.thread_id || data.status === "started")) {
-      reset();
-      return { object: "response", status: "in_progress", output: [] };
+      const newSid =
+        typeof data._hubos_stream_id === "string"
+          ? data._hubos_stream_id
+          : null;
+      if (newSid && newSid !== activeStreamId) {
+        reset();
+        activeStreamId = newSid;
+      } else if (outputMessages.length === 0) {
+        reset();
+      }
+      return keepAlive();
     }
 
     // Hard error from backend.
@@ -371,7 +486,11 @@ export function createSseChunkParser(): (raw: string) => RuntimeStreamChunk {
 
     // Title-only values event — irrelevant for the message body.
     if (data && typeof data.title === "string" && !data.content) {
-      return { object: "response", status: "in_progress", output: [] };
+      return keepAlive();
+    }
+
+    if (data?.plan_created && typeof onPlanCreated === "function") {
+      onPlanCreated(data as Record<string, unknown>);
     }
 
     // Streaming token chunk: `event: messages-tuple` with {type, content, id}.
@@ -379,7 +498,7 @@ export function createSseChunkParser(): (raw: string) => RuntimeStreamChunk {
       const mapped = mapLangchainTypeToAgentscope(data.type as string);
       // Skip user echoes – they're already rendered by the request card.
       if (mapped.role === "user" || mapped.role === "system") {
-        return { object: "response", status: "in_progress", output: [] };
+        return keepAlive();
       }
 
       const rawId =
@@ -405,7 +524,7 @@ export function createSseChunkParser(): (raw: string) => RuntimeStreamChunk {
       accumulators.set(rawId, accumulated);
 
       if (!accumulated) {
-        return { object: "response", status: "in_progress", output: [] };
+        return keepAlive();
       }
 
       const msg: AgentScopeStreamMessage = {
@@ -421,8 +540,11 @@ export function createSseChunkParser(): (raw: string) => RuntimeStreamChunk {
     }
 
     // Anything else (pure metadata, heartbeats) — keep the spinner alive.
-    return { object: "response", status: "in_progress", output: [] };
+    return keepAlive();
   };
+
+  parseChunk.reset = reset;
+  return parseChunk;
 }
 
 /**
@@ -497,4 +619,58 @@ export function toDisplayUrl(url: string | undefined): string {
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
   if (url.startsWith("file://")) url = url.replace("file://", "");
   return chatApi.filePreviewUrl(url.startsWith("/") ? url : `/${url}`);
+}
+
+// ---------------------------------------------------------------------------
+// Runtime notice injection
+// ---------------------------------------------------------------------------
+
+/**
+ * Inject a runtime notice message into the chat timeline.
+ *
+ * Uses `chatRef.current.messages.updateMessage()` which appends when
+ * the message id does not already exist in the list.
+ */
+export function appendRuntimeNotice(
+  chatRef: {
+    current: {
+      messages: {
+        updateMessage: (msg: Record<string, unknown> & { id: string }) => void;
+      };
+    } | null;
+  },
+  text: string,
+): void {
+  const messagesApi = chatRef.current?.messages;
+  if (!messagesApi) return;
+
+  const now = Date.now();
+  messagesApi.updateMessage({
+    id: `notice-${now}`,
+    role: "assistant",
+    cards: [
+      {
+        code: "AgentScopeRuntimeResponseCard",
+        data: {
+          id: `response-${now}`,
+          output: [
+            {
+              id: `msg-${now}`,
+              type: "message",
+              role: "assistant",
+              content: [{ type: "text", text, status: "completed" }],
+              metadata: null,
+            },
+          ],
+          object: "response",
+          status: "completed",
+          created_at: Math.floor(now / 1000),
+          completed_at: Math.floor(now / 1000),
+          error: null,
+          usage: null,
+        },
+      },
+    ],
+    msgStatus: "finished",
+  });
 }

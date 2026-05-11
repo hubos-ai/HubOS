@@ -152,6 +152,30 @@ All channels use a unified message format. One agent serves multiple channels si
 
 ---
 
+## 🆕 What's New in v1.1.0
+
+| Feature | Description |
+|---------|-------------|
+| 🎮 **Real-Time Run Guidance** | Interrupt and redirect agents mid-task — type guidance while they work and they pivot immediately |
+| 📊 **Task Workflow Visualization** | Watch multi-agent tasks execute in real-time with a full-page monitor and chat-side panel |
+| 🔧 **Status Messages** | Context understanding & experience matching now shown as 🔧 tool-call indicators before each response |
+| ⌨️ **Slash Commands** | 24 built-in commands with EN/ZH labels, accessible via `/` in chat input |
+| ⚡ **Faster Response** | WE card generation moved to background thread, context compression uses dedicated compact model |
+| 🛡️ **Reliability** | Fixed async `await` bug, timeout floor guarantee, instant SSE release, friendly cancel prompts |
+
+<details>
+<summary><strong>📋 Full Changelog</strong></summary>
+
+**New Modules**: RunControl API · TaskMonitor (backend + frontend) · TaskPlan (plan/autogen/executor/risk) · Slash Commands · UI Language
+
+**Improvements**: Compact model config · WE async fire-and-forget · Retriever fuzzy matching · Reflection prompt rewrite · Timeout max() semantics · MCP Streamable HTTP · Absolute stdio paths · Desktop port-based restart
+
+**Fixes**: memory_compaction AttributeError · memory.add() missing await · AGENT_ERROR on cancel · Dark mode text · delegate_task timeout override · SSE heartbeat blocking
+
+</details>
+
+---
+
 ## 📸 Screenshots
 
 > *Coming soon — screenshots of the Web Console, Agent Management, and Chat interfaces.*
@@ -479,6 +503,30 @@ HubOS 是一个**开源、自托管的 AI 员工管理平台**。它将大语言
 | **工具防护** | 按风险级别控制工具调用，支持人机协同审批 |
 | **RBAC** | 基于角色的访问控制（admin / user / viewer） |
 | **JWT 认证** | Web API 和 WebSocket 认证 |
+
+---
+
+## 🆕 v1.1.0 更新
+
+| 功能 | 说明 |
+|------|------|
+| 🎮 **实时引导打断** | 任务执行中随时发指令，Agent 立即转向 — 像和真人同事协作一样 |
+| 📊 **任务流程可视化** | 全页任务监控 + 聊天内侧边面板，多 Agent 协作进度实时可见 |
+| 🔧 **状态消息** | 上下文理解、经验匹配以 🔧 工具调用样式显示在每次响应前 |
+| ⌨️ **快捷命令** | 24 个内置命令，中英双语，输入 `/` 即可呼出 |
+| ⚡ **响应更快** | 经验卡片后台异步生成，上下文压缩使用独立轻量模型 |
+| 🛡️ **稳定性提升** | 修复 async await 丢失、超时覆盖、取消报错等关键 bug |
+
+<details>
+<summary><strong>📋 完整更新日志</strong></summary>
+
+**新模块**：运行控制 API · 任务监控（后端+前端）· 任务计划（生成/自动/执行/风控）· 快捷命令 · UI 语言模块
+
+**改进**：压缩模型独立配置 · 经验卡片异步生成 · 检索器模糊匹配 · 反思 prompt 重写 · 超时 max() 语义 · MCP Streamable HTTP · stdio 绝对路径 · 桌面端按端口重启
+
+**修复**：memory_compaction AttributeError · memory.add() 漏 await · 取消引导显示 AGENT_ERROR · 深色模式文字不可见 · delegate_task 超时覆盖 · SSE 心跳阻塞
+
+</details>
 
 ---
 

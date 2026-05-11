@@ -132,11 +132,25 @@ class CommandHandler(ConversationCommandHandlerMixin):
                 "- Enable memory manager to use this feature",
             )
 
+        import time
+
+        _compact_start = time.time()
+        logger.info(f"Compact starting: {len(messages)} messages to compact")
         self.memory_manager.add_async_summary_task(messages=messages)
+        get_summary = getattr(self.memory, "get_compressed_summary", None)
+        previous_summary = (
+            get_summary()
+            if callable(get_summary)
+            else getattr(self.memory, "_compressed_summary", "")
+        )
         compact_content = await self.memory_manager.compact_memory(
             messages=messages,
-            previous_summary=self.memory.get_compressed_summary(),
+            previous_summary=previous_summary,
             extra_instruction=extra_instruction,
+        )
+        logger.info(
+            f"Compact finished in {time.time() - _compact_start:.1f}s, "
+            f"result={len(compact_content) if compact_content else 0} chars",
         )
 
         if not compact_content:

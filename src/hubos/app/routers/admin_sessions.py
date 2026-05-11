@@ -149,11 +149,22 @@ def _load_session_messages(
     responses inline as additional synthetic messages when present.
     """
     path = _session_state_path(agent_id, user_id, session_id)
-    if not path.is_file():
-        return []
     try:
+        if not path.is_file():
+            return []
         with path.open("r", encoding="utf-8") as f:
             state = json.load(f)
+    except OSError as exc:
+        # Some generated workflow/sub-agent session ids can exceed filesystem
+        # filename limits after sanitisation.  Treat those state files as
+        # missing so a single bad historical session cannot break the whole
+        # admin session list.
+        logger.debug(
+            "admin_sessions: cannot access session state %s: %s",
+            path,
+            exc,
+        )
+        return []
     except Exception as exc:  # pragma: no cover - corrupt file
         logger.warning(
             "admin_sessions: failed to parse session state %s: %s",

@@ -7,6 +7,7 @@ import json
 import logging
 import re
 import uuid
+from contextlib import suppress
 from pathlib import Path
 from typing import AsyncGenerator, Union
 
@@ -68,6 +69,25 @@ def _extract_session_and_payload(request_data: Union[AgentRequest, dict]):
             "user_id": sender_id,
         },
     }
+    # Forward biz_params (e.g. runtime_guidance, guided_from_run_id)
+    if isinstance(request_data, dict):
+        _biz = request_data.get("biz_params")
+        if not isinstance(_biz, dict):
+            _biz = {}
+        # Some frontend callers flatten biz params into the root body. Keep
+        # this tolerant so runtime_guidance still reaches TaskTracker.force_new.
+        for _key in (
+            "runtime_guidance",
+            "guidance_text",
+            "guided_from_run_id",
+            "guidance_ack",
+        ):
+            if _key in request_data and _key not in _biz:
+                _biz[_key] = request_data[_key]
+    else:
+        _biz = getattr(request_data, "biz_params", None)
+    if _biz:
+        native_payload["biz_params"] = _biz
     return native_payload
 
 
@@ -116,6 +136,7 @@ async def post_console_chat(
     tracker = workspace.task_tracker
 
     is_reconnect = False
+    chat_run_id: str | None = None
     if isinstance(request_data, dict):
         is_reconnect = request_data.get("reconnect") is True
 
@@ -124,11 +145,85 @@ async def post_console_chat(
         if queue is None:
             return
     else:
-        queue, _ = await tracker.attach_or_start(
+        try:
+            from ..run_control import (
+                RunEntry,
+                RunType,
+                get_run_control_store,
+                register_chat_cancel_handler,
+                set_current_run_id,
+            )
+
+            biz_params = native_payload.get("biz_params")
+            if not isinstance(biz_params, dict):
+                biz_params = {}
+            register_chat_cancel_handler(tracker.request_stop)
+            chat_run_id = await get_run_control_store().register(
+                RunEntry(
+                    run_id="",
+                    run_type=RunType.CHAT,
+                    session_id=session_id,
+                    chat_id=chat.id,
+                    guided_from_run_id=biz_params.get("guided_from_run_id"),
+                    guidance_text=biz_params.get("guidance_text"),
+                ),
+            )
+            # The producer task is created inside attach_or_start, so set the
+            # context before calling it.  Child tool runs inherit this run id.
+            set_current_run_id(chat_run_id)
+        except Exception:  # noqa: BLE001
+            logger.exception("Console RunControl registration failed")
+
+        # If runtime_guidance, force_new ensures the old producer is cancelled
+        # atomically inside attach_or_start (no race with buffer replay).
+        is_guidance = bool(biz_params.get("runtime_guidance"))
+        queue, is_new_run = await tracker.attach_or_start(
             chat.id,
             native_payload,
             console_channel.stream_one,
+            force_new=is_guidance,
+            reconnect=is_reconnect,
         )
+        with suppress(Exception):
+            from ..run_control import get_run_control_store, set_current_run_id
+
+            if chat_run_id and not is_new_run:
+                # attach_or_start attached to an existing producer; this
+                # request should not show as a separate active run.
+                await get_run_control_store().unregister(chat_run_id)
+                chat_run_id = None
+            set_current_run_id(None)
+
+        if chat_run_id and is_new_run:
+
+            async def _watch_chat_done(run_id: str, run_key: str) -> None:
+                """Mirror TaskTracker completion into RunControl.
+
+                The HTTP stream may disconnect before the producer completes,
+                so the run status cannot be tied only to event_generator.
+                """
+                try:
+                    while await tracker.get_status(run_key) == "running":
+                        await asyncio.sleep(1)
+                    from ..run_control import get_run_control_store
+
+                    store = get_run_control_store()
+                    entry = await store.get_run(run_id)
+                    if entry is not None and entry.status not in {
+                        "done",
+                        "failed",
+                        "cancelled",
+                    }:
+                        await store.update_status(run_id, "done")
+                except asyncio.CancelledError:
+                    raise
+                except Exception:  # noqa: BLE001
+                    logger.debug(
+                        "Console RunControl watcher failed",
+                        exc_info=True,
+                    )
+
+            asyncio.create_task(_watch_chat_done(chat_run_id, chat.id))
 
     async def event_generator() -> AsyncGenerator[str, None]:
         """Yield SSE events from *stream_it*, injecting heartbeat comments
@@ -184,6 +279,22 @@ async def post_console_chat(
                     yield hb_queue.get_nowait()
         finally:
             await stream_it.aclose()
+            if chat_run_id:
+                with suppress(Exception):
+                    from ..run_control import get_run_control_store
+
+                    store = get_run_control_store()
+                    entry = await store.get_run(chat_run_id)
+                    if entry is not None and entry.status not in {
+                        "done",
+                        "failed",
+                        "cancelled",
+                    }:
+                        status = await tracker.get_status(chat.id)
+                        await store.update_status(
+                            chat_run_id,
+                            "running" if status == "running" else "done",
+                        )
 
     return StreamingResponse(
         event_generator(),

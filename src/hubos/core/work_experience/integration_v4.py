@@ -278,22 +278,45 @@ class WorkExperienceInterceptor:
             )
 
         prompt = (
-            "你是一个工作经验总结专家。以下是一段完整的工作过程（从开始到完成）。\n\n"
+            "分析以下工作过程，提取可复用的实战经验。\n\n"
             f"{context_text}\n"
-            f"{existing_info}"
-            "请分析这段工作，提取以下信息：\n\n"
-            "1. task_type: 这属于什么类型的任务？（简洁中文名，10字内。如果已有卡片，用已有的类型名）\n"
-            "2. description: 一句话描述这类任务的核心内容\n"
-            "3. workflow: 这类任务的标准工作流程步骤（数组，按顺序）\n"
-            "   - 如果已有卡片，只修改需要调整的步骤，保持不变的步骤原样保留\n"
-            "4. tools: 使用的工具及其使用要点（对象，key=工具名，value=使用方法/注意事项）\n"
-            "5. pitfalls: 遇到的坑和需要避免的错误（数组，去重，合并已有的）\n"
-            "6. success_patterns: 验证有效的成功方法（数组，去重，合并已有的）\n"
-            "7. has_lessons: 是否有可复用的经验（bool）\n\n"
-            "重要规则：\n"
-            "- 如果已有卡片，保留仍然有效的内容，只补充新的或修正错误的\n"
-            "- pitfalls和success_patterns要去重，相似的合并为一条\n"
-            "- 如果只是普通闲聊/简单问答/查信息，设 has_lessons: false\n\n"
+            f"{existing_info}\n\n"
+            "## 质量标准（最重要）\n\n"
+            "每一条 pitfalls 和 success_patterns 必须满足：\n"
+            "- 包含具体的技术细节（文件路径、命令、参数值、错误信息、API端点）\n"
+            "- 用自然语言写清楚因果关系和解决方法\n"
+            "- 下次遇到同类任务可以直接照做\n"
+            "- pitfalls 和 success_patterns 必须是**纯字符串**，不要用 dict/object 格式\n\n"
+            "### 好的例子（必须达到这个水平）：\n"
+            '- pitfalls: "MiniMax用Anthropic格式base_url会404，必须用OpenAI格式api.minimax.chat/v1"\n'
+            '- pitfalls: "session_id可能不一致，console内部ID和Chat URL的chatId不匹配，API过滤后无数据"\n'
+            '- success_patterns: "批量数据导入后必须抽样读回验证，API返回code=0不代表数据正确"\n'
+            '- success_patterns: "CSS dark mode问题涉及多个类，需逐一补全颜色定义"\n\n'
+            "### 坏的例子（禁止输出这类内容）：\n"
+            '- pitfalls: "未检查命令参数可能导致错误" ← 太泛，没有具体细节\n'
+            '- pitfalls: "忽略配置问题" ← 废话，没有因果\n'
+            '- pitfalls: "因为X → 导致Y → 解决方法是Z" ← 禁止用模板填空格式！用自然语言写\n'
+            '- pitfalls: {"问题现象": "...", "根因": "..."} ← 禁止用dict格式！必须是纯字符串\n'
+            '- success_patterns: "仔细检查确保全覆盖" ← 不是经验，是常识\n'
+            '- success_patterns: "逐项验证结果" ← 太抽象\n\n'
+            "## 数量限制\n\n"
+            "- pitfalls: 最多 8 条（只保留最重要的）\n"
+            "- success_patterns: 最多 8 条\n"
+            "- workflow: 最多 10 步\n"
+            "- 宁可少写也不要写废话。2条高质量 > 10条泛泛而谈\n\n"
+            "## 输出格式\n\n"
+            "1. task_type: 任务类型（简洁中文名，10字内。已有卡片则用已有的类型名）\n"
+            "2. description: 一句话描述核心内容\n"
+            "3. workflow: 标准工作流程步骤（字符串数组，按顺序。已有卡片则只改需要调整的步骤）\n"
+            "4. tools: 工具及使用要点（对象，值是字符串。必须写具体用法：参数值、命令示例）\n"
+            "5. pitfalls: 踩过的坑（字符串数组。用自然语言写，不要用模板。去重，合并已有的）\n"
+            "6. success_patterns: 验证有效的方法（字符串数组。用自然语言写，不要用模板。去重，合并已有的）\n"
+            "7. has_lessons: 是否有符合上述质量标准的经验（bool）\n\n"
+            "## 关键规则\n"
+            "- 已有卡片：保留仍然有效的内容，只补充新的或修正错误的\n"
+            "- 达不到质量标准的内容不要写。宁可少写也不要写废话\n"
+            "- 闲聊/简单问答/纯查信息：has_lessons: false，其他字段留空\n"
+            "- 所有数组的元素必须是纯字符串，禁止嵌套对象或模板格式\n\n"
             "输出JSON，不要解释。"
         )
 
@@ -327,6 +350,28 @@ class WorkExperienceInterceptor:
 
             if not parsed.get("has_lessons", True):
                 return None
+
+            # Sanitize: ensure all list fields are strings (not dicts)
+            for key in ("pitfalls", "success_patterns", "workflow"):
+                items = parsed.get(key, [])
+                if isinstance(items, list):
+                    sanitized = []
+                    for item in items:
+                        if isinstance(item, dict):
+                            # Flatten dict to readable string
+                            sanitized.append(
+                                ". ".join(str(v) for v in item.values() if v),
+                            )
+                        elif isinstance(item, str):
+                            sanitized.append(item)
+                    parsed[key] = sanitized
+
+            # Cap list sizes to prevent card bloat
+            for key in ("pitfalls", "success_patterns"):
+                if len(parsed.get(key, [])) > 8:
+                    parsed[key] = parsed[key][:8]
+            if len(parsed.get("workflow", [])) > 10:
+                parsed["workflow"] = parsed["workflow"][:10]
 
             return parsed
 

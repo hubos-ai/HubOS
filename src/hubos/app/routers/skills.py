@@ -463,6 +463,8 @@ async def _run_hub_install_task(
         )
     finally:
         await _hub_task_pop_runtime(task_id)
+        # Clean up dicts to prevent unbounded growth
+        _hub_install_cancel_events.pop(task_id, None)
 
 
 def _build_workspace_skill_specs(workspace_dir: Path) -> list[SkillSpec]:

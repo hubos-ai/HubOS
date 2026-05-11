@@ -1,0 +1,576 @@
+/* Task Monitor page styles */
+
+.page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────── */
+
+.headerExtra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.dotOnline,
+.dotOffline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dotOnline::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #52c41a;
+}
+
+.dotOffline::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d9d9d9;
+}
+
+/* ── Body — split layout ─────────────────────────────────────────────── */
+
+.body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── List panel (left) ────────────────────────────────────────────────── */
+
+.listPanel {
+  width: 380px;
+  min-width: 280px;
+  border-right: 1px solid #eae9e7;
+  display: flex;
+  flex-direction: column;
+}
+
+.listToolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.listScroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+/* ── Task card ─────────────────────────────────────────────────────────── */
+
+.taskCard {
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.02);
+  }
+}
+
+.taskCardSelected {
+  background: rgba(22, 119, 255, 0.06);
+  border-color: rgba(22, 119, 255, 0.2);
+}
+
+.taskCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.cardActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.taskCardTitle {
+  font-weight: 500;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 8px;
+}
+
+.taskCardMeta {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 4px;
+}
+
+.taskCardTool {
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.taskCardStage {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskCardFooter {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #bbb;
+}
+
+.taskCardTime,
+.taskCardDuration {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Progress bar ──────────────────────────────────────────────────────── */
+
+.progressBar {
+  height: 3px;
+  background: #f0f0f0;
+  border-radius: 2px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: #1677ff;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* ── Detail panel (right) ─────────────────────────────────────────────── */
+
+.detailPanel {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.detailScroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+/* ── Detail header ─────────────────────────────────────────────────────── */
+
+.detailHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.detailTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.detailStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ── Detail grid ───────────────────────────────────────────────────────── */
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 24px;
+  margin-bottom: 20px;
+}
+
+.detailField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detailLabel {
+  font-size: 11px;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detailValue {
+  font-size: 13px;
+  word-break: break-all;
+}
+
+/* ── Sections ──────────────────────────────────────────────────────────── */
+
+.detailSection {
+  margin-bottom: 20px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 12px;
+  color: #666;
+}
+
+/* ── Error / Result blocks ─────────────────────────────────────────────── */
+
+.errorBlock {
+  padding: 12px 16px;
+  border-radius: 6px;
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  color: #cf1322;
+  font-size: 13px;
+  margin-bottom: 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.resultBlock {
+  padding: 12px 16px;
+  border-radius: 6px;
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  color: #389e0d;
+  font-size: 13px;
+  margin-bottom: 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Code / pre block ──────────────────────────────────────────────────── */
+
+.preBlock {
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+  padding: 12px;
+  overflow-x: auto;
+  margin: 0;
+}
+
+/* ── Timeline ──────────────────────────────────────────────────────────── */
+
+.timeline {
+  position: relative;
+  padding-left: 20px;
+}
+
+.timelineItem {
+  position: relative;
+  padding-bottom: 16px;
+  padding-left: 16px;
+
+  &:last-child {
+    padding-bottom: 0;
+  }
+
+  // Vertical line
+  &::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 20px;
+    bottom: 0;
+    width: 1px;
+    background: #e8e8e8;
+  }
+
+  &:last-child::before {
+    display: none;
+  }
+}
+
+.timelineDot {
+  position: absolute;
+  left: -5px;
+  top: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #666;
+  border: 1px solid #d9d9d9;
+}
+
+.timelineDotError {
+  background: #fff2f0;
+  color: #cf1322;
+  border-color: #ffccc7;
+}
+
+.timelineDotSuccess {
+  background: #f6ffed;
+  color: #389e0d;
+  border-color: #b7eb8f;
+}
+
+.timelineDotCancelled {
+  background: #f5f5f5;
+  color: #8c8c8c;
+  border-color: #d9d9d9;
+}
+
+.timelineContent {
+  min-width: 0;
+}
+
+.timelineHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.timelineType {
+  font-size: 12px;
+  font-family: "SF Mono", Menlo, monospace;
+  color: #666;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 0 4px;
+  border-radius: 2px;
+}
+
+.timelineTime {
+  font-size: 11px;
+  color: #bbb;
+}
+
+.timelineMessage {
+  font-size: 13px;
+  color: #333;
+}
+
+.timelineStage,
+.timelineAgent {
+  font-size: 11px;
+  color: #999;
+  font-family: "SF Mono", Menlo, monospace;
+}
+
+/* ── Empty state ───────────────────────────────────────────────────────── */
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 200px;
+  color: #999;
+  font-size: 14px;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .body {
+    flex-direction: column;
+  }
+
+  .listPanel {
+    width: 100%;
+    min-width: 0;
+    max-height: 45vh;
+    border-right: none;
+    border-bottom: 1px solid #eae9e7;
+  }
+
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Dark mode ─────────────────────────────────────────────────────────── */
+
+:global(.dark-mode) {
+  .listPanel {
+    border-right-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .listToolbar {
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .taskCard:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .taskCardSelected {
+    background: rgba(22, 119, 255, 0.1);
+    border-color: rgba(22, 119, 255, 0.3);
+  }
+
+  .taskCardTool {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .progressBar {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .detailTitle {
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .detailLabel {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .detailValue {
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  .sectionTitle {
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .errorBlock {
+    background: rgba(255, 38, 5, 0.08);
+    border-color: rgba(255, 38, 5, 0.2);
+    color: #ff7875;
+  }
+
+  .resultBlock {
+    background: rgba(82, 196, 26, 0.08);
+    border-color: rgba(82, 196, 26, 0.2);
+    color: #95de64;
+  }
+
+  .preBlock {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .timelineItem::before {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .timelineDot {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .timelineType {
+    color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .timelineMessage {
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  .timelineStage,
+  .timelineAgent {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .empty {
+    color: rgba(255, 255, 255, 0.25);
+  }
+
+  .dotOnline,
+  .dotOffline {
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  .dotOffline::before {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  // ── Card text colors ──────────────────────────────────────────────────
+  .taskCardTitle {
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .taskCardMeta,
+  .taskCardStage {
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  .taskCardFooter,
+  .taskCardTime,
+  .taskCardDuration {
+    color: rgba(255, 255, 255, 0.3);
+  }
+
+  // ── Timeline extras ───────────────────────────────────────────────────
+  .timelineTime {
+    color: rgba(255, 255, 255, 0.3);
+  }
+
+  .timelineDotError {
+    background: rgba(255, 38, 5, 0.12);
+    color: #ff7875;
+    border-color: rgba(255, 38, 5, 0.25);
+  }
+
+  .timelineDotSuccess {
+    background: rgba(82, 196, 26, 0.12);
+    color: #95de64;
+    border-color: rgba(82, 196, 26, 0.25);
+  }
+
+  .timelineDotCancelled {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.45);
+    border-color: rgba(255, 255, 255, 0.14);
+  }
+
+  // ── Detail panel extras ───────────────────────────────────────────────
+  .detailMeta {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .detailTime {
+    color: rgba(255, 255, 255, 0.3);
+  }
+
+  @media (max-width: 768px) {
+    .listPanel {
+      border-bottom-color: rgba(255, 255, 255, 0.08);
+    }
+  }
+}

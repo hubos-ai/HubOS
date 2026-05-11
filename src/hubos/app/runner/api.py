@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """Chat management API."""
 from __future__ import annotations
+
+import logging
 from typing import Optional
 from uuid import uuid4
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from agentscope.memory import InMemoryMemory
 
@@ -12,7 +15,9 @@ from .models import (
     ChatSpec,
     ChatHistory,
 )
-from .utils import agentscope_msg_to_message
+from .utils import agentscope_msg_to_message, normalize_pre_agent_status_order
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/chats", tags=["chats"])
@@ -171,6 +176,7 @@ async def get_chat(
 
     memories = await memory.get_memory(prepend_summary=False)
     messages = agentscope_msg_to_message(memories)
+    messages = normalize_pre_agent_status_order(messages)
     return ChatHistory(messages=messages, status=status)
 
 

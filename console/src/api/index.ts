@@ -25,6 +25,9 @@ import { userTimezoneApi } from "./modules/userTimezone";
 import { languageApi } from "./modules/language";
 import { skillAdapter } from "./adapters/skill";
 import { workExperienceApi } from "./modules/workExperience";
+import { taskMonitorApi } from "./modules/taskMonitor";
+import { taskPlanApi } from "./modules/taskPlan";
+import { runControlApi } from "./modules/runControl";
 
 export const api = {
   // Root
@@ -135,6 +138,15 @@ export const api = {
 
   // Work Experience
   ...workExperienceApi,
+
+  // Task Monitor
+  ...taskMonitorApi,
+
+  // Task Plan
+  ...taskPlanApi,
+
+  // Run Control
+  ...runControlApi,
 };
 
 export default api;

@@ -33,6 +33,15 @@ from agentscope.tool import ToolResponse
 from hubos.core.workers.providers.host_agent import HostAgentWorker
 from hubos.core.workers.registry import get_host_agent_runner
 
+from hubos.app.task_monitor import TaskEventType, TaskStatus
+from hubos.app.task_monitor_helpers import (
+    register_cancel_handler,
+    safe_add_event,
+    safe_create_task,
+    safe_update_task,
+    unregister_cancel_handler,
+)
+
 from .runtime_delegate import _current_runtime_ctx
 
 logger = logging.getLogger(__name__)
@@ -104,12 +113,14 @@ async def spawn_subagents(
     if not isinstance(assignments, list) or not assignments:
         return _err("spawn_subagents: 'assignments' must be a non-empty list")
 
-    # Apply task_modes config limits
+    # Apply task_modes config: configured values are treated as minimum
+    # guarantees so the user setting always takes effect over the LLM's
+    # passed parameter (which may be a short default like 120s).
     tm = _get_task_modes_config()
     if tm is not None:
         sc = tm.spawn_subagents
         max_concurrency = min(max_concurrency, sc.max_concurrency)
-        timeout_seconds = min(timeout_seconds, sc.timeout_seconds)
+        timeout_seconds = max(timeout_seconds, sc.timeout_seconds)
         if len(assignments) > sc.max_subagents:
             return _err(
                 f"spawn_subagents: {len(assignments)} assignments exceeds "
@@ -148,6 +159,50 @@ async def spawn_subagents(
     parent_session = ctx.get("session_id") or ""
     parent_user = ctx.get("user_id") or ""
 
+    # -- TaskMonitor: create monitoring task --------------------------------
+    _agent_labels = [c[2] for c in cleaned]
+    _monitor_title = f"spawn_subagents: {', '.join(_agent_labels[:3])}{'…' if len(_agent_labels) > 3 else ''}"
+    _monitor_task_id = await safe_create_task(
+        session_id=parent_session or "unknown",
+        source="tool",
+        title=_monitor_title,
+        tool_name="spawn_subagents",
+    )
+    await safe_update_task(_monitor_task_id, status=TaskStatus.RUNNING)
+    cancel_event = asyncio.Event()
+    child_tasks: list[asyncio.Task[dict[str, Any]]] = []
+
+    def _cancel_spawn() -> None:
+        cancel_event.set()
+        for task in child_tasks:
+            if not task.done():
+                task.cancel()
+
+    register_cancel_handler(_monitor_task_id, _cancel_spawn)
+
+    # -- RunControl: register for unified cancel ----------------------------
+    _spawn_run_id: str | None = None
+    try:
+        from hubos.app.run_control import (
+            get_run_control_store,
+            RunEntry,
+            RunType,
+            get_current_run_id,
+        )
+
+        _parent_run_id = get_current_run_id()
+        _spawn_run_id = await get_run_control_store().register(
+            RunEntry(
+                run_id="",
+                run_type=RunType.SPAWN,
+                session_id=parent_session or "unknown",
+                monitor_task_id=_monitor_task_id,
+                parent_run_id=_parent_run_id,
+            ),
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
     async def _run_one(
         agent_id: str,
         prompt: str,
@@ -166,12 +221,46 @@ async def spawn_subagents(
             "parent_session_id": parent_session,
             "label": label,
         }
+        step_start = time.time()
+        if cancel_event.is_set():
+            return {
+                "label": label,
+                "agent_id": agent_id,
+                "success": False,
+                "content": None,
+                "error": "cancelled",
+                "execution_time_ms": 0,
+            }
+        await safe_add_event(
+            _monitor_task_id,
+            TaskEventType.STAGE_STARTED,
+            f"Starting subagent: {agent_id}",
+            stage=label,
+            agent_id=agent_id,
+        )
         async with sem:
+            if cancel_event.is_set():
+                return {
+                    "label": label,
+                    "agent_id": agent_id,
+                    "success": False,
+                    "content": None,
+                    "error": "cancelled",
+                    "execution_time_ms": 0,
+                }
             try:
                 res = await worker.execute(
                     unit_id=unit_id,
                     input_data={"prompt": prompt, "context": sub_ctx},
                     timeout_seconds=timeout_seconds,
+                )
+                step_ms = int((time.time() - step_start) * 1000)
+                await safe_add_event(
+                    _monitor_task_id,
+                    TaskEventType.STAGE_COMPLETED,
+                    f"Subagent {agent_id} completed ({step_ms}ms)",
+                    stage=label,
+                    agent_id=agent_id,
                 )
                 return {
                     "label": label,
@@ -182,8 +271,23 @@ async def spawn_subagents(
                     "execution_time_ms": res.execution_time_ms,
                 }
             except asyncio.CancelledError:
+                await safe_add_event(
+                    _monitor_task_id,
+                    TaskEventType.TASK_CANCELLED,
+                    f"Subagent {agent_id} cancelled",
+                    stage=label,
+                    agent_id=agent_id,
+                )
                 raise
             except Exception as e:  # noqa: BLE001
+                step_ms = int((time.time() - step_start) * 1000)
+                await safe_add_event(
+                    _monitor_task_id,
+                    TaskEventType.ERROR,
+                    f"Subagent {agent_id} failed: {type(e).__name__}: {e} ({step_ms}ms)",
+                    stage=label,
+                    agent_id=agent_id,
+                )
                 return {
                     "label": label,
                     "agent_id": agent_id,
@@ -202,14 +306,129 @@ async def spawn_subagents(
         parent_session,
     )
 
-    results = await asyncio.gather(
-        *(_run_one(aid, pr, lab) for aid, pr, lab in cleaned),
-        return_exceptions=False,
-    )
+    child_tasks = [
+        asyncio.create_task(
+            _run_one(aid, pr, lab),
+            name=f"hubos.spawn-subagent-{lab}",
+        )
+        for aid, pr, lab in cleaned
+    ]
+    try:
+        results = await asyncio.gather(
+            *child_tasks,
+            return_exceptions=False,
+        )
+    except asyncio.CancelledError:
+        if not cancel_event.is_set():
+            await safe_update_task(
+                _monitor_task_id,
+                status=TaskStatus.CANCELLED,
+                result_summary="spawn_subagents cancelled",
+            )
+            unregister_cancel_handler(_monitor_task_id)
+            # RunControl: mark cancelled
+            if _spawn_run_id:
+                try:
+                    from hubos.app.run_control import get_run_control_store
+
+                    await get_run_control_store().update_status(
+                        _spawn_run_id,
+                        "cancelled",
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "spawn: RunControl status update (cancelled) failed for %s",
+                        _spawn_run_id,
+                    )
+
+        elapsed_ms = int((time.time() - start) * 1000)
+        results = []
+        for i, task in enumerate(child_tasks):
+            agent_id, _prompt, label = cleaned[i]
+            if task.done() and not task.cancelled():
+                try:
+                    results.append(task.result())
+                    continue
+                except Exception as e:  # noqa: BLE001
+                    results.append(
+                        {
+                            "label": label,
+                            "agent_id": agent_id,
+                            "success": False,
+                            "content": None,
+                            "error": f"{type(e).__name__}: {e}",
+                            "execution_time_ms": 0,
+                        },
+                    )
+                    continue
+            results.append(
+                {
+                    "label": label,
+                    "agent_id": agent_id,
+                    "success": False,
+                    "content": None,
+                    "error": "cancelled",
+                    "execution_time_ms": 0,
+                },
+            )
+        await safe_update_task(
+            _monitor_task_id,
+            status=TaskStatus.CANCELLED,
+            progress=100,
+            result_summary=f"cancelled after {elapsed_ms}ms",
+        )
+        payload = {
+            "spawned": len(results),
+            "succeeded": sum(1 for r in results if r["success"]),
+            "failed": sum(1 for r in results if not r["success"]),
+            "elapsed_ms": elapsed_ms,
+            "cancelled": True,
+            "results": results,
+        }
+        unregister_cancel_handler(_monitor_task_id)
+        # RunControl: mark cancelled
+        if _spawn_run_id:
+            try:
+                from hubos.app.run_control import get_run_control_store
+
+                await get_run_control_store().update_status(
+                    _spawn_run_id,
+                    "cancelled",
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "spawn: RunControl status update failed for %s",
+                    _spawn_run_id,
+                )
     elapsed_ms = int((time.time() - start) * 1000)
 
     succeeded = sum(1 for r in results if r["success"])
     failed = len(results) - succeeded
+
+    # -- TaskMonitor: finalize ----------------------------------------------
+    _final_status = TaskStatus.DONE if failed == 0 else TaskStatus.FAILED
+    _summary = (
+        f"succeeded={succeeded}, failed={failed}, elapsed={elapsed_ms}ms"
+    )
+    await safe_update_task(
+        _monitor_task_id,
+        status=_final_status,
+        progress=100,
+        result_summary=_summary,
+    )
+    unregister_cancel_handler(_monitor_task_id)
+
+    # RunControl: mark done/failed
+    if _spawn_run_id:
+        try:
+            from hubos.app.run_control import get_run_control_store
+
+            await get_run_control_store().update_status(
+                _spawn_run_id,
+                "done" if failed == 0 else "failed",
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
     payload = {
         "spawned": len(results),
@@ -426,6 +645,7 @@ async def _run_step(
     step: _WorkflowStep,
     runner: "Any",
     sem: asyncio.Semaphore,
+    monitor_task_id: str | None = None,
 ) -> None:
     """Execute a single step. Updates step.status + related fields in place."""
     if exec_.cancel_event.is_set():
@@ -455,6 +675,13 @@ async def _run_step(
 
     step.started_at = _now()
     step.status = "running"
+    await safe_add_event(
+        monitor_task_id,
+        TaskEventType.STAGE_STARTED,
+        f"Step {step.id} started (agent={step.agent_id})",
+        stage=step.id,
+        agent_id=step.agent_id,
+    )
 
     async with sem:
         if exec_.cancel_event.is_set():
@@ -470,17 +697,35 @@ async def _run_step(
             step.result_text = res.data.get("content")
             step.status = "done"
             step.execution_time_ms = res.execution_time_ms
+            await safe_add_event(
+                monitor_task_id,
+                TaskEventType.STAGE_COMPLETED,
+                f"Step {step.id} done ({step.execution_time_ms}ms)",
+                stage=step.id,
+                agent_id=step.agent_id,
+            )
         except asyncio.CancelledError:
             step.status = "cancelled"
             raise
         except Exception as e:  # noqa: BLE001
             step.status = "failed"
             step.error = f"{type(e).__name__}: {e}"
+            await safe_add_event(
+                monitor_task_id,
+                TaskEventType.ERROR,
+                f"Step {step.id} failed: {e}",
+                stage=step.id,
+                agent_id=step.agent_id,
+            )
         finally:
             step.finished_at = _now()
 
 
-async def _run_workflow(exec_: _WorkflowExecution, runner: "Any") -> None:
+async def _run_workflow(
+    exec_: _WorkflowExecution,
+    runner: "Any",
+    monitor_task_id: str | None = None,
+) -> None:
     """Drive the DAG until all steps are terminal or cancellation fires."""
     exec_.started_at = _now()
     exec_.status = "running"
@@ -516,7 +761,10 @@ async def _run_workflow(exec_: _WorkflowExecution, runner: "Any") -> None:
 
             # Dispatch all ready in parallel. _run_step is robust — never raises.
             await asyncio.gather(
-                *(_run_step(exec_, s, runner, sem) for s in ready),
+                *(
+                    _run_step(exec_, s, runner, sem, monitor_task_id)
+                    for s in ready
+                ),
                 return_exceptions=False,
             )
 
@@ -530,17 +778,40 @@ async def _run_workflow(exec_: _WorkflowExecution, runner: "Any") -> None:
             exec_.error = "one or more steps failed"
         else:
             exec_.status = "done"
+        # -- TaskMonitor: finalize workflow ---------------------------------
+        _wf_final_status = {
+            "failed": TaskStatus.FAILED,
+            "cancelled": TaskStatus.CANCELLED,
+        }.get(exec_.status, TaskStatus.DONE)
+        await safe_update_task(
+            monitor_task_id,
+            status=_wf_final_status,
+            progress=100,
+            current_stage=None,
+            result_summary=f"workflow {exec_.workflow_id}: {exec_.status}",
+            error=exec_.error,
+        )
     except asyncio.CancelledError:
         exec_.status = "cancelled"
         for s in exec_.steps.values():
             if s.status in {"pending", "running"}:
                 s.status = "cancelled"
                 s.finished_at = _now()
+        await safe_update_task(
+            monitor_task_id,
+            status=TaskStatus.CANCELLED,
+            result_summary=f"workflow {exec_.workflow_id}: cancelled",
+        )
         raise
     except Exception as e:  # noqa: BLE001
         logger.exception("workflow %s crashed unexpectedly", exec_.workflow_id)
         exec_.status = "failed"
         exec_.error = f"runner crashed: {type(e).__name__}: {e}"
+        await safe_update_task(
+            monitor_task_id,
+            status=TaskStatus.FAILED,
+            error=exec_.error,
+        )
     finally:
         exec_.finished_at = _now()
 
@@ -592,13 +863,15 @@ async def coordinate_workflow(
             "coordinate_workflow.",
         )
 
-    # Apply task_modes config limits
+    # Apply task_modes config: configured values are treated as minimum
+    # guarantees so the user setting always takes effect over the LLM's
+    # passed parameter (which may be a short default like 120s).
     tm = _get_task_modes_config()
     if tm is not None:
         cw = tm.coordinate_workflow
         max_concurrency = min(max_concurrency, cw.max_concurrency)
-        timeout_seconds = min(timeout_seconds, cw.timeout_seconds)
-        step_timeout_seconds = min(
+        timeout_seconds = max(timeout_seconds, cw.timeout_seconds)
+        step_timeout_seconds = max(
             step_timeout_seconds,
             cw.step_timeout_seconds,
         )
@@ -637,12 +910,56 @@ async def coordinate_workflow(
     with _wf_lock:
         _workflows[wf_id] = exec_
 
+    # -- TaskMonitor: create monitoring task for workflow -------------------
+    _wf_monitor_id = await safe_create_task(
+        session_id=exec_.session_id or "unknown",
+        source="tool",
+        title=title or f"workflow {wf_id}",
+        tool_name="coordinate_workflow",
+        metadata={"workflow_id": wf_id},
+    )
+    await safe_update_task(_wf_monitor_id, status=TaskStatus.RUNNING)
+
     run_task = asyncio.create_task(
-        _run_workflow(exec_, runner),
+        _run_workflow(exec_, runner, _wf_monitor_id),
         name=f"hubos.core-workflow-{wf_id}",
     )
     # Hold a reference on the execution so track/cancel can see it.
     exec_._run_task = run_task  # type: ignore[attr-defined]
+
+    def _cancel_workflow_monitor() -> None:
+        exec_.cancel_event.set()
+        if not run_task.done():
+            run_task.cancel()
+
+    register_cancel_handler(_wf_monitor_id, _cancel_workflow_monitor)
+    run_task.add_done_callback(
+        lambda _task: unregister_cancel_handler(_wf_monitor_id),
+    )
+
+    # -- RunControl: register for unified cancel ----------------------------
+    _wf_run_id: str | None = None
+    try:
+        from hubos.app.run_control import (
+            get_run_control_store,
+            RunEntry,
+            RunType,
+            get_current_run_id,
+        )
+
+        _parent_run_id = get_current_run_id()
+        _wf_run_id = await get_run_control_store().register(
+            RunEntry(
+                run_id="",
+                run_type=RunType.WORKFLOW,
+                session_id=exec_.session_id or "unknown",
+                monitor_task_id=_wf_monitor_id,
+                workflow_id=wf_id,
+                parent_run_id=_parent_run_id,
+            ),
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
     logger.info(
         "coordinate_workflow started: id=%s steps=%d session=%s wait=%s",
@@ -678,6 +995,39 @@ async def coordinate_workflow(
             f'running. Use track_workflow("{wf_id}") later.'
         )
         return _ok(json.dumps(snap, ensure_ascii=False, indent=2))
+    except asyncio.CancelledError:
+        # RunControl: mark cancelled
+        if _wf_run_id:
+            try:
+                from hubos.app.run_control import get_run_control_store
+
+                await get_run_control_store().update_status(
+                    _wf_run_id,
+                    "cancelled",
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "workflow: RunControl status update (cancelled) failed for %s",
+                    _wf_run_id,
+                )
+        raise
+
+    # RunControl: mark done/failed based on workflow state
+    if _wf_run_id:
+        try:
+            from hubos.app.run_control import get_run_control_store
+
+            wf_snap = _render_workflow_snapshot(exec_, include_results=False)
+            _wf_status = (
+                "done" if wf_snap.get("status") == "done" else "failed"
+            )
+            await get_run_control_store().update_status(_wf_run_id, _wf_status)
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "workflow: RunControl status update (%s) failed for %s",
+                _wf_status,
+                _wf_run_id,
+            )
 
     return _ok(
         json.dumps(

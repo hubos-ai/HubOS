@@ -402,20 +402,111 @@ class BaseChannel(ABC):
             f"session={session_id[:30]}",
         )
 
+        # RunControl: generate run_id and set ContextVar BEFORE attach_or_start
+        # so that the producer task (created inside attach_or_start via
+        # asyncio.create_task) inherits current_run_id in its context.
+        _chat_run_id: str | None = None
+        _guided_from: str | None = None
+        _guidance_text: str | None = None
+        _biz = payload if isinstance(payload, dict) else {}
+        _biz_params = _biz.get("biz_params") or {}
+        if isinstance(_biz_params, dict):
+            _guided_from = _biz_params.get("guided_from_run_id")
+            _guidance_text = _biz_params.get("guidance_text")
+        try:
+            from ..run_control import (
+                get_run_control_store,
+                RunEntry,
+                RunType,
+                set_current_run_id,
+                register_chat_cancel_handler,
+            )
+
+            _tracker = self._workspace.task_tracker
+            register_chat_cancel_handler(_tracker.request_stop)
+            _chat_run_id = await get_run_control_store().register(
+                RunEntry(
+                    run_id="",
+                    run_type=RunType.CHAT,
+                    session_id=session_id,
+                    chat_id=chat.id,
+                    guided_from_run_id=_guided_from,
+                    guidance_text=_guidance_text,
+                ),
+            )
+            set_current_run_id(_chat_run_id)
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "RunControl registration failed for session=%s",
+                session_id[:30],
+            )
+
         queue, is_new = await self._workspace.task_tracker.attach_or_start(
             chat.id,
             payload,
             self._stream_with_tracker,
         )
 
-        if is_new:
+        # If attach_or_start returned is_new=False (reconnect), the run_id we
+        # just registered is stale — clean it up.
+        if not is_new and _chat_run_id:
+            try:
+                from ..run_control import (
+                    get_run_control_store,
+                    set_current_run_id,
+                )
+
+                await get_run_control_store().unregister(_chat_run_id)
+                set_current_run_id(None)
+                _chat_run_id = None
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "RunControl unregister failed for session=%s",
+                    session_id[:30],
+                )
             try:
                 async for _ in self._workspace.task_tracker.stream_from_queue(
                     queue,
                     chat.id,
                 ):
                     pass
+                # RunControl: mark chat run as done
+                if _chat_run_id:
+                    try:
+                        from ..run_control import (
+                            get_run_control_store,
+                            set_current_run_id,
+                        )
+
+                        await get_run_control_store().update_status(
+                            _chat_run_id,
+                            "done",
+                        )
+                        set_current_run_id(None)
+                    except Exception:  # noqa: BLE001
+                        logger.warning(
+                            "RunControl status update (done) failed for session=%s",
+                            session_id[:30],
+                        )
             except asyncio.CancelledError:
+                # RunControl: mark chat run as cancelled
+                if _chat_run_id:
+                    try:
+                        from ..run_control import (
+                            get_run_control_store,
+                            set_current_run_id,
+                        )
+
+                        await get_run_control_store().update_status(
+                            _chat_run_id,
+                            "cancelled",
+                        )
+                        set_current_run_id(None)
+                    except Exception:  # noqa: BLE001
+                        logger.warning(
+                            "RunControl status update (cancelled) failed for session=%s",
+                            session_id[:30],
+                        )
                 logger.info(
                     f"Task cancelled: chat_id={chat.id} "
                     f"session={session_id[:30]}",
@@ -496,11 +587,22 @@ class BaseChannel(ABC):
 
             err_msg = self._get_response_error_message(last_response)
             if err_msg:
-                await self._on_consume_error(
-                    request,
-                    to_handle,
-                    f"Error: {err_msg}",
-                )
+                # User-initiated cancel/guidance should not show as error.
+                if (
+                    "cancelled" in err_msg.lower()
+                    or "canceled" in err_msg.lower()
+                ):
+                    await self.send_content_parts(
+                        to_handle,
+                        [TextContent(type=ContentType.TEXT, text="⏹️ 任务已终止")],
+                        getattr(request, "channel_meta", None) or {},
+                    )
+                else:
+                    await self._on_consume_error(
+                        request,
+                        to_handle,
+                        f"Error: {err_msg}",
+                    )
             else:
                 await self._on_process_completed(
                     request,
@@ -522,6 +624,29 @@ class BaseChannel(ABC):
             raise
 
         except Exception as e:
+            # AgentException("Task has been cancelled!") is raised by the
+            # runner when the user stops/guides a running task.  It is a
+            # normal user-initiated cancellation — suppress the error bubble
+            # so the frontend does not show AGENT_ERROR.
+            try:
+                from agentscope_runtime.engine.schemas.exception import (
+                    AgentException,
+                )
+
+                if (
+                    isinstance(e, AgentException)
+                    and "cancelled" in str(e).lower()
+                ):
+                    if process_iterator is not None:
+                        await process_iterator.aclose()
+                    logger.info(
+                        "channel: task cancelled (user guidance/stop), "
+                        "suppressing error bubble for session=%s",
+                        getattr(request, "session_id", "")[:30],
+                    )
+                    raise asyncio.CancelledError() from e
+            except (ImportError, TypeError):
+                pass
             logger.exception(
                 f"channel _stream_with_tracker failed: {e}, "
                 f"session={getattr(request, 'session_id', 'N/A')[:30]}, "
@@ -851,11 +976,22 @@ class BaseChannel(ABC):
                     await self.on_event_response(request, event)
             err_msg = self._get_response_error_message(last_response)
             if err_msg:
-                await self._on_consume_error(
-                    request,
-                    to_handle,
-                    f"Error: {err_msg}",
-                )
+                # User-initiated cancel/guidance should not show as error.
+                if (
+                    "cancelled" in err_msg.lower()
+                    or "canceled" in err_msg.lower()
+                ):
+                    await self.send_content_parts(
+                        to_handle,
+                        [TextContent(type=ContentType.TEXT, text="⏹️ 任务已终止")],
+                        getattr(request, "channel_meta", None) or {},
+                    )
+                else:
+                    await self._on_consume_error(
+                        request,
+                        to_handle,
+                        f"Error: {err_msg}",
+                    )
             else:
                 await self._on_process_completed(
                     request,

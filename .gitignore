@@ -114,3 +114,7 @@ desktop/release/
 .codex-backups/
 .venv-deploy/
 *.lock
+check_live.py
+check_loc.py
+test_api_dump.py
+test_last_msgs.py

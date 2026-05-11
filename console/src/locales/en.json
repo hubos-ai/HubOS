@@ -50,7 +50,81 @@
     "adminGroup": "Admin",
     "adminSessions": "All sessions",
     "workExperience": "Experience Tips",
-    "taskModes": "Task Modes"
+    "taskModes": "Task Modes",
+    "taskMonitor": "Task Flow",
+    "taskPlans": "Task Plans"
+  },
+  "taskMonitor": {
+    "pageTitle": "Task Flow",
+    "refresh": "Refresh",
+    "filterAll": "All",
+    "statusPending": "Pending",
+    "statusRunning": "Running",
+    "statusWaiting": "Waiting",
+    "statusDone": "Done",
+    "statusFailed": "Failed",
+    "statusCancelled": "Cancelled",
+    "noTasks": "No active tasks",
+    "selectTask": "Select a task to view details",
+    "source": "Source",
+    "toolName": "Tool",
+    "agent": "Agent",
+    "duration": "Duration",
+    "created": "Created",
+    "finished": "Finished",
+    "events": "Events",
+    "metadata": "Metadata",
+    "error": "Error",
+    "resultSummary": "Result",
+    "connected": "Live",
+    "disconnected": "Offline",
+    "cancel": "Cancel",
+    "markOnly": "Mark only"
+  },
+  "chatTask": {
+    "panelTitle": "Task Flow",
+    "toggleBtn": "Task Flow",
+    "close": "Close",
+    "chatRun": "Chat Task"
+  },
+  "taskPlan": {
+    "pageTitle": "Task Plans",
+    "refresh": "Refresh",
+    "filterAll": "All",
+    "statusDraft": "Draft",
+    "statusRunning": "Running",
+    "statusWaitingUser": "Waiting",
+    "statusDone": "Done",
+    "statusFailed": "Failed",
+    "statusCancelled": "Cancelled",
+    "stepPending": "Pending",
+    "stepRunning": "Running",
+    "stepWaitingUser": "Waiting",
+    "stepDone": "Done",
+    "stepFailed": "Failed",
+    "stepCancelled": "Cancelled",
+    "noPlans": "No plans found",
+    "selectPlan": "Select a plan to view details",
+    "steps": "Steps",
+    "stepsLabel": "steps",
+    "metadata": "Metadata",
+    "connected": "Live",
+    "disconnected": "Offline",
+    "cancel": "Cancel",
+    "start": "Start",
+    "pause": "Pause",
+    "resume": "Resume",
+    "riskWarning": "This plan contains high-risk actions and requires confirmation before execution.",
+    "confirmationRequired": "Confirmation required before execution",
+    "noAgentHint": "No agent assigned; this step will use default handling",
+    "createDemo": "Demo"
+  },
+  "chatPlan": {
+    "panelTitle": "Task Plans",
+    "toggleBtn": "Plans",
+    "close": "Close",
+    "addPlaceholder": "Add instruction\u2026",
+    "addBtn": "Add"
   },
   "adminSessions": {
     "title": "All sessions",
@@ -1171,6 +1245,113 @@
       "multimodalWarning": "No multimodal capability detected for current model, images or videos may not be processed correctly",
       "imageOnlyAccept": "Current model only supports image files",
       "imageOnlyWarning": "Current model only supports images, non-image files like videos may not be processed correctly"
+    },
+    "guidance": {
+      "guide": "Guide",
+      "terminate": "Terminate",
+      "stopped": "Task terminated",
+      "sent": "📤 Guidance sent, task will continue with new instructions",
+      "discard": "Discard"
+    },
+    "slashCommands": {
+      "stop": {
+        "description": "Stop the currently running task",
+        "category": "Task Control"
+      },
+      "approve": {
+        "description": "Approve the pending tool action and continue execution",
+        "category": "Approval"
+      },
+      "deny": {
+        "description": "Deny the pending tool action",
+        "category": "Approval"
+      },
+      "restart": {
+        "description": "Restart the current session",
+        "category": "Task Control"
+      },
+      "clear": {
+        "description": "Clear the conversation context",
+        "category": "Context"
+      },
+      "compact": {
+        "description": "Compact the conversation context; optional instruction supported",
+        "category": "Context",
+        "usage": "/compact <instruction>"
+      },
+      "compact_str": {
+        "description": "Output the compacted context summary as a string",
+        "category": "Context"
+      },
+      "history": {
+        "description": "View the current conversation history summary",
+        "category": "Context"
+      },
+      "await_summary": {
+        "description": "Wait for and return the conversation summary",
+        "category": "Context"
+      },
+      "long_term_memory": {
+        "description": "View or manage long-term memory",
+        "category": "Context"
+      },
+      "new": {
+        "description": "Create a new chat session",
+        "category": "Chat"
+      },
+      "message": {
+        "description": "Send content to the message at the given index",
+        "category": "Debug",
+        "usage": "/message <index>"
+      },
+      "dump_history": {
+        "description": "Export current conversation history to a file",
+        "category": "Debug"
+      },
+      "load_history": {
+        "description": "Load conversation history from a file",
+        "category": "Debug"
+      },
+      "status": {
+        "description": "View current task running status",
+        "category": "Debug"
+      },
+      "reloadConfig": {
+        "description": "Reload configuration file",
+        "category": "Debug"
+      },
+      "version": {
+        "description": "Show current version",
+        "category": "Debug"
+      },
+      "logs": {
+        "description": "View recent logs",
+        "category": "Debug"
+      },
+      "daemonStatus": {
+        "description": "Show Daemon running status",
+        "category": "Daemon"
+      },
+      "daemonRestart": {
+        "description": "Restart the Daemon service",
+        "category": "Daemon"
+      },
+      "daemonReloadConfig": {
+        "description": "Reload Daemon configuration",
+        "category": "Daemon"
+      },
+      "daemonVersion": {
+        "description": "Show Daemon version",
+        "category": "Daemon"
+      },
+      "daemonLogs": {
+        "description": "View Daemon logs",
+        "category": "Daemon"
+      },
+      "daemonApprove": {
+        "description": "Approve pending Daemon action",
+        "category": "Daemon"
+      }
     }
   },
   "security": {

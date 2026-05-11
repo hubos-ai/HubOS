@@ -1,0 +1,301 @@
+/* ChatPlanPanel styles */
+
+.dotOnline,
+.dotOffline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #999;
+}
+
+.dotOnline::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #52c41a;
+}
+
+.dotOffline::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d9d9d9;
+}
+
+/* ── Inline panel (desktop) ───────────────────────────────────────────── */
+
+.inlinePanel {
+  width: 0;
+  overflow: hidden;
+  border-left: 1px solid transparent;
+  transition:
+    width 0.25s ease,
+    border-color 0.25s ease;
+  flex-shrink: 0;
+}
+
+.inlinePanelOpen {
+  width: 360px;
+  border-left-color: #eae9e7;
+  overflow: hidden;
+}
+
+.panelInner {
+  width: 360px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.closeBtn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #999;
+  z-index: 1;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.08);
+    color: #666;
+  }
+}
+
+/* ── Panel content ────────────────────────────────────────────────────── */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 8px;
+}
+
+.panelTitle {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.statsBar {
+  display: flex;
+  gap: 12px;
+  padding: 0 16px 8px;
+  flex-wrap: wrap;
+}
+
+.stat {
+  font-size: 12px;
+  color: #666;
+  font-variant-numeric: tabular-nums;
+
+  &[data-status="running"] {
+    color: #1677ff;
+  }
+  &[data-status="waiting"] {
+    color: #fa8c16;
+  }
+  &[data-status="failed"] {
+    color: #cf1322;
+  }
+}
+
+/* ── Plan list ─────────────────────────────────────────────────────────── */
+
+.planList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 12px 12px;
+}
+
+.empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: #999;
+  font-size: 13px;
+}
+
+.planCard {
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.02);
+  }
+}
+
+.planCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.cardActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.planCardTitle {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.planCardMeta {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  color: #999;
+  margin-top: 2px;
+}
+
+.planCardProgress {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Steps section (expanded) ──────────────────────────────────────────── */
+
+.stepsSection {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.stepsList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.stepRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+}
+
+.stepOrder {
+  font-size: 10px;
+  font-weight: 600;
+  color: #aaa;
+  min-width: 18px;
+}
+
+.stepTitle {
+  font-size: 12px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.noAgentHint {
+  font-size: 10px;
+  color: #bbb;
+  margin-top: 4px;
+  padding-left: 4px;
+}
+
+/* ── Insert instruction row ────────────────────────────────────────────── */
+
+.insertRow {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* ── Dark mode ─────────────────────────────────────────────────────────── */
+
+:global(.dark-mode) {
+  .inlinePanelOpen {
+    border-left-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .closeBtn {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.45);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.65);
+    }
+  }
+
+  .panelTitle {
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .dotOffline {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .dotOffline::before {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .stat {
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  .planCard:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .planCardTitle {
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .planCardMeta {
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .stepsSection {
+    border-top-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .stepOrder {
+    color: rgba(255, 255, 255, 0.3);
+  }
+
+  .stepTitle {
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .empty {
+    color: rgba(255, 255, 255, 0.25);
+  }
+
+  .noAgentHint {
+    color: rgba(255, 255, 255, 0.3);
+  }
+}

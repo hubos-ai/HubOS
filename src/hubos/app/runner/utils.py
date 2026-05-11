@@ -401,7 +401,7 @@ def agentscope_msg_to_message(
                     arguments = block.get("input")
 
                 call_data = FunctionCall(
-                    call_id=block.get("id"),
+                    call_id=block.get("id") or "",
                     name=block.get("name"),
                     arguments=arguments,
                 ).model_dump()
@@ -424,16 +424,17 @@ def agentscope_msg_to_message(
                 current_message.metadata = metadata
                 current_type = MessageType.PLUGIN_CALL_OUTPUT
 
-                if isinstance(block.get("output"), (dict, list)):
+                raw_output = block.get("output", block.get("content"))
+                if isinstance(raw_output, (dict, list)):
                     output = json.dumps(
-                        block.get("output"),
+                        raw_output,
                         ensure_ascii=False,
                     )
                 else:
-                    output = block.get("output")
+                    output = raw_output
 
                 output_data = FunctionCallOutput(
-                    call_id=block.get("id"),
+                    call_id=block.get("id") or block.get("tool_use_id") or "",
                     name=block.get("name"),
                     output=output,
                 ).model_dump(exclude_none=True)
@@ -638,3 +639,114 @@ def agentscope_msg_to_message(
             results.append(current_message.completed())
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Message ordering normalization
+# ---------------------------------------------------------------------------
+
+_STATUS_TOOL_NAMES = frozenset(
+    {
+        "Context understanding",
+        "Experience matching",
+    },
+)
+
+
+def _is_status_tool(msg: Message) -> bool:
+    """True if the message is a status-type tool call/output
+    (Context understanding, Experience matching).
+
+    Identification strategy (in priority order):
+    1. ``data.name`` matches a known status tool name.
+    2. ``data.call_id`` starts with ``"status-"`` prefix — this catches
+       legacy tool_result blocks that lacked the ``name`` field.
+    """
+    if msg.type not in (
+        MessageType.PLUGIN_CALL,
+        MessageType.PLUGIN_CALL_OUTPUT,
+    ):
+        return False
+    for content in msg.content:
+        data = getattr(content, "data", None)
+        if not isinstance(data, dict):
+            continue
+        name = data.get("name", "")
+        if name in _STATUS_TOOL_NAMES:
+            return True
+        call_id = data.get("call_id", "")
+        if call_id and str(call_id).startswith("status-"):
+            return True
+    return False
+
+
+def _is_status_or_tool(msg: Message) -> bool:
+    """True for any tool call/output (status or normal)."""
+    return msg.type in (
+        MessageType.PLUGIN_CALL,
+        MessageType.PLUGIN_CALL_OUTPUT,
+    )
+
+
+def normalize_pre_agent_status_order(messages: list[Message]) -> list[Message]:
+    """Move status tool messages that appear *before* a user message
+    to just after it.  Works for ALL user messages in the history, not
+    just the first one.  Other tool calls (edit_file, etc.) are left in place.
+
+    If the contiguous run of tool messages before a user message contains any
+    non-status tools, the entire run is left untouched (mixed blocks are
+    not split).
+
+    This fixes the visual ordering when the backend emits status tool
+    notifications (e.g. "Context understanding") before the user's own
+    message in the chat history.
+
+    Example — before normalization:
+        assistant_msg
+        Context understanding (plugin_call)
+        Context understanding (plugin_call_output)
+        Experience matching (plugin_call)
+        Experience matching (plugin_call_output)
+        user_msg
+        assistant_msg
+
+    After normalization:
+        assistant_msg
+        user_msg
+        Context understanding (plugin_call)
+        Context understanding (plugin_call_output)
+        Experience matching (plugin_call)
+        Experience matching (plugin_call_output)
+        assistant_msg
+    """
+    if not messages:
+        return messages
+
+    result: list[Message] = []
+
+    for msg in messages:
+        if msg.role != "user":
+            result.append(msg)
+            continue
+
+        # Encountered a user message — look backwards in result for a
+        # contiguous run of tool messages immediately before it.
+        tool_run_start = len(result)
+        j = tool_run_start - 1
+        while j >= 0 and _is_status_or_tool(result[j]):
+            j -= 1
+        tool_run_start = j + 1
+
+        tool_run = result[tool_run_start:]
+        non_tool_prefix = result[:tool_run_start]
+
+        if not tool_run or any(not _is_status_tool(m) for m in tool_run):
+            # No tool run, or mixed with non-status tools → leave in place
+            result.append(msg)
+        else:
+            # All tools in the run are status tools → move after user
+            result = non_tool_prefix
+            result.append(msg)
+            result.extend(tool_run)
+
+    return result
