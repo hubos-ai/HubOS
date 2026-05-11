@@ -4,8 +4,8 @@
 name: Docker Build and Push on Release
 
 on:
-  release:
-    types: [published]
+  # release:
+  #   types: [published]
   workflow_dispatch:
     inputs:
       version:
