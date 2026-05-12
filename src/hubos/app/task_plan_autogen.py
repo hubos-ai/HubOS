@@ -162,13 +162,16 @@ _DEFAULT_STEPS = [
 ]
 
 _FIX_PATTERN = re.compile(
-    r"修复|fix|bug|报错|启动不了|crash|error|exception|异常", re.IGNORECASE
+    r"修复|fix|bug|报错|启动不了|crash|error|exception|异常",
+    re.IGNORECASE,
 )
 _BUILD_PATTERN = re.compile(
-    r"开发|实现|build|implement|搭建|create|add|搭建", re.IGNORECASE
+    r"开发|实现|build|implement|搭建|create|add|搭建",
+    re.IGNORECASE,
 )
 _RESEARCH_PATTERN = re.compile(
-    r"找客户|客户开发|调研|research|investigate|分析市场|market", re.IGNORECASE
+    r"找客户|客户开发|调研|research|investigate|分析市场|market",
+    re.IGNORECASE,
 )
 
 # ---------------------------------------------------------------------------
@@ -188,7 +191,8 @@ _AGENT_RULES: List[tuple[re.Pattern, str]] = [
     ),
     (
         re.compile(
-            r"文案|图片|产品图|营销|海报|品牌|marketing|copy|image|design", re.IGNORECASE
+            r"文案|图片|产品图|营销|海报|品牌|marketing|copy|image|design",
+            re.IGNORECASE,
         ),
         "marketing",
     ),
@@ -418,7 +422,8 @@ async def maybe_create_draft_plan(
 
     except Exception:  # noqa: BLE001
         logger.warning(
-            "task_plan_autogen: failed to create draft plan", exc_info=True
+            "task_plan_autogen: failed to create draft plan",
+            exc_info=True,
         )
         return None
 
@@ -470,7 +475,8 @@ async def maybe_create_or_get_active_plan(
         return None
 
     plan = await maybe_create_draft_plan(
-        session_id=session_id, user_text=user_text
+        session_id=session_id,
+        user_text=user_text,
     )
     if plan is not None:
         return plan

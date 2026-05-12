@@ -46,7 +46,9 @@ def _load_utils_module():
         schemas.FileContent = type("FileContent", (), {})
         schemas.DataContent = type("DataContent", (), {})
         schemas.FunctionCall = type(
-            "FunctionCall", (), {"model_dump": lambda self: {}}
+            "FunctionCall",
+            (),
+            {"model_dump": lambda self: {}},
         )
         schemas.FunctionCallOutput = type(
             "FunctionCallOutput",
@@ -107,7 +109,10 @@ class _FakeMsg:
     """Minimal Message-like object used by the tests."""
 
     def __init__(
-        self, role: str, msg_type: str = "message", name: str | None = None
+        self,
+        role: str,
+        msg_type: str = "message",
+        name: str | None = None,
     ):
         self.role = role
         self.type = msg_type

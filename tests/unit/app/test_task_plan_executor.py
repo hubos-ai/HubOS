@@ -110,7 +110,8 @@ async def test_start_draft_plan(store, executor: TaskPlanExecutor):
 
 @pytest.mark.asyncio
 async def test_start_running_plan_returns_false(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     plan = await store.create_plan(session_id="s1", title="P")
     await store.update_plan(plan.plan_id, status=PlanStatus.RUNNING)
@@ -121,7 +122,8 @@ async def test_start_running_plan_returns_false(
 
 @pytest.mark.asyncio
 async def test_start_done_plan_returns_false(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     plan = await store.create_plan(session_id="s1", title="P")
     await store.update_plan(plan.plan_id, status=PlanStatus.DONE)
@@ -132,7 +134,8 @@ async def test_start_done_plan_returns_false(
 
 @pytest.mark.asyncio
 async def test_start_cancelled_plan_returns_false(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     plan = await store.create_plan(session_id="s1", title="P")
     await store.cancel_plan(plan.plan_id)
@@ -148,7 +151,8 @@ async def test_start_cancelled_plan_returns_false(
 
 @pytest.mark.asyncio
 async def test_execution_updates_step_statuses(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     plan = await store.create_plan(
         session_id="s1",
@@ -250,7 +254,8 @@ async def test_executor_cleanup_after_done(store, executor: TaskPlanExecutor):
 
 @pytest.mark.asyncio
 async def test_executor_failure_marks_plan_failed(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     plan = await store.create_plan(
         session_id="s1",
@@ -294,7 +299,8 @@ async def test_executor_failure_marks_plan_failed(
 
 @pytest.mark.asyncio
 async def test_step_without_agent_still_uses_mock(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     """Steps without agent_id or tool_name use simulated execution."""
     plan = await store.create_plan(
@@ -471,7 +477,8 @@ async def test_runner_returns_unsuccessful_marks_failed(
 
 @pytest.mark.asyncio
 async def test_tool_name_without_agent_waits_user(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     """Step with tool_name but no agent_id → waiting_user, plan pauses."""
     plan = await store.create_plan(
@@ -638,7 +645,8 @@ async def test_resume_paused_plan(store, executor: TaskPlanExecutor):
 
 @pytest.mark.asyncio
 async def test_insert_step_while_paused_then_resume(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     plan = await store.create_plan(
         session_id="s1",
@@ -730,7 +738,8 @@ async def test_done_cleans_up_task(store, executor: TaskPlanExecutor):
 
 @pytest.mark.asyncio
 async def test_pause_non_running_returns_false(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     ok = await executor.pause_plan("nonexistent")
     assert ok is False
@@ -738,7 +747,8 @@ async def test_pause_non_running_returns_false(
 
 @pytest.mark.asyncio
 async def test_resume_non_waiting_returns_false(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     ok = await executor.resume_plan("nonexistent")
     assert ok is False
@@ -751,7 +761,8 @@ async def test_resume_non_waiting_returns_false(
 
 @pytest.mark.asyncio
 async def test_start_high_risk_unconfirmed_returns_false(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     plan = await store.create_plan(
         session_id="s1",
@@ -768,7 +779,8 @@ async def test_start_high_risk_unconfirmed_returns_false(
 
 @pytest.mark.asyncio
 async def test_start_high_risk_confirmed_runs(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     plan = await store.create_plan(
         session_id="s1",
@@ -786,7 +798,8 @@ async def test_start_high_risk_confirmed_runs(
 
 @pytest.mark.asyncio
 async def test_resume_confirms_high_risk_plan(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     plan = await store.create_plan(
         session_id="s1",
@@ -810,7 +823,8 @@ async def test_resume_confirms_high_risk_plan(
 
 @pytest.mark.asyncio
 async def test_step_level_confirmation_pauses(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     plan = await store.create_plan(
         session_id="s1",
@@ -879,7 +893,8 @@ async def _get_monitor_task(plan_id, executor):
 
 @pytest.mark.asyncio
 async def test_start_plan_creates_monitor_record(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     """start_plan should create a TaskMonitor record."""
     plan = await store.create_plan(
@@ -935,7 +950,8 @@ async def test_step_emits_stage_events(store, executor: TaskPlanExecutor):
 
 @pytest.mark.asyncio
 async def test_failed_step_updates_monitor_failed(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     """Failed step should update monitor task status to failed."""
     plan = await store.create_plan(
@@ -944,7 +960,8 @@ async def test_failed_step_updates_monitor_failed(
         steps=[{"title": "A", "agent_id": "agent-1"}],
     )
     with patch(
-        "hubos.core.workers.registry.get_host_agent_runner", return_value=None
+        "hubos.core.workers.registry.get_host_agent_runner",
+        return_value=None,
     ):
         await executor.start_plan(plan.plan_id)
         await _wait_done(executor, plan.plan_id, store)
@@ -965,7 +982,8 @@ async def test_failed_step_updates_monitor_failed(
 
 @pytest.mark.asyncio
 async def test_waiting_step_updates_monitor_waiting(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     """waiting_user step should update monitor task status to waiting."""
     plan = await store.create_plan(
@@ -985,7 +1003,8 @@ async def test_waiting_step_updates_monitor_waiting(
 
 @pytest.mark.asyncio
 async def test_cancel_updates_monitor_cancelled(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     """Cancelling a plan should update monitor task status to cancelled."""
     plan = await store.create_plan(
@@ -1038,7 +1057,8 @@ async def test_done_updates_monitor_done(store, executor: TaskPlanExecutor):
 
 @pytest.mark.asyncio
 async def test_monitor_cancel_handler_cancels_plan(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     """Triggering monitor cancel handler should cancel the plan."""
     plan = await store.create_plan(
@@ -1065,7 +1085,8 @@ async def test_monitor_cancel_handler_cancels_plan(
 
 @pytest.mark.asyncio
 async def test_cleanup_unregisters_monitor_mapping(
-    store, executor: TaskPlanExecutor
+    store,
+    executor: TaskPlanExecutor,
 ):
     """After plan finishes, monitor mapping and cancel handler should be cleaned up."""
     plan = await store.create_plan(

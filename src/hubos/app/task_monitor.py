@@ -131,7 +131,7 @@ class TaskMonitorStore:
         """Register a subscriber. Returns ``(subscriber_id, queue)``."""
         sub_id = uuid.uuid4().hex
         queue: asyncio.Queue[BroadcastEvent] = asyncio.Queue(
-            maxsize=_SUBSCRIBER_QUEUE_MAXSIZE
+            maxsize=_SUBSCRIBER_QUEUE_MAXSIZE,
         )
         self._subscribers[sub_id] = queue
         return sub_id, queue

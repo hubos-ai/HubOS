@@ -77,7 +77,7 @@ _ACTIVE_STATUSES = frozenset(
         PlanStatus.DRAFT,
         PlanStatus.RUNNING,
         PlanStatus.WAITING_USER,
-    )
+    ),
 )
 
 
@@ -225,7 +225,8 @@ async def handle_plan_chat_control(
                 return "已把你的新要求插入当前计划，并会按当前进度继续执行。"
             except (KeyError, ValueError) as exc:
                 logger.warning(
-                    "task_plan_chat_control: insert failed: %s", exc
+                    "task_plan_chat_control: insert failed: %s",
+                    exc,
                 )
                 return f"插入失败：{exc}"
 

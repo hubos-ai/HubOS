@@ -382,7 +382,8 @@ class TestChooseAgentForStep:
     def test_description_used_for_matching(self):
         assert (
             choose_agent_for_step(
-                "执行", step_description="investigate the logs"
+                "执行",
+                step_description="investigate the logs",
             )
             == "research"
         )

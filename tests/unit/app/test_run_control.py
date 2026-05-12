@@ -265,7 +265,7 @@ async def test_parent_child_link():
 async def test_get_run_tree():
     store = RunControlStore()
     root_rid = await store.register(
-        _make_entry(run_type=RunType.CHAT, chat_id="c1", session_id="s1")
+        _make_entry(run_type=RunType.CHAT, chat_id="c1", session_id="s1"),
     )
     child1_rid = await store.register(
         _make_entry(
@@ -273,7 +273,7 @@ async def test_get_run_tree():
             monitor_task_id="m1",
             parent_run_id=root_rid,
             session_id="s1",
-        )
+        ),
     )
     child2_rid = await store.register(
         _make_entry(
@@ -281,7 +281,7 @@ async def test_get_run_tree():
             workflow_id="wf1",
             parent_run_id=root_rid,
             session_id="s1",
-        )
+        ),
     )
     grandchild_rid = await store.register(
         _make_entry(
@@ -289,7 +289,7 @@ async def test_get_run_tree():
             monitor_task_id="m2",
             parent_run_id=child1_rid,
             session_id="s1",
-        )
+        ),
     )
 
     tree = await store.get_run_tree(root_rid)
@@ -304,7 +304,7 @@ async def test_cancel_parent_cancels_children():
     store = RunControlStore()
 
     root_rid = await store.register(
-        _make_entry(run_type=RunType.CHAT, chat_id="c1", session_id="s1")
+        _make_entry(run_type=RunType.CHAT, chat_id="c1", session_id="s1"),
     )
     child_rid = await store.register(
         _make_entry(
@@ -312,7 +312,7 @@ async def test_cancel_parent_cancels_children():
             monitor_task_id="m1",
             parent_run_id=root_rid,
             session_id="s1",
-        )
+        ),
     )
 
     # Register handler for monitor cancel
@@ -408,7 +408,7 @@ async def test_cancel_run_via_monitor():
 async def test_cancel_run_via_plan():
     store = RunControlStore()
     rid = await store.register(
-        _make_entry(monitor_task_id=None, plan_id="plan-1")
+        _make_entry(monitor_task_id=None, plan_id="plan-1"),
     )
     mock_executor = MagicMock()
     mock_executor.cancel_plan = AsyncMock(return_value=True)
@@ -424,15 +424,15 @@ async def test_cancel_run_via_plan():
 async def test_cancel_run_via_workflow():
     store = RunControlStore()
     rid = await store.register(
-        _make_entry(monitor_task_id=None, workflow_id="wf-1")
+        _make_entry(monitor_task_id=None, workflow_id="wf-1"),
     )
     fake_cancel = AsyncMock()
     with patch.dict(
         "sys.modules",
         {
             "hubos.agents.tools.agent_workforce": MagicMock(
-                cancel_workflow=fake_cancel
-            )
+                cancel_workflow=fake_cancel,
+            ),
         },
     ):
         assert await store.cancel_run(rid) is True
@@ -463,7 +463,7 @@ async def test_cancel_all():
 async def test_cancel_all_skips_terminal():
     store = RunControlStore()
     rid1 = await store.register(
-        _make_entry(session_id="s1", monitor_task_id="mon-1")
+        _make_entry(session_id="s1", monitor_task_id="mon-1"),
     )
     await store.update_status(rid1, "done")
     await store.register(_make_entry(session_id="s1", monitor_task_id="mon-2"))
@@ -484,7 +484,7 @@ async def test_evict_old_entries():
     await store.register(old_entry)
     await store.update_status(old_entry.run_id, "done")
     await store.register(
-        _make_entry(session_id="s1", monitor_task_id="mon-new")
+        _make_entry(session_id="s1", monitor_task_id="mon-new"),
     )
     assert await store.get_run(old_entry.run_id) is None
 
@@ -496,7 +496,7 @@ async def test_evict_keeps_running():
     old_entry.created_at = time.time() - 7200
     await store.register(old_entry)
     await store.register(
-        _make_entry(session_id="s1", monitor_task_id="mon-new")
+        _make_entry(session_id="s1", monitor_task_id="mon-new"),
     )
     runs = await store.list_runs("s1", active_only=False)
     assert len(runs) == 2
@@ -615,8 +615,8 @@ async def test_cancel_root_cancels_all_descendants():
             "sys.modules",
             {
                 "hubos.agents.tools.agent_workforce": MagicMock(
-                    cancel_workflow=AsyncMock()
-                )
+                    cancel_workflow=AsyncMock(),
+                ),
             },
         ):
             ok = await store.cancel_run(root)
@@ -772,7 +772,7 @@ async def test_find_controllable_none_when_all_terminal():
     store = RunControlStore()
 
     rid = await store.register(
-        _make_entry(session_id="s1", monitor_task_id="m1")
+        _make_entry(session_id="s1", monitor_task_id="m1"),
     )
     await store.update_status(rid, "done")
 

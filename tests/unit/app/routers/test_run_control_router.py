@@ -34,7 +34,8 @@ def _create_test_app() -> FastAPI:
 
     @_app.get("/run-control/runs")
     async def list_runs(
-        session_id: str = Query(...), active_only: bool = Query(True)
+        session_id: str = Query(...),
+        active_only: bool = Query(True),
     ):
         s = _store()
         runs = await s.list_runs(session_id, active_only=active_only)
@@ -130,7 +131,8 @@ def _reset():
 @pytest.fixture
 def client():
     return AsyncClient(
-        transport=ASGITransport(app=_create_test_app()), base_url="http://test"
+        transport=ASGITransport(app=_create_test_app()),
+        base_url="http://test",
     )
 
 
@@ -150,7 +152,7 @@ async def test_list_runs_empty(client):
 async def test_list_runs_with_entries(client):
     store = get_run_control_store()
     await store.register(
-        RunEntry(run_id="r1", run_type=RunType.SPAWN, session_id="s1")
+        RunEntry(run_id="r1", run_type=RunType.SPAWN, session_id="s1"),
     )
     resp = await client.get("/run-control/runs?session_id=s1")
     assert resp.json()["count"] == 1
@@ -161,8 +163,11 @@ async def test_get_run_detail(client):
     store = get_run_control_store()
     await store.register(
         RunEntry(
-            run_id="r1", run_type=RunType.PLAN, session_id="s1", plan_id="p1"
-        )
+            run_id="r1",
+            run_type=RunType.PLAN,
+            session_id="s1",
+            plan_id="p1",
+        ),
     )
     resp = await client.get("/run-control/runs/r1")
     assert resp.json()["plan_id"] == "p1"
@@ -178,8 +183,11 @@ async def test_get_run_tree(client):
     store = get_run_control_store()
     r1 = await store.register(
         RunEntry(
-            run_id="r1", run_type=RunType.CHAT, session_id="s1", chat_id="c1"
-        )
+            run_id="r1",
+            run_type=RunType.CHAT,
+            session_id="s1",
+            chat_id="c1",
+        ),
     )
     await store.register(
         RunEntry(
@@ -188,7 +196,7 @@ async def test_get_run_tree(client):
             session_id="s1",
             monitor_task_id="m1",
             parent_run_id=r1,
-        )
+        ),
     )
     resp = await client.get(f"/run-control/runs/{r1}/tree")
     data = resp.json()
@@ -204,7 +212,7 @@ async def test_cancel_run(client):
             run_type=RunType.SPAWN,
             session_id="s1",
             monitor_task_id="mon-1",
-        )
+        ),
     )
     with patch(
         "hubos.app.task_monitor_helpers.request_cancel_task",
@@ -228,11 +236,15 @@ async def test_guidance(client):
     register_chat_cancel_handler(AsyncMock(return_value=True))
     await store.register(
         RunEntry(
-            run_id="r1", run_type=RunType.CHAT, session_id="s1", chat_id="c1"
-        )
+            run_id="r1",
+            run_type=RunType.CHAT,
+            session_id="s1",
+            chat_id="c1",
+        ),
     )
     resp = await client.post(
-        "/run-control/runs/r1/guidance", json={"text": "switch to plan B"}
+        "/run-control/runs/r1/guidance",
+        json={"text": "switch to plan B"},
     )
     data = resp.json()
     assert data["guidance_text"] == "switch to plan B"
@@ -245,12 +257,16 @@ async def test_guidance_terminal(client):
     store = get_run_control_store()
     rid = await store.register(
         RunEntry(
-            run_id="r1", run_type=RunType.CHAT, session_id="s1", chat_id="c1"
-        )
+            run_id="r1",
+            run_type=RunType.CHAT,
+            session_id="s1",
+            chat_id="c1",
+        ),
     )
     await store.update_status(rid, "done")
     resp = await client.post(
-        "/run-control/runs/r1/guidance", json={"text": "test"}
+        "/run-control/runs/r1/guidance",
+        json={"text": "test"},
     )
     assert resp.status_code == 400
 
@@ -259,7 +275,7 @@ async def test_guidance_terminal(client):
 async def test_get_active(client):
     store = get_run_control_store()
     await store.register(
-        RunEntry(run_id="r1", run_type=RunType.SPAWN, session_id="s1")
+        RunEntry(run_id="r1", run_type=RunType.SPAWN, session_id="s1"),
     )
     resp = await client.get("/run-control/sessions/s1/active")
     assert resp.json()["count"] == 1
@@ -274,7 +290,7 @@ async def test_cancel_all(client):
             run_type=RunType.SPAWN,
             session_id="s1",
             monitor_task_id="m1",
-        )
+        ),
     )
     with patch(
         "hubos.app.task_monitor_helpers.request_cancel_task",

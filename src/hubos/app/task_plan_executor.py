@@ -40,7 +40,8 @@ def _safe_monitor(func):
             await func(*args, **kwargs)
         except Exception:  # noqa: BLE001
             logger.debug(
-                "task_plan_executor: monitor call failed", exc_info=True
+                "task_plan_executor: monitor call failed",
+                exc_info=True,
             )
 
     return wrapper
@@ -59,7 +60,8 @@ class TaskPlanExecutor:
         self._cancel_events: Dict[str, asyncio.Event] = {}
         self._lock = asyncio.Lock()
         self._monitor_task_ids: Dict[
-            str, str
+            str,
+            str,
         ] = {}  # plan_id → monitor task_id
 
     # -- public API ----------------------------------------------------------
@@ -297,7 +299,7 @@ class TaskPlanExecutor:
                                 next_step.step_id,
                                 status=PlanStepStatus.WAITING_USER,
                                 metadata={
-                                    "reason": "step requires confirmation"
+                                    "reason": "step requires confirmation",
                                 },
                             )
                             await store.update_plan(
@@ -306,7 +308,8 @@ class TaskPlanExecutor:
                                 current_step_id=next_step.step_id,
                             )
                             await self._monitor_step_waiting(
-                                plan_id, next_step
+                                plan_id,
+                                next_step,
                             )
                             break
                     else:
@@ -318,7 +321,10 @@ class TaskPlanExecutor:
                         return
 
                 stop = await self._execute_step(
-                    store, plan, next_step, cancel_event
+                    store,
+                    plan,
+                    next_step,
+                    cancel_event,
                 )
                 if stop:
                     # Re-read to check final state
@@ -328,7 +334,9 @@ class TaskPlanExecutor:
                         PlanStatus.CANCELLED,
                     ):
                         await self._monitor_step_failed(
-                            plan_id, next_step, plan
+                            plan_id,
+                            next_step,
+                            plan,
                         )
                         return
                     # waiting_user from tool_name step
@@ -630,7 +638,9 @@ class TaskPlanExecutor:
             metadata={"plan_id": plan_id},
         )
         await safe_update_task(
-            mid, status=TaskStatus.WAITING, current_stage=step.title
+            mid,
+            status=TaskStatus.WAITING,
+            current_stage=step.title,
         )
 
     @_safe_monitor
@@ -653,7 +663,9 @@ class TaskPlanExecutor:
 
         mid = self._monitor_task_ids.get(plan_id)
         await safe_update_task(
-            mid, status=TaskStatus.FAILED, error=error[:500]
+            mid,
+            status=TaskStatus.FAILED,
+            error=error[:500],
         )
 
     @_safe_monitor
@@ -729,7 +741,8 @@ class TaskPlanExecutor:
                             }
                             new_status = status_map.get(plan.status, "done")
                             await rc_store.update_status(
-                                entry.run_id, new_status
+                                entry.run_id,
+                                new_status,
                             )
                             break
                 except Exception:  # noqa: BLE001

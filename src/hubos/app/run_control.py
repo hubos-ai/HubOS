@@ -123,7 +123,8 @@ async def _do_chat_cancel(chat_id: str) -> bool:
         return await _CHAT_CANCEL_HANDLER(chat_id)
     except Exception:  # noqa: BLE001
         logger.warning(
-            "run_control: chat cancel handler failed for %s", chat_id
+            "run_control: chat cancel handler failed for %s",
+            chat_id,
         )
         return False
 
@@ -146,7 +147,7 @@ class RunControlStore:
             self._evict_old()
             self._runs[entry.run_id] = entry
             self._session_index.setdefault(entry.session_id, []).append(
-                entry.run_id
+                entry.run_id,
             )
             # Link to parent if specified.
             if entry.parent_run_id and entry.parent_run_id in self._runs:
@@ -286,7 +287,8 @@ class RunControlStore:
                 cancelled = True
             except Exception:  # noqa: BLE001
                 logger.warning(
-                    "run_control: plan cancel failed for %s", entry.plan_id
+                    "run_control: plan cancel failed for %s",
+                    entry.plan_id,
                 )
 
         if entry.workflow_id:

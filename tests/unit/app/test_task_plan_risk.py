@@ -21,7 +21,8 @@ class TestAssessPlanRisk:
 
     def test_outreach_high(self):
         r = assess_plan_risk(
-            "Customer outreach", [{"title": "Send cold emails"}]
+            "Customer outreach",
+            [{"title": "Send cold emails"}],
         )
         assert r.level == RISK_HIGH
 

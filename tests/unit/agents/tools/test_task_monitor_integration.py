@@ -93,7 +93,7 @@ def _install_agentscope_mocks():
 
 
 def _restore_agentscope_mocks(
-    _saved: dict[str, tuple[object, object]]
+    _saved: dict[str, tuple[object, object]],
 ) -> None:
     """Restore original agentscope classes after test module is loaded."""
     for key, (mod, cls) in _saved.items():
@@ -189,7 +189,8 @@ class _FakeWorkerResult:
 
 async def _fake_execute_success(self, **kw):
     return _FakeWorkerResult(
-        f"result from {getattr(self, 'agent_id', 'unknown')}", 15
+        f"result from {getattr(self, 'agent_id', 'unknown')}",
+        15,
     )
 
 
@@ -263,7 +264,9 @@ async def test_spawn_subagents_creates_task_and_stage_events(
     spawn_subagents = _mod.spawn_subagents
 
     with patch.object(
-        _mod, "get_host_agent_runner", return_value=_make_mock_runner()
+        _mod,
+        "get_host_agent_runner",
+        return_value=_make_mock_runner(),
     ), _patch_worker(_mod, _fake_execute_success):
         result = await spawn_subagents(
             assignments=[
@@ -308,7 +311,9 @@ async def test_spawn_subagents_partial_failure(store: TaskMonitorStore):
         return _FakeWorkerResult(f"result from {self.agent_id}", 15)
 
     with patch.object(
-        _mod, "get_host_agent_runner", return_value=_make_mock_runner()
+        _mod,
+        "get_host_agent_runner",
+        return_value=_make_mock_runner(),
     ), _patch_worker(_mod, _execute_intermittent):
         result = await spawn_subagents(
             assignments=[
@@ -342,7 +347,9 @@ async def test_coordinate_workflow_creates_task_with_workflow_id(
     coordinate_workflow = _mod.coordinate_workflow
 
     with patch.object(
-        _mod, "get_host_agent_runner", return_value=_make_mock_runner()
+        _mod,
+        "get_host_agent_runner",
+        return_value=_make_mock_runner(),
     ), _patch_worker(_mod, _fake_execute_success):
         result = await coordinate_workflow(
             steps=[
@@ -374,7 +381,9 @@ async def test_coordinate_workflow_step_failure(store: TaskMonitorStore):
     coordinate_workflow = _mod.coordinate_workflow
 
     with patch.object(
-        _mod, "get_host_agent_runner", return_value=_make_mock_runner()
+        _mod,
+        "get_host_agent_runner",
+        return_value=_make_mock_runner(),
     ), _patch_worker(_mod, _fake_execute_fail):
         result = await coordinate_workflow(
             steps=[
@@ -412,9 +421,12 @@ async def test_delegate_task_creates_task_with_runtime_mode(
         "os.environ",
         {"HUBOS_DELEGATE_AGENT_BRIDGE": "1"},
     ), patch.object(
-        _aw, "get_host_agent_runner", return_value=_make_mock_runner()
+        _aw,
+        "get_host_agent_runner",
+        return_value=_make_mock_runner(),
     ), _patch_worker(
-        _aw, _fake_execute_success
+        _aw,
+        _fake_execute_success,
     ):
         result = await delegate_task(goal="Research pricing for product X")
 
@@ -466,7 +478,9 @@ async def test_monitor_failure_does_not_affect_spawn_subagents(
     store.create_task = _failing_create
 
     with patch.object(
-        _mod, "get_host_agent_runner", return_value=_make_mock_runner()
+        _mod,
+        "get_host_agent_runner",
+        return_value=_make_mock_runner(),
     ), _patch_worker(_mod, _fake_execute_success):
         result = await spawn_subagents(
             assignments=[

@@ -142,10 +142,12 @@ async def test_get_detail_404(api_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_list_by_session_id(api_client: AsyncClient):
     await api_client.post(
-        "/api/task-plans", json={"session_id": "s1", "title": "A"}
+        "/api/task-plans",
+        json={"session_id": "s1", "title": "A"},
     )
     await api_client.post(
-        "/api/task-plans", json={"session_id": "s2", "title": "B"}
+        "/api/task-plans",
+        json={"session_id": "s2", "title": "B"},
     )
 
     resp = await api_client.get("/api/task-plans", params={"session_id": "s1"})
@@ -158,14 +160,16 @@ async def test_list_by_session_id(api_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_list_by_status(api_client: AsyncClient):
     create = await api_client.post(
-        "/api/task-plans", json={"session_id": "s1", "title": "A"}
+        "/api/task-plans",
+        json={"session_id": "s1", "title": "A"},
     )
     plan_id = create.json()["plan_id"]
     # Cancel one plan
     await api_client.post(f"/api/task-plans/{plan_id}/cancel")
 
     resp = await api_client.get(
-        "/api/task-plans", params={"status": "cancelled"}
+        "/api/task-plans",
+        params={"status": "cancelled"},
     )
     assert resp.status_code == 200
     assert resp.json()["count"] == 1
@@ -185,7 +189,8 @@ async def test_list_invalid_status(api_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_add_step(api_client: AsyncClient):
     create = await api_client.post(
-        "/api/task-plans", json={"session_id": "s1", "title": "P"}
+        "/api/task-plans",
+        json={"session_id": "s1", "title": "P"},
     )
     plan_id = create.json()["plan_id"]
 
@@ -220,7 +225,8 @@ async def test_add_step_404(api_client: AsyncClient):
 async def test_add_step_chat_insert_auto_agent(api_client: AsyncClient):
     """Chat-inserted step gets auto agent_id from heuristic."""
     create = await api_client.post(
-        "/api/task-plans", json={"session_id": "s1", "title": "P"}
+        "/api/task-plans",
+        json={"session_id": "s1", "title": "P"},
     )
     plan_id = create.json()["plan_id"]
 
@@ -272,7 +278,8 @@ async def test_add_step_chat_insert_running_plan_uses_current_step(
 @pytest.mark.asyncio
 async def test_add_step_terminal_plan_returns_400(api_client: AsyncClient):
     create = await api_client.post(
-        "/api/task-plans", json={"session_id": "s1", "title": "P"}
+        "/api/task-plans",
+        json={"session_id": "s1", "title": "P"},
     )
     plan_id = create.json()["plan_id"]
     await api_client.post(f"/api/task-plans/{plan_id}/cancel")
@@ -294,12 +301,14 @@ async def test_add_step_terminal_plan_returns_400(api_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_update_step_status_running(api_client: AsyncClient):
     create = await api_client.post(
-        "/api/task-plans", json={"session_id": "s1", "title": "P"}
+        "/api/task-plans",
+        json={"session_id": "s1", "title": "P"},
     )
     plan_id = create.json()["plan_id"]
 
     add = await api_client.post(
-        f"/api/task-plans/{plan_id}/steps", json={"title": "S"}
+        f"/api/task-plans/{plan_id}/steps",
+        json={"title": "S"},
     )
     step_id = add.json()["step_id"]
 
@@ -314,12 +323,14 @@ async def test_update_step_status_running(api_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_update_step_status_failed_with_error(api_client: AsyncClient):
     create = await api_client.post(
-        "/api/task-plans", json={"session_id": "s1", "title": "P"}
+        "/api/task-plans",
+        json={"session_id": "s1", "title": "P"},
     )
     plan_id = create.json()["plan_id"]
 
     add = await api_client.post(
-        f"/api/task-plans/{plan_id}/steps", json={"title": "S"}
+        f"/api/task-plans/{plan_id}/steps",
+        json={"title": "S"},
     )
     step_id = add.json()["step_id"]
 
@@ -337,12 +348,14 @@ async def test_update_step_status_failed_with_error(api_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_update_step_invalid_status(api_client: AsyncClient):
     create = await api_client.post(
-        "/api/task-plans", json={"session_id": "s1", "title": "P"}
+        "/api/task-plans",
+        json={"session_id": "s1", "title": "P"},
     )
     plan_id = create.json()["plan_id"]
 
     add = await api_client.post(
-        f"/api/task-plans/{plan_id}/steps", json={"title": "S"}
+        f"/api/task-plans/{plan_id}/steps",
+        json={"title": "S"},
     )
     step_id = add.json()["step_id"]
 
@@ -365,7 +378,8 @@ async def test_update_step_404_plan(api_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_update_step_404_step(api_client: AsyncClient):
     create = await api_client.post(
-        "/api/task-plans", json={"session_id": "s1", "title": "P"}
+        "/api/task-plans",
+        json={"session_id": "s1", "title": "P"},
     )
     plan_id = create.json()["plan_id"]
 
@@ -384,13 +398,15 @@ async def test_update_step_404_step(api_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_cancel_plan(api_client: AsyncClient):
     create = await api_client.post(
-        "/api/task-plans", json={"session_id": "s1", "title": "P"}
+        "/api/task-plans",
+        json={"session_id": "s1", "title": "P"},
     )
     plan_id = create.json()["plan_id"]
 
     # Add a step that should get cancelled
     add = await api_client.post(
-        f"/api/task-plans/{plan_id}/steps", json={"title": "S"}
+        f"/api/task-plans/{plan_id}/steps",
+        json={"title": "S"},
     )
     step_id = add.json()["step_id"]
 

@@ -45,7 +45,8 @@ _HIGH_RULES: List[tuple[re.Pattern, str]] = [
     ),
     (
         re.compile(
-            r"删除|清空|覆盖|delete|remove|overwrite|drop\s+table", re.IGNORECASE
+            r"删除|清空|覆盖|delete|remove|overwrite|drop\s+table",
+            re.IGNORECASE,
         ),
         "involves deleting or overwriting data",
     ),

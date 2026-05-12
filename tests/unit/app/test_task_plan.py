@@ -158,7 +158,9 @@ async def test_add_step_after_target(store: TaskPlanStore):
 
     # Insert after s0 → new step at order 1, B and C shift
     s_new = await store.add_step(
-        plan.plan_id, title="Inserted", after_step_id=s0.step_id
+        plan.plan_id,
+        title="Inserted",
+        after_step_id=s0.step_id,
     )
 
     refreshed = await store.get_plan(plan.plan_id)
@@ -174,7 +176,9 @@ async def test_add_step_after_missing_step_raises(store: TaskPlanStore):
     await store.add_step(plan.plan_id, title="A")
     with pytest.raises(KeyError, match="Step not found"):
         await store.add_step(
-            plan.plan_id, title="X", after_step_id="nonexistent"
+            plan.plan_id,
+            title="X",
+            after_step_id="nonexistent",
         )
 
 
@@ -193,7 +197,9 @@ async def test_add_step_after_last(store: TaskPlanStore):
     s1 = await store.add_step(plan.plan_id, title="B")
 
     s_new = await store.add_step(
-        plan.plan_id, title="Tail", after_step_id=s1.step_id
+        plan.plan_id,
+        title="Tail",
+        after_step_id=s1.step_id,
     )
 
     refreshed = await store.get_plan(plan.plan_id)
@@ -306,7 +312,9 @@ async def test_update_step_not_found_step(store: TaskPlanStore):
     plan = await store.create_plan(session_id="s1", title="P")
     with pytest.raises(KeyError, match="Step not found"):
         await store.update_step(
-            plan.plan_id, "nonexistent", status=PlanStepStatus.DONE
+            plan.plan_id,
+            "nonexistent",
+            status=PlanStepStatus.DONE,
         )
 
 
@@ -343,7 +351,8 @@ async def test_update_plan_failed_sets_finished_at(store: TaskPlanStore):
 async def test_update_plan_cancelled_sets_finished_at(store: TaskPlanStore):
     plan = await store.create_plan(session_id="s1", title="P")
     updated = await store.update_plan(
-        plan.plan_id, status=PlanStatus.CANCELLED
+        plan.plan_id,
+        status=PlanStatus.CANCELLED,
     )
     assert updated.finished_at is not None
 
@@ -398,10 +407,14 @@ async def test_cancel_plan_cancels_incomplete_steps(store: TaskPlanStore):
     s3 = await store.add_step(plan.plan_id, title="Pending")
 
     await store.update_step(
-        plan.plan_id, s1.step_id, status=PlanStepStatus.RUNNING
+        plan.plan_id,
+        s1.step_id,
+        status=PlanStepStatus.RUNNING,
     )
     await store.update_step(
-        plan.plan_id, s2.step_id, status=PlanStepStatus.DONE
+        plan.plan_id,
+        s2.step_id,
+        status=PlanStepStatus.DONE,
     )
 
     cancelled = await store.cancel_plan(plan.plan_id)

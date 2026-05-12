@@ -127,7 +127,8 @@ async def get_task(task_id: str) -> dict:
     task = await store.get_task(task_id)
     if task is None:
         raise HTTPException(
-            status_code=404, detail=f"Task not found: {task_id}"
+            status_code=404,
+            detail=f"Task not found: {task_id}",
         )
     return _serialise_task(task)
 
@@ -138,7 +139,8 @@ async def cancel_task(task_id: str) -> dict:
     ok = await request_cancel_task(task_id)
     if not ok:
         raise HTTPException(
-            status_code=404, detail=f"Task not found: {task_id}"
+            status_code=404,
+            detail=f"Task not found: {task_id}",
         )
     return {"task_id": task_id, "status": "cancel_requested"}
 

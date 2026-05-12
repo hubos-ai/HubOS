@@ -216,7 +216,9 @@ class TestApproveDaemon:
         sf.write_text(json.dumps({"language": "en"}), "utf-8")
         ui_mod = _load_ui_language_direct(sf)
         text = _approve_success_text(
-            ui_mod.is_zh(), "edit_file", "abc123def456"
+            ui_mod.is_zh(),
+            "edit_file",
+            "abc123def456",
         )
         assert "Tool execution approved" in text
         assert "edit_file" in text
@@ -228,7 +230,9 @@ class TestApproveDaemon:
         sf.write_text(json.dumps({"language": "zh"}), "utf-8")
         ui_mod = _load_ui_language_direct(sf)
         text = _approve_success_text(
-            ui_mod.is_zh(), "edit_file", "abc123def456"
+            ui_mod.is_zh(),
+            "edit_file",
+            "abc123def456",
         )
         assert "工具已批准执行" in text
         assert "edit_file" in text

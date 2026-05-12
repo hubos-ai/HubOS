@@ -249,7 +249,7 @@ class TaskPlanStore:
             PlanStatus.DONE,
             PlanStatus.FAILED,
             PlanStatus.CANCELLED,
-        )
+        ),
     )
 
     async def add_step(

@@ -47,7 +47,8 @@ async def list_runs(
         description="Optional session ID. Omit to list runs across sessions.",
     ),
     active_only: bool = Query(
-        True, description="Only show active (non-terminal) runs"
+        True,
+        description="Only show active (non-terminal) runs",
     ),
 ) -> dict:
     store = get_run_control_store()
@@ -68,7 +69,8 @@ async def get_run(run_id: str) -> dict:
 
 
 @router.get(
-    "/runs/{run_id}/tree", summary="Get run tree (run + all descendants)"
+    "/runs/{run_id}/tree",
+    summary="Get run tree (run + all descendants)",
 )
 async def get_run_tree(run_id: str) -> dict:
     store = get_run_control_store()
@@ -82,7 +84,8 @@ async def get_run_tree(run_id: str) -> dict:
 
 
 @router.post(
-    "/runs/{run_id}/cancel", summary="Cancel a specific run (and its children)"
+    "/runs/{run_id}/cancel",
+    summary="Cancel a specific run (and its children)",
 )
 async def cancel_run(run_id: str) -> dict:
     store = get_run_control_store()
@@ -91,7 +94,8 @@ async def cancel_run(run_id: str) -> dict:
         entry = await store.get_run(run_id)
         if entry is None:
             raise HTTPException(
-                status_code=404, detail=f"Run not found: {run_id}"
+                status_code=404,
+                detail=f"Run not found: {run_id}",
             )
         raise HTTPException(
             status_code=400,
@@ -101,7 +105,8 @@ async def cancel_run(run_id: str) -> dict:
 
 
 @router.post(
-    "/runs/{run_id}/guidance", summary="Send guidance to a running run"
+    "/runs/{run_id}/guidance",
+    summary="Send guidance to a running run",
 )
 async def guidance_run(run_id: str, body: GuidanceInput) -> dict:
     store = get_run_control_store()
@@ -110,7 +115,8 @@ async def guidance_run(run_id: str, body: GuidanceInput) -> dict:
         entry = await store.get_run(run_id)
         if entry is None:
             raise HTTPException(
-                status_code=404, detail=f"Run not found: {run_id}"
+                status_code=404,
+                detail=f"Run not found: {run_id}",
             )
         raise HTTPException(
             status_code=400,
@@ -124,7 +130,8 @@ async def guidance_run(run_id: str, body: GuidanceInput) -> dict:
 
 
 @router.get(
-    "/sessions/{session_id}/active", summary="Get active runs for a session"
+    "/sessions/{session_id}/active",
+    summary="Get active runs for a session",
 )
 async def get_active_runs(session_id: str) -> dict:
     store = get_run_control_store()
