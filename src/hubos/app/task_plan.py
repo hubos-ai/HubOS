@@ -194,7 +194,9 @@ class TaskPlanStore:
                     agent_id=s.get("agent_id"),
                     tool_name=s.get("tool_name"),
                     depends_on=list(s.get("depends_on", [])),
-                    metadata=dict(s["metadata"]) if s.get("metadata") else None,
+                    metadata=dict(s["metadata"])
+                    if s.get("metadata")
+                    else None,
                     created_at=now,
                     updated_at=now,
                 )
@@ -204,12 +206,14 @@ class TaskPlanStore:
             self._plans[plan_id] = plan
             self._evict_if_needed_locked()
 
-        await self._broadcast(_BroadcastEvent(
-            event_type=PlanEventType.PLAN_CREATED,
-            plan_id=plan_id,
-            data=self._plan_summary(plan),
-            timestamp=now,
-        ))
+        await self._broadcast(
+            _BroadcastEvent(
+                event_type=PlanEventType.PLAN_CREATED,
+                plan_id=plan_id,
+                data=self._plan_summary(plan),
+                timestamp=now,
+            ),
+        )
         return plan
 
     # -- get_plan ----------------------------------------------------------
@@ -240,9 +244,13 @@ class TaskPlanStore:
 
     # -- add_step ----------------------------------------------------------
 
-    _TERMINAL_STATUSES = frozenset((
-        PlanStatus.DONE, PlanStatus.FAILED, PlanStatus.CANCELLED,
-    ))
+    _TERMINAL_STATUSES = frozenset(
+        (
+            PlanStatus.DONE,
+            PlanStatus.FAILED,
+            PlanStatus.CANCELLED,
+        )
+    )
 
     async def add_step(
         self,
@@ -263,7 +271,7 @@ class TaskPlanStore:
 
             if plan.status in self._TERMINAL_STATUSES:
                 raise ValueError(
-                    f"Cannot add step to plan in terminal status '{plan.status.value}'"
+                    f"Cannot add step to plan in terminal status '{plan.status.value}'",
                 )
 
             now = time.time()
@@ -280,7 +288,7 @@ class TaskPlanStore:
 
                 insert_order = plan.steps[target_idx].order + 1
                 # Shift subsequent steps
-                for s in plan.steps[target_idx + 1:]:
+                for s in plan.steps[target_idx + 1 :]:
                     s.order += 1
                 # Re-sort by order
                 plan.steps.sort(key=lambda s: s.order)
@@ -308,12 +316,14 @@ class TaskPlanStore:
 
             plan.updated_at = now
 
-        await self._broadcast(_BroadcastEvent(
-            event_type=PlanEventType.STEP_ADDED,
-            plan_id=plan_id,
-            data=self._step_summary(step),
-            timestamp=now,
-        ))
+        await self._broadcast(
+            _BroadcastEvent(
+                event_type=PlanEventType.STEP_ADDED,
+                plan_id=plan_id,
+                data=self._step_summary(step),
+                timestamp=now,
+            ),
+        )
         return step
 
     # -- update_step -------------------------------------------------------
@@ -355,7 +365,11 @@ class TaskPlanStore:
                 step.metadata.update(metadata)
 
             # Set finished_at for terminal statuses
-            if status in (PlanStepStatus.DONE, PlanStepStatus.FAILED, PlanStepStatus.CANCELLED):
+            if status in (
+                PlanStepStatus.DONE,
+                PlanStepStatus.FAILED,
+                PlanStepStatus.CANCELLED,
+            ):
                 step.finished_at = now
 
             plan.updated_at = now
@@ -370,12 +384,14 @@ class TaskPlanStore:
         else:
             event_type = PlanEventType.STEP_UPDATED
 
-        await self._broadcast(_BroadcastEvent(
-            event_type=event_type,
-            plan_id=plan_id,
-            data=self._step_summary(step),
-            timestamp=now,
-        ))
+        await self._broadcast(
+            _BroadcastEvent(
+                event_type=event_type,
+                plan_id=plan_id,
+                data=self._step_summary(step),
+                timestamp=now,
+            ),
+        )
         return step
 
     # -- update_plan -------------------------------------------------------
@@ -401,24 +417,32 @@ class TaskPlanStore:
             if status is not None:
                 plan.status = status
             if current_step_id is not self._UNSET:
-                plan.current_step_id = current_step_id  # can be set to None explicitly
+                plan.current_step_id = (
+                    current_step_id  # can be set to None explicitly
+                )
             if metadata is not None:
                 if plan.metadata is None:
                     plan.metadata = {}
                 plan.metadata.update(metadata)
 
             # Set finished_at for terminal statuses
-            if status in (PlanStatus.DONE, PlanStatus.FAILED, PlanStatus.CANCELLED):
+            if status in (
+                PlanStatus.DONE,
+                PlanStatus.FAILED,
+                PlanStatus.CANCELLED,
+            ):
                 plan.finished_at = now
 
             summary = self._plan_summary(plan)
 
-        await self._broadcast(_BroadcastEvent(
-            event_type=PlanEventType.PLAN_UPDATED,
-            plan_id=plan_id,
-            data=summary,
-            timestamp=now,
-        ))
+        await self._broadcast(
+            _BroadcastEvent(
+                event_type=PlanEventType.PLAN_UPDATED,
+                plan_id=plan_id,
+                data=summary,
+                timestamp=now,
+            ),
+        )
         return plan
 
     # -- pause_plan --------------------------------------------------------
@@ -431,7 +455,7 @@ class TaskPlanStore:
                 raise KeyError(f"Plan not found: {plan_id}")
             if plan.status != PlanStatus.RUNNING:
                 raise ValueError(
-                    f"Cannot pause plan in status '{plan.status.value}', expected 'running'"
+                    f"Cannot pause plan in status '{plan.status.value}', expected 'running'",
                 )
 
             now = time.time()
@@ -439,12 +463,14 @@ class TaskPlanStore:
             plan.updated_at = now
             summary = self._plan_summary(plan)
 
-        await self._broadcast(_BroadcastEvent(
-            event_type=PlanEventType.PLAN_UPDATED,
-            plan_id=plan_id,
-            data=summary,
-            timestamp=now,
-        ))
+        await self._broadcast(
+            _BroadcastEvent(
+                event_type=PlanEventType.PLAN_UPDATED,
+                plan_id=plan_id,
+                data=summary,
+                timestamp=now,
+            ),
+        )
         return plan
 
     # -- resume_plan -------------------------------------------------------
@@ -457,7 +483,7 @@ class TaskPlanStore:
                 raise KeyError(f"Plan not found: {plan_id}")
             if plan.status != PlanStatus.WAITING_USER:
                 raise ValueError(
-                    f"Cannot resume plan in status '{plan.status.value}', expected 'waiting_user'"
+                    f"Cannot resume plan in status '{plan.status.value}', expected 'waiting_user'",
                 )
 
             now = time.time()
@@ -465,12 +491,14 @@ class TaskPlanStore:
             plan.updated_at = now
             summary = self._plan_summary(plan)
 
-        await self._broadcast(_BroadcastEvent(
-            event_type=PlanEventType.PLAN_UPDATED,
-            plan_id=plan_id,
-            data=summary,
-            timestamp=now,
-        ))
+        await self._broadcast(
+            _BroadcastEvent(
+                event_type=PlanEventType.PLAN_UPDATED,
+                plan_id=plan_id,
+                data=summary,
+                timestamp=now,
+            ),
+        )
         return plan
 
     # -- cancel_plan -------------------------------------------------------
@@ -497,12 +525,14 @@ class TaskPlanStore:
                     step.updated_at = now
                     step.finished_at = now
 
-        await self._broadcast(_BroadcastEvent(
-            event_type=PlanEventType.PLAN_CANCELLED,
-            plan_id=plan_id,
-            data=self._plan_summary(plan),
-            timestamp=now,
-        ))
+        await self._broadcast(
+            _BroadcastEvent(
+                event_type=PlanEventType.PLAN_CANCELLED,
+                plan_id=plan_id,
+                data=self._plan_summary(plan),
+                timestamp=now,
+            ),
+        )
         return plan
 
     # -- internal helpers --------------------------------------------------
@@ -543,7 +573,8 @@ class TaskPlanStore:
         if len(self._plans) <= self._max_plans:
             return
         sorted_ids = sorted(
-            self._plans, key=lambda k: self._plans[k].created_at,
+            self._plans,
+            key=lambda k: self._plans[k].created_at,
         )
         while len(self._plans) > self._max_plans:
             del self._plans[sorted_ids.pop(0)]
@@ -557,7 +588,8 @@ class TaskPlanStore:
             except asyncio.QueueFull:
                 logger.debug(
                     "task_plan: dropping event %s for slow subscriber %s",
-                    event.event_type.value, sub_id,
+                    event.event_type.value,
+                    sub_id,
                 )
                 dead.append(sub_id)
         for sub_id in dead:

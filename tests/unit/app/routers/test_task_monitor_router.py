@@ -48,6 +48,7 @@ def api_client():
 # GET /task-monitor/tasks — empty
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_list_tasks_empty(api_client: AsyncClient):
     async with api_client:
@@ -62,8 +63,11 @@ async def test_list_tasks_empty(api_client: AsyncClient):
 # GET /task-monitor/tasks — after create
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
-async def test_list_tasks_after_create(api_client: AsyncClient, store: TaskMonitorStore):
+async def test_list_tasks_after_create(
+    api_client: AsyncClient, store: TaskMonitorStore
+):
     await store.create_task(
         session_id="s1",
         source="tool",
@@ -84,42 +88,60 @@ async def test_list_tasks_after_create(api_client: AsyncClient, store: TaskMonit
 # GET /task-monitor/tasks — filters
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
-async def test_list_tasks_filter_by_status(api_client: AsyncClient, store: TaskMonitorStore):
+async def test_list_tasks_filter_by_status(
+    api_client: AsyncClient, store: TaskMonitorStore
+):
     t1 = await store.create_task(session_id="s1", source="tool", title="t1")
     await store.create_task(session_id="s2", source="tool", title="t2")
     await store.update_task(t1.task_id, status=TaskStatus.RUNNING)
 
     async with api_client:
-        resp = await api_client.get("/api/task-monitor/tasks", params={"status": "running"})
+        resp = await api_client.get(
+            "/api/task-monitor/tasks", params={"status": "running"}
+        )
     body = resp.json()
     assert body["count"] == 1
     assert body["tasks"][0]["task_id"] == t1.task_id
 
 
 @pytest.mark.asyncio
-async def test_list_tasks_filter_by_session(api_client: AsyncClient, store: TaskMonitorStore):
+async def test_list_tasks_filter_by_session(
+    api_client: AsyncClient, store: TaskMonitorStore
+):
     await store.create_task(session_id="s1", source="tool", title="t1")
     await store.create_task(session_id="s2", source="tool", title="t2")
     await store.create_task(session_id="s1", source="tool", title="t3")
 
     async with api_client:
-        resp = await api_client.get("/api/task-monitor/tasks", params={"session_id": "s1"})
+        resp = await api_client.get(
+            "/api/task-monitor/tasks", params={"session_id": "s1"}
+        )
     assert resp.json()["count"] == 2
 
 
 @pytest.mark.asyncio
-async def test_list_tasks_filter_by_tool_name(api_client: AsyncClient, store: TaskMonitorStore):
+async def test_list_tasks_filter_by_tool_name(
+    api_client: AsyncClient, store: TaskMonitorStore
+):
     await store.create_task(
-        session_id="s1", source="tool", title="t1", tool_name="spawn_subagents",
+        session_id="s1",
+        source="tool",
+        title="t1",
+        tool_name="spawn_subagents",
     )
     await store.create_task(
-        session_id="s1", source="tool", title="t2", tool_name="coordinate_workflow",
+        session_id="s1",
+        source="tool",
+        title="t2",
+        tool_name="coordinate_workflow",
     )
 
     async with api_client:
         resp = await api_client.get(
-            "/api/task-monitor/tasks", params={"tool_name": "spawn_subagents"},
+            "/api/task-monitor/tasks",
+            params={"tool_name": "spawn_subagents"},
         )
     assert resp.json()["count"] == 1
     assert resp.json()["tasks"][0]["tool_name"] == "spawn_subagents"
@@ -128,7 +150,9 @@ async def test_list_tasks_filter_by_tool_name(api_client: AsyncClient, store: Ta
 @pytest.mark.asyncio
 async def test_list_tasks_invalid_status(api_client: AsyncClient):
     async with api_client:
-        resp = await api_client.get("/api/task-monitor/tasks", params={"status": "bogus"})
+        resp = await api_client.get(
+            "/api/task-monitor/tasks", params={"status": "bogus"}
+        )
     assert resp.status_code == 400
 
 
@@ -136,8 +160,11 @@ async def test_list_tasks_invalid_status(api_client: AsyncClient):
 # GET /task-monitor/tasks/{task_id}
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
-async def test_get_task_detail(api_client: AsyncClient, store: TaskMonitorStore):
+async def test_get_task_detail(
+    api_client: AsyncClient, store: TaskMonitorStore
+):
     task = await store.create_task(
         session_id="s1",
         source="tool",
@@ -147,7 +174,10 @@ async def test_get_task_detail(api_client: AsyncClient, store: TaskMonitorStore)
     )
     await store.update_task(task.task_id, status=TaskStatus.RUNNING)
     await store.add_event(
-        task.task_id, TaskEventType.STAGE_STARTED, "Stage 1", stage="step-1",
+        task.task_id,
+        TaskEventType.STAGE_STARTED,
+        "Stage 1",
+        stage="step-1",
     )
 
     async with api_client:
@@ -158,7 +188,9 @@ async def test_get_task_detail(api_client: AsyncClient, store: TaskMonitorStore)
     assert body["status"] == "running"
     assert body["tool_name"] == "delegate_task"
     assert body["agent_id"] == "agent-x"
-    assert len(body["events"]) == 2  # created + stage_started (update_task broadcasts but doesn't append to events)
+    assert (
+        len(body["events"]) == 2
+    )  # created + stage_started (update_task broadcasts but doesn't append to events)
 
 
 @pytest.mark.asyncio
@@ -172,34 +204,44 @@ async def test_get_task_detail_404(api_client: AsyncClient):
 # POST /task-monitor/tasks/{task_id}/cancel
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_cancel_task_marks_running_task_cancelled(
     api_client: AsyncClient,
     store: TaskMonitorStore,
 ):
-    task = await store.create_task(session_id="s1", source="tool", title="cancel me")
+    task = await store.create_task(
+        session_id="s1", source="tool", title="cancel me"
+    )
     await store.update_task(task.task_id, status=TaskStatus.RUNNING)
 
     async with api_client:
-        resp = await api_client.post(f"/api/task-monitor/tasks/{task.task_id}/cancel")
+        resp = await api_client.post(
+            f"/api/task-monitor/tasks/{task.task_id}/cancel"
+        )
 
     assert resp.status_code == 200
     refreshed = await store.get_task(task.task_id)
     assert refreshed.status == TaskStatus.CANCELLED
     assert refreshed.finished_at is not None
-    assert any(e.event_type == TaskEventType.TASK_CANCELLED for e in refreshed.events)
+    assert any(
+        e.event_type == TaskEventType.TASK_CANCELLED for e in refreshed.events
+    )
 
 
 @pytest.mark.asyncio
 async def test_cancel_task_404(api_client: AsyncClient):
     async with api_client:
-        resp = await api_client.post("/api/task-monitor/tasks/nonexistent/cancel")
+        resp = await api_client.post(
+            "/api/task-monitor/tasks/nonexistent/cancel"
+        )
     assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------
 # GET /task-monitor/stream — SSE
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_stream_event_generator(store: TaskMonitorStore):
@@ -220,7 +262,9 @@ async def test_stream_event_generator(store: TaskMonitorStore):
     await asyncio.sleep(0.1)  # Let generator reach queue.get()
 
     # Trigger a broadcast event
-    await store.create_task(session_id="s1", source="tool", title="stream test")
+    await store.create_task(
+        session_id="s1", source="tool", title="stream test"
+    )
 
     # Read the yielded SSE chunk
     chunk = await asyncio.wait_for(read_task, timeout=2.0)

@@ -98,14 +98,17 @@ async def wait_for_plan_status(
 @pytest.mark.asyncio
 async def test_task_plan_basic_lifecycle_e2e(client: AsyncClient):
     # Create draft plan with 2 agent-less steps
-    resp = await client.post("/api/task-plans", json={
-        "session_id": "e2e-s1",
-        "title": "E2E basic lifecycle",
-        "steps": [
-            {"title": "Step A"},
-            {"title": "Step B"},
-        ],
-    })
+    resp = await client.post(
+        "/api/task-plans",
+        json={
+            "session_id": "e2e-s1",
+            "title": "E2E basic lifecycle",
+            "steps": [
+                {"title": "Step A"},
+                {"title": "Step B"},
+            ],
+        },
+    )
     assert resp.status_code == 200
     plan = resp.json()
     plan_id = plan["plan_id"]
@@ -118,10 +121,13 @@ async def test_task_plan_basic_lifecycle_e2e(client: AsyncClient):
     assert resp.json()["count"] >= 1
 
     # Insert a chat-inserted step
-    resp = await client.post(f"/api/task-plans/{plan_id}/steps", json={
-        "title": "Inserted step",
-        "metadata": {"inserted_from_chat": True},
-    })
+    resp = await client.post(
+        f"/api/task-plans/{plan_id}/steps",
+        json={
+            "title": "Inserted step",
+            "metadata": {"inserted_from_chat": True},
+        },
+    )
     assert resp.status_code == 200
     inserted = resp.json()
     assert inserted["status"] == "pending"
@@ -154,8 +160,7 @@ async def test_task_plan_basic_lifecycle_e2e(client: AsyncClient):
     assert resp.status_code == 200
     mon_tasks = resp.json()["tasks"]
     matching = [
-        t for t in mon_tasks
-        if t.get("metadata", {}).get("plan_id") == plan_id
+        t for t in mon_tasks if t.get("metadata", {}).get("plan_id") == plan_id
     ]
     assert len(matching) >= 1
     assert matching[0]["status"] == "done"
@@ -168,14 +173,20 @@ async def test_task_plan_basic_lifecycle_e2e(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_task_plan_pause_resume_e2e(client: AsyncClient):
-    resp = await client.post("/api/task-plans", json={
-        "session_id": "e2e-s2",
-        "title": "Pause/Resume E2E",
-        "steps": [
-            {"title": "A"}, {"title": "B"}, {"title": "C"},
-            {"title": "D"}, {"title": "E"},
-        ],
-    })
+    resp = await client.post(
+        "/api/task-plans",
+        json={
+            "session_id": "e2e-s2",
+            "title": "Pause/Resume E2E",
+            "steps": [
+                {"title": "A"},
+                {"title": "B"},
+                {"title": "C"},
+                {"title": "D"},
+                {"title": "E"},
+            ],
+        },
+    )
     plan_id = resp.json()["plan_id"]
 
     # Start
@@ -205,14 +216,20 @@ async def test_task_plan_pause_resume_e2e(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_task_plan_cancel_e2e(client: AsyncClient):
-    resp = await client.post("/api/task-plans", json={
-        "session_id": "e2e-s3",
-        "title": "Cancel E2E",
-        "steps": [
-            {"title": "A"}, {"title": "B"}, {"title": "C"},
-            {"title": "D"}, {"title": "E"},
-        ],
-    })
+    resp = await client.post(
+        "/api/task-plans",
+        json={
+            "session_id": "e2e-s3",
+            "title": "Cancel E2E",
+            "steps": [
+                {"title": "A"},
+                {"title": "B"},
+                {"title": "C"},
+                {"title": "D"},
+                {"title": "E"},
+            ],
+        },
+    )
     plan_id = resp.json()["plan_id"]
 
     # Start
@@ -235,7 +252,8 @@ async def test_task_plan_cancel_e2e(client: AsyncClient):
         params={"tool_name": "task_plan_executor"},
     )
     matching = [
-        t for t in resp.json()["tasks"]
+        t
+        for t in resp.json()["tasks"]
         if t.get("metadata", {}).get("plan_id") == plan_id
     ]
     assert len(matching) >= 1
@@ -249,14 +267,20 @@ async def test_task_plan_cancel_e2e(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_task_plan_insert_while_paused_e2e(client: AsyncClient):
-    resp = await client.post("/api/task-plans", json={
-        "session_id": "e2e-s4",
-        "title": "Insert while paused E2E",
-        "steps": [
-            {"title": "A"}, {"title": "B"}, {"title": "C"},
-            {"title": "D"}, {"title": "E"},
-        ],
-    })
+    resp = await client.post(
+        "/api/task-plans",
+        json={
+            "session_id": "e2e-s4",
+            "title": "Insert while paused E2E",
+            "steps": [
+                {"title": "A"},
+                {"title": "B"},
+                {"title": "C"},
+                {"title": "D"},
+                {"title": "E"},
+            ],
+        },
+    )
     plan_id = resp.json()["plan_id"]
 
     # Start and pause
@@ -266,10 +290,13 @@ async def test_task_plan_insert_while_paused_e2e(client: AsyncClient):
     assert resp.status_code == 200
 
     # Insert step while paused
-    resp = await client.post(f"/api/task-plans/{plan_id}/steps", json={
-        "title": "Inserted while paused",
-        "metadata": {"inserted_from_chat": True},
-    })
+    resp = await client.post(
+        f"/api/task-plans/{plan_id}/steps",
+        json={
+            "title": "Inserted while paused",
+            "metadata": {"inserted_from_chat": True},
+        },
+    )
     assert resp.status_code == 200
 
     # Resume and wait for done
@@ -291,16 +318,19 @@ async def test_task_plan_insert_while_paused_e2e(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_high_risk_plan_requires_confirmation_e2e(client: AsyncClient):
-    resp = await client.post("/api/task-plans", json={
-        "session_id": "e2e-s5",
-        "title": "Deploy to production",
-        "steps": [{"title": "deploy"}],
-        "metadata": {
-            "requires_confirmation": True,
-            "risk_level": "high",
-            "risk_reasons": ["test"],
+    resp = await client.post(
+        "/api/task-plans",
+        json={
+            "session_id": "e2e-s5",
+            "title": "Deploy to production",
+            "steps": [{"title": "deploy"}],
+            "metadata": {
+                "requires_confirmation": True,
+                "risk_level": "high",
+                "risk_reasons": ["test"],
+            },
         },
-    })
+    )
     plan_id = resp.json()["plan_id"]
 
     # Start should gate to waiting_user

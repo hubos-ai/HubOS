@@ -24,8 +24,11 @@ def store() -> TaskMonitorStore:
 # create_task
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
-async def test_create_task_returns_task_with_correct_fields(store: TaskMonitorStore):
+async def test_create_task_returns_task_with_correct_fields(
+    store: TaskMonitorStore,
+):
     task = await store.create_task(
         session_id="sess-1",
         source="coordinate_workflow",
@@ -64,10 +67,13 @@ async def test_create_task_minimal(store: TaskMonitorStore):
 # update_task
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_update_task_status(store: TaskMonitorStore):
     task = await store.create_task(
-        session_id="s1", source="test", title="t1",
+        session_id="s1",
+        source="test",
+        title="t1",
     )
     updated = await store.update_task(task.task_id, status=TaskStatus.RUNNING)
     assert updated.status == TaskStatus.RUNNING
@@ -77,7 +83,9 @@ async def test_update_task_status(store: TaskMonitorStore):
 @pytest.mark.asyncio
 async def test_update_task_done_sets_finished_at(store: TaskMonitorStore):
     task = await store.create_task(
-        session_id="s1", source="test", title="t1",
+        session_id="s1",
+        source="test",
+        title="t1",
     )
     updated = await store.update_task(
         task.task_id,
@@ -92,7 +100,9 @@ async def test_update_task_done_sets_finished_at(store: TaskMonitorStore):
 @pytest.mark.asyncio
 async def test_update_task_failed_sets_finished_at(store: TaskMonitorStore):
     task = await store.create_task(
-        session_id="s1", source="test", title="t1",
+        session_id="s1",
+        source="test",
+        title="t1",
     )
     updated = await store.update_task(
         task.task_id,
@@ -107,7 +117,9 @@ async def test_update_task_failed_sets_finished_at(store: TaskMonitorStore):
 @pytest.mark.asyncio
 async def test_update_task_cancelled_sets_finished_at(store: TaskMonitorStore):
     task = await store.create_task(
-        session_id="s1", source="test", title="t1",
+        session_id="s1",
+        source="test",
+        title="t1",
     )
     updated = await store.update_task(
         task.task_id,
@@ -122,7 +134,9 @@ async def test_update_task_cancelled_sets_finished_at(store: TaskMonitorStore):
 @pytest.mark.asyncio
 async def test_update_task_progress_and_stage(store: TaskMonitorStore):
     task = await store.create_task(
-        session_id="s1", source="test", title="t1",
+        session_id="s1",
+        source="test",
+        title="t1",
     )
     updated = await store.update_task(
         task.task_id,
@@ -158,10 +172,13 @@ async def test_update_task_not_found_raises(store: TaskMonitorStore):
 # add_event
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_add_event_appends_to_task(store: TaskMonitorStore):
     task = await store.create_task(
-        session_id="s1", source="test", title="t1",
+        session_id="s1",
+        source="test",
+        title="t1",
     )
     evt = await store.add_event(
         task.task_id,
@@ -188,6 +205,7 @@ async def test_add_event_not_found_raises(store: TaskMonitorStore):
 # ---------------------------------------------------------------------------
 # list_tasks — filtering
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_list_tasks_returns_all(store: TaskMonitorStore):
@@ -239,10 +257,13 @@ async def test_list_tasks_ordered_newest_first(store: TaskMonitorStore):
 # get_task
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_get_task_existing(store: TaskMonitorStore):
     task = await store.create_task(
-        session_id="s1", source="test", title="t1",
+        session_id="s1",
+        source="test",
+        title="t1",
     )
     fetched = await store.get_task(task.task_id)
     assert fetched is not None
@@ -259,12 +280,15 @@ async def test_get_task_missing_returns_none(store: TaskMonitorStore):
 # subscribe / unsubscribe — broadcast
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_subscribe_receives_create_event(store: TaskMonitorStore):
     sub_id, queue = store.subscribe()
     try:
         task = await store.create_task(
-            session_id="s1", source="test", title="t1",
+            session_id="s1",
+            source="test",
+            title="t1",
         )
         event = queue.get_nowait()
         assert event.event_type == TaskEventType.TASK_CREATED
@@ -276,7 +300,9 @@ async def test_subscribe_receives_create_event(store: TaskMonitorStore):
 @pytest.mark.asyncio
 async def test_subscribe_receives_update_event(store: TaskMonitorStore):
     task = await store.create_task(
-        session_id="s1", source="test", title="t1",
+        session_id="s1",
+        source="test",
+        title="t1",
     )
     sub_id, queue = store.subscribe()
     try:
@@ -291,7 +317,9 @@ async def test_subscribe_receives_update_event(store: TaskMonitorStore):
 @pytest.mark.asyncio
 async def test_subscribe_receives_done_event(store: TaskMonitorStore):
     task = await store.create_task(
-        session_id="s1", source="test", title="t1",
+        session_id="s1",
+        source="test",
+        title="t1",
     )
     sub_id, queue = store.subscribe()
     try:
@@ -305,12 +333,16 @@ async def test_subscribe_receives_done_event(store: TaskMonitorStore):
 @pytest.mark.asyncio
 async def test_subscribe_receives_add_event(store: TaskMonitorStore):
     task = await store.create_task(
-        session_id="s1", source="test", title="t1",
+        session_id="s1",
+        source="test",
+        title="t1",
     )
     sub_id, queue = store.subscribe()
     try:
         await store.add_event(
-            task.task_id, TaskEventType.STAGE_STARTED, "Stage 1 begin",
+            task.task_id,
+            TaskEventType.STAGE_STARTED,
+            "Stage 1 begin",
         )
         event = queue.get_nowait()
         assert event.event_type == TaskEventType.STAGE_STARTED

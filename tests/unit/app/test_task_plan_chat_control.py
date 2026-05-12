@@ -188,13 +188,16 @@ async def test_no_active_plan_returns_none():
 async def test_handle_pause_with_active_plan():
     store = get_plan_store()
     plan = await store.create_plan(
-        session_id="s1", title="P",
+        session_id="s1",
+        title="P",
         steps=[{"title": "A"}, {"title": "B"}, {"title": "C"}],
     )
     from hubos.app.task_plan_executor import get_plan_executor
+
     executor = get_plan_executor()
     await executor.start_plan(plan.plan_id)
     import asyncio
+
     await asyncio.sleep(0.1)
 
     result = await handle_plan_chat_control("s1", "暂停")
@@ -209,13 +212,16 @@ async def test_handle_pause_with_active_plan():
 async def test_handle_resume_with_active_plan():
     store = get_plan_store()
     plan = await store.create_plan(
-        session_id="s1", title="P",
+        session_id="s1",
+        title="P",
         steps=[{"title": "A"}, {"title": "B"}],
     )
     from hubos.app.task_plan_executor import get_plan_executor
+
     executor = get_plan_executor()
     await executor.start_plan(plan.plan_id)
     import asyncio
+
     await asyncio.sleep(0.1)
     await executor.pause_plan(plan.plan_id)
 
@@ -228,7 +234,8 @@ async def test_handle_resume_with_active_plan():
 async def test_handle_start_with_draft_plan():
     store = get_plan_store()
     await store.create_plan(
-        session_id="s1", title="P",
+        session_id="s1",
+        title="P",
         steps=[{"title": "A"}],
     )
 
@@ -241,13 +248,16 @@ async def test_handle_start_with_draft_plan():
 async def test_handle_cancel_with_active_plan():
     store = get_plan_store()
     plan = await store.create_plan(
-        session_id="s1", title="P",
+        session_id="s1",
+        title="P",
         steps=[{"title": "A"}, {"title": "B"}, {"title": "C"}],
     )
     from hubos.app.task_plan_executor import get_plan_executor
+
     executor = get_plan_executor()
     await executor.start_plan(plan.plan_id)
     import asyncio
+
     await asyncio.sleep(0.05)
 
     result = await handle_plan_chat_control("s1", "取消任务")
@@ -259,7 +269,8 @@ async def test_handle_cancel_with_active_plan():
 async def test_handle_insert_step_with_active_plan():
     store = get_plan_store()
     plan = await store.create_plan(
-        session_id="s1", title="P",
+        session_id="s1",
+        title="P",
         steps=[{"title": "A"}, {"title": "B"}],
     )
 
@@ -280,7 +291,8 @@ async def test_handle_insert_step_with_active_plan():
 async def test_handle_insert_assigns_agent():
     store = get_plan_store()
     await store.create_plan(
-        session_id="s1", title="P",
+        session_id="s1",
+        title="P",
         steps=[{"title": "A"}],
     )
 
@@ -304,11 +316,13 @@ async def test_slash_command_not_intercepted():
 async def test_handle_confirm_waiting_high_risk_plan():
     store = get_plan_store()
     plan = await store.create_plan(
-        session_id="s1", title="Deploy",
+        session_id="s1",
+        title="Deploy",
         steps=[{"title": "deploy"}],
         metadata={"requires_confirmation": True},
     )
     from hubos.app.task_plan_executor import get_plan_executor
+
     executor = get_plan_executor()
     # start will gate to waiting_user
     await executor.start_plan(plan.plan_id)
@@ -325,11 +339,13 @@ async def test_handle_confirm_waiting_high_risk_plan():
 async def test_resume_also_confirms_high_risk_plan():
     store = get_plan_store()
     plan = await store.create_plan(
-        session_id="s1", title="Deploy",
+        session_id="s1",
+        title="Deploy",
         steps=[{"title": "deploy"}],
         metadata={"requires_confirmation": True},
     )
     from hubos.app.task_plan_executor import get_plan_executor
+
     executor = get_plan_executor()
     await executor.start_plan(plan.plan_id)
 
@@ -349,13 +365,16 @@ async def test_no_cross_session_cancel():
     store = get_plan_store()
     # Create a running plan in s_other
     plan_other = await store.create_plan(
-        session_id="s_other", title="Other session plan",
+        session_id="s_other",
+        title="Other session plan",
         steps=[{"title": "A"}, {"title": "B"}, {"title": "C"}],
     )
     from hubos.app.task_plan_executor import get_plan_executor
+
     executor = get_plan_executor()
     await executor.start_plan(plan_other.plan_id)
     import asyncio
+
     await asyncio.sleep(0.1)
 
     # s_empty has no plan — cancel intent should return None
@@ -364,7 +383,11 @@ async def test_no_cross_session_cancel():
 
     # s_other's plan should still be running/waiting
     refreshed = await store.get_plan(plan_other.plan_id)
-    assert refreshed.status in (PlanStatus.RUNNING, PlanStatus.WAITING_USER, PlanStatus.DONE)
+    assert refreshed.status in (
+        PlanStatus.RUNNING,
+        PlanStatus.WAITING_USER,
+        PlanStatus.DONE,
+    )
 
 
 @pytest.mark.asyncio
@@ -372,13 +395,16 @@ async def test_no_cross_session_pause():
     """Pause in session s_empty should NOT affect a plan in s_other."""
     store = get_plan_store()
     plan_other = await store.create_plan(
-        session_id="s_other", title="Other plan",
+        session_id="s_other",
+        title="Other plan",
         steps=[{"title": "A"}, {"title": "B"}, {"title": "C"}],
     )
     from hubos.app.task_plan_executor import get_plan_executor
+
     executor = get_plan_executor()
     await executor.start_plan(plan_other.plan_id)
     import asyncio
+
     await asyncio.sleep(0.1)
 
     result = await handle_plan_chat_control("s_empty", "暂停")
@@ -390,7 +416,8 @@ async def test_same_session_works_normally():
     """Same-session control should work as before."""
     store = get_plan_store()
     plan = await store.create_plan(
-        session_id="s1", title="My plan",
+        session_id="s1",
+        title="My plan",
         steps=[{"title": "A"}, {"title": "B"}],
     )
 

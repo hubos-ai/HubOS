@@ -76,7 +76,9 @@ def should_autogen_plan(user_text: str) -> bool:
 
     # Long text with multiple verbs / commas / newlines
     if len(text) > _COMPLEX_LENGTH:
-        punctuation_count = text.count("，") + text.count(",") + text.count("\n")
+        punctuation_count = (
+            text.count("，") + text.count(",") + text.count("\n")
+        )
         if punctuation_count >= 2:
             return True
 
@@ -88,27 +90,67 @@ def should_autogen_plan(user_text: str) -> bool:
 # ---------------------------------------------------------------------------
 
 _FIX_STEPS = [
-    {"title": "复现和收集错误信息", "description": "收集报错、日志、复现路径，确认问题边界", "agent_id": "rd"},
-    {"title": "定位根因", "description": "查找相关代码、配置和最近变更，定位导致问题的原因", "agent_id": "rd"},
+    {
+        "title": "复现和收集错误信息",
+        "description": "收集报错、日志、复现路径，确认问题边界",
+        "agent_id": "rd",
+    },
+    {
+        "title": "定位根因",
+        "description": "查找相关代码、配置和最近变更，定位导致问题的原因",
+        "agent_id": "rd",
+    },
     {"title": "制定修复方案", "description": "选择最小安全改动，明确风险和验证方式", "agent_id": "rd"},
-    {"title": "执行最小改动", "description": "按方案修改代码或配置，避免扩大影响范围", "agent_id": "rd"},
-    {"title": "验证结果", "description": "运行相关测试、构建或手动验证，确认问题已解决", "agent_id": "rd"},
+    {
+        "title": "执行最小改动",
+        "description": "按方案修改代码或配置，避免扩大影响范围",
+        "agent_id": "rd",
+    },
+    {
+        "title": "验证结果",
+        "description": "运行相关测试、构建或手动验证，确认问题已解决",
+        "agent_id": "rd",
+    },
 ]
 
 _BUILD_STEPS = [
     {"title": "梳理需求和边界", "description": "明确功能范围、验收标准和关键约束", "agent_id": "rd"},
     {"title": "查找相关代码入口", "description": "定位需改动的模块、接口和数据流", "agent_id": "rd"},
-    {"title": "设计方案", "description": "设计实现方案，包括接口、数据结构和异常处理", "agent_id": "rd"},
+    {
+        "title": "设计方案",
+        "description": "设计实现方案，包括接口、数据结构和异常处理",
+        "agent_id": "rd",
+    },
     {"title": "实现改动", "description": "按方案编码实现，保持代码清晰可维护", "agent_id": "rd"},
     {"title": "测试验证", "description": "运行单元测试、集成测试，验证功能符合预期", "agent_id": "rd"},
 ]
 
 _RESEARCH_STEPS = [
-    {"title": "明确目标市场和客户画像", "description": "定义目标市场、理想客户特征和关键筛选条件", "agent_id": "research"},
-    {"title": "查找高质量数据源", "description": "搜索并评估可用的数据来源和信息渠道", "agent_id": "research"},
-    {"title": "收集候选数据", "description": "从数据源中提取候选条目，整理为结构化格式", "agent_id": "research"},
-    {"title": "过滤和评分", "description": "按相关性、质量等维度筛选并排序结果", "agent_id": "sales"},
-    {"title": "输出结果和后续建议", "description": "汇总调研结果，提出可执行的后续行动建议", "agent_id": "sales"},
+    {
+        "title": "明确目标市场和客户画像",
+        "description": "定义目标市场、理想客户特征和关键筛选条件",
+        "agent_id": "research",
+    },
+    {
+        "title": "查找高质量数据源",
+        "description": "搜索并评估可用的数据来源和信息渠道",
+        "agent_id": "research",
+    },
+    {
+        "title": "收集候选数据",
+        "description": "从数据源中提取候选条目，整理为结构化格式",
+        "agent_id": "research",
+    },
+    {
+        "title": "过滤和评分",
+        "description": "按相关性、质量等维度筛选并排序结果",
+        "agent_id": "sales",
+    },
+    {
+        "title": "输出结果和后续建议",
+        "description": "汇总调研结果，提出可执行的后续行动建议",
+        "agent_id": "sales",
+    },
 ]
 
 _DEFAULT_STEPS = [
@@ -119,23 +161,58 @@ _DEFAULT_STEPS = [
     {"title": "总结结果和下一步", "description": "汇总执行结果，列出未完成项和后续行动"},
 ]
 
-_FIX_PATTERN = re.compile(r"修复|fix|bug|报错|启动不了|crash|error|exception|异常", re.IGNORECASE)
-_BUILD_PATTERN = re.compile(r"开发|实现|build|implement|搭建|create|add|搭建", re.IGNORECASE)
-_RESEARCH_PATTERN = re.compile(r"找客户|客户开发|调研|research|investigate|分析市场|market", re.IGNORECASE)
+_FIX_PATTERN = re.compile(
+    r"修复|fix|bug|报错|启动不了|crash|error|exception|异常", re.IGNORECASE
+)
+_BUILD_PATTERN = re.compile(
+    r"开发|实现|build|implement|搭建|create|add|搭建", re.IGNORECASE
+)
+_RESEARCH_PATTERN = re.compile(
+    r"找客户|客户开发|调研|research|investigate|分析市场|market", re.IGNORECASE
+)
 
 # ---------------------------------------------------------------------------
 # Agent routing rules
 # ---------------------------------------------------------------------------
 
 _AGENT_RULES: List[tuple[re.Pattern, str]] = [
-    (re.compile(r"财务|成本|利润|发票|finance|cost|profit|invoice", re.IGNORECASE), "finance"),
+    (
+        re.compile(r"财务|成本|利润|发票|finance|cost|profit|invoice", re.IGNORECASE),
+        "finance",
+    ),
     (re.compile(r"人事|招聘|\bhr|hiring", re.IGNORECASE), "hr"),
     (re.compile(r"客服|售后|support|service|ticket", re.IGNORECASE), "cs"),
-    (re.compile(r"运营|流程|交付|operations|process|delivery", re.IGNORECASE), "operations"),
-    (re.compile(r"文案|图片|产品图|营销|海报|品牌|marketing|copy|image|design", re.IGNORECASE), "marketing"),
-    (re.compile(r"客户|销售|开发信|报价|跟进|sales|customer|lead|outreach|email", re.IGNORECASE), "sales"),
-    (re.compile(r"调研|研究|查找|搜索|分析|竞品|市场|research|analyze|investigate|search", re.IGNORECASE), "research"),
-    (re.compile(r"代码|修复|实现|开发|部署|测试|构建|bug|code|fix|implement|build|deploy|test", re.IGNORECASE), "rd"),
+    (
+        re.compile(r"运营|流程|交付|operations|process|delivery", re.IGNORECASE),
+        "operations",
+    ),
+    (
+        re.compile(
+            r"文案|图片|产品图|营销|海报|品牌|marketing|copy|image|design", re.IGNORECASE
+        ),
+        "marketing",
+    ),
+    (
+        re.compile(
+            r"客户|销售|开发信|报价|跟进|sales|customer|lead|outreach|email",
+            re.IGNORECASE,
+        ),
+        "sales",
+    ),
+    (
+        re.compile(
+            r"调研|研究|查找|搜索|分析|竞品|市场|research|analyze|investigate|search",
+            re.IGNORECASE,
+        ),
+        "research",
+    ),
+    (
+        re.compile(
+            r"代码|修复|实现|开发|部署|测试|构建|bug|code|fix|implement|build|deploy|test",
+            re.IGNORECASE,
+        ),
+        "rd",
+    ),
 ]
 
 
@@ -205,7 +282,9 @@ def build_draft_plan(user_text: str) -> List[Dict[str, Any]]:
     steps: List[Dict[str, Any]] = []
     for s in template:
         agent_id = s.get("agent_id") or choose_agent_for_step(
-            s["title"], s.get("description", ""), user_text,
+            s["title"],
+            s.get("description", ""),
+            user_text,
         )
         step: Dict[str, Any] = {
             "title": s["title"],
@@ -234,7 +313,8 @@ def build_inserted_step(
     """
     title = instruction.strip()[:50]
     agent_id = choose_agent_for_step(
-        instruction, instruction,
+        instruction,
+        instruction,
         original_user_text or plan_title,
     )
     step: Dict[str, Any] = {
@@ -285,7 +365,10 @@ async def maybe_create_draft_plan(
         now = time.time()
         for plan in recent:
             if plan.status.value in ("draft", "running", "waiting_user"):
-                if plan.created_at and (now - plan.created_at) < _DEDUP_WINDOW_SECS:
+                if (
+                    plan.created_at
+                    and (now - plan.created_at) < _DEDUP_WINDOW_SECS
+                ):
                     logger.debug(
                         "task_plan_autogen: skipping dedup, plan %s is recent",
                         plan.plan_id,
@@ -309,6 +392,7 @@ async def maybe_create_draft_plan(
 
         # Risk assessment
         from .task_plan_risk import assess_plan_risk
+
         risk = assess_plan_risk(title, steps, user_text)
         plan_meta_update: Dict[str, Any] = {
             "risk_level": risk.level,
@@ -327,12 +411,15 @@ async def maybe_create_draft_plan(
 
         logger.info(
             "task_plan_autogen: created draft plan %s for session %s",
-            plan.plan_id, session_id,
+            plan.plan_id,
+            session_id,
         )
         return plan
 
     except Exception:  # noqa: BLE001
-        logger.warning("task_plan_autogen: failed to create draft plan", exc_info=True)
+        logger.warning(
+            "task_plan_autogen: failed to create draft plan", exc_info=True
+        )
         return None
 
 
@@ -355,7 +442,7 @@ async def get_recent_active_plan(session_id: str) -> Optional[TaskPlan]:
                     session_id=session_id,
                     status=status,
                     limit=5,
-                )
+                ),
             )
         active.sort(key=lambda p: p.updated_at, reverse=True)
         return active[0] if active else None
@@ -382,7 +469,9 @@ async def maybe_create_or_get_active_plan(
     if not should_autogen_plan(user_text):
         return None
 
-    plan = await maybe_create_draft_plan(session_id=session_id, user_text=user_text)
+    plan = await maybe_create_draft_plan(
+        session_id=session_id, user_text=user_text
+    )
     if plan is not None:
         return plan
     return await get_recent_active_plan(session_id)
@@ -393,12 +482,10 @@ async def maybe_create_or_get_active_plan(
 # ---------------------------------------------------------------------------
 
 _PLAN_HINT_NORMAL = (
-    "我已为这个任务生成执行计划，可在右侧「计划」面板查看。"
-    "你可以说「开始执行」「暂停」「插入一步…」或「取消计划」。"
+    "我已为这个任务生成执行计划，可在右侧「计划」面板查看。" "你可以说「开始执行」「暂停」「插入一步…」或「取消计划」。"
 )
 _PLAN_HINT_HIGH_RISK = (
-    "我已为这个任务生成执行计划。该计划包含高风险操作，执行前需要你确认。"
-    "你可以在右侧「计划」面板查看，确认后说「继续执行」。"
+    "我已为这个任务生成执行计划。该计划包含高风险操作，执行前需要你确认。" "你可以在右侧「计划」面板查看，确认后说「继续执行」。"
 )
 
 

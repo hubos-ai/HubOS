@@ -68,7 +68,9 @@ def _serialise_step(step: TaskPlanStep) -> Dict[str, Any]:
         "step_id": step.step_id,
         "title": step.title,
         "description": step.description,
-        "status": step.status.value if isinstance(step.status, PlanStepStatus) else step.status,
+        "status": step.status.value
+        if isinstance(step.status, PlanStepStatus)
+        else step.status,
         "order": step.order,
         "agent_id": step.agent_id,
         "tool_name": step.tool_name,
@@ -87,7 +89,9 @@ def _serialise_plan(plan: TaskPlan) -> Dict[str, Any]:
         "plan_id": plan.plan_id,
         "session_id": plan.session_id,
         "title": plan.title,
-        "status": plan.status.value if isinstance(plan.status, PlanStatus) else plan.status,
+        "status": plan.status.value
+        if isinstance(plan.status, PlanStatus)
+        else plan.status,
         "steps": [_serialise_step(s) for s in sorted_steps],
         "current_step_id": plan.current_step_id,
         "created_at": plan.created_at,
@@ -99,7 +103,9 @@ def _serialise_plan(plan: TaskPlan) -> Dict[str, Any]:
 
 def _serialise_broadcast(event: _BroadcastEvent) -> Dict[str, Any]:
     return {
-        "type": event.event_type.value if isinstance(event.event_type, PlanEventType) else event.event_type,
+        "type": event.event_type.value
+        if isinstance(event.event_type, PlanEventType)
+        else event.event_type,
         "plan_id": event.plan_id,
         "data": event.data,
         "timestamp": event.timestamp,
@@ -197,7 +203,9 @@ async def get_plan(plan_id: str) -> dict:
     store = get_plan_store()
     plan = await store.get_plan(plan_id)
     if plan is None:
-        raise HTTPException(status_code=404, detail=f"Plan not found: {plan_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Plan not found: {plan_id}"
+        )
     return _serialise_plan(plan)
 
 
@@ -220,7 +228,9 @@ async def start_plan(plan_id: str) -> dict:
     try:
         started = await executor.start_plan(plan_id)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Plan not found: {plan_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Plan not found: {plan_id}"
+        )
     return {"plan_id": plan_id, "started": started}
 
 
@@ -234,14 +244,18 @@ async def cancel_plan(plan_id: str) -> dict:
         await executor.cancel_plan(plan_id)
         plan = await store.get_plan(plan_id)
         if plan is None:
-            raise HTTPException(status_code=404, detail=f"Plan not found: {plan_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Plan not found: {plan_id}"
+            )
         return _serialise_plan(plan)
 
     # Otherwise just cancel in store (draft / already finished)
     try:
         plan = await store.cancel_plan(plan_id)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Plan not found: {plan_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Plan not found: {plan_id}"
+        )
     return _serialise_plan(plan)
 
 
@@ -258,13 +272,17 @@ async def pause_plan(plan_id: str) -> dict:
         try:
             await store.pause_plan(plan_id)
         except KeyError:
-            raise HTTPException(status_code=404, detail=f"Plan not found: {plan_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Plan not found: {plan_id}"
+            )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
     plan = await store.get_plan(plan_id)
     if plan is None:
-        raise HTTPException(status_code=404, detail=f"Plan not found: {plan_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Plan not found: {plan_id}"
+        )
     return _serialise_plan(plan)
 
 
@@ -279,7 +297,9 @@ async def resume_plan(plan_id: str) -> dict:
 
     plan = await store.get_plan(plan_id)
     if plan is None:
-        raise HTTPException(status_code=404, detail=f"Plan not found: {plan_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Plan not found: {plan_id}"
+        )
     return _serialise_plan(plan)
 
 
@@ -298,7 +318,9 @@ async def add_step(plan_id: str, body: CreateStepInput) -> dict:
         # Need plan info for auto-insert and/or agent routing
         plan = await store.get_plan(plan_id)
         if plan is None:
-            raise HTTPException(status_code=404, detail=f"Plan not found: {plan_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Plan not found: {plan_id}"
+            )
 
         if is_chat_insert:
             # Auto-assign after_step_id from current_step
@@ -308,6 +330,7 @@ async def add_step(plan_id: str, body: CreateStepInput) -> dict:
             # Auto-assign agent_id
             if not agent_id:
                 from ..task_plan_autogen import build_inserted_step
+
                 original_text = ""
                 if plan.metadata:
                     original_text = plan.metadata.get("original_user_text", "")
@@ -335,7 +358,9 @@ async def add_step(plan_id: str, body: CreateStepInput) -> dict:
     except KeyError as exc:
         msg = str(exc)
         if "Plan" in msg:
-            raise HTTPException(status_code=404, detail=f"Plan not found: {plan_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Plan not found: {plan_id}"
+            )
         raise HTTPException(status_code=404, detail=msg)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -343,7 +368,9 @@ async def add_step(plan_id: str, body: CreateStepInput) -> dict:
 
 
 @router.post("/{plan_id}/steps/{step_id}/status", summary="Update step status")
-async def update_step_status(plan_id: str, step_id: str, body: UpdateStepStatusInput) -> dict:
+async def update_step_status(
+    plan_id: str, step_id: str, body: UpdateStepStatusInput
+) -> dict:
     store = get_plan_store()
     status_enum = _validate_step_status(body.status)
     try:
@@ -357,6 +384,10 @@ async def update_step_status(plan_id: str, step_id: str, body: UpdateStepStatusI
     except KeyError as exc:
         key = str(exc)
         if "Plan" in key:
-            raise HTTPException(status_code=404, detail=f"Plan not found: {plan_id}")
-        raise HTTPException(status_code=404, detail=f"Step not found: {step_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Plan not found: {plan_id}"
+            )
+        raise HTTPException(
+            status_code=404, detail=f"Step not found: {step_id}"
+        )
     return _serialise_step(step)

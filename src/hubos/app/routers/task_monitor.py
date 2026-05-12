@@ -35,6 +35,7 @@ _SSE_HEARTBEAT_INTERVAL = 15
 # Serialisation helpers
 # ---------------------------------------------------------------------------
 
+
 def _serialise_task(task: Task) -> Dict[str, Any]:
     """Convert a Task dataclass to a JSON-safe dict."""
     return {
@@ -44,7 +45,9 @@ def _serialise_task(task: Task) -> Dict[str, Any]:
         "title": task.title,
         "tool_name": task.tool_name,
         "agent_id": task.agent_id,
-        "status": task.status.value if isinstance(task.status, TaskStatus) else task.status,
+        "status": task.status.value
+        if isinstance(task.status, TaskStatus)
+        else task.status,
         "current_stage": task.current_stage,
         "progress": task.progress,
         "result_summary": task.result_summary,
@@ -55,7 +58,9 @@ def _serialise_task(task: Task) -> Dict[str, Any]:
         "finished_at": task.finished_at,
         "events": [
             {
-                "event_type": e.event_type.value if isinstance(e.event_type, TaskEventType) else e.event_type,
+                "event_type": e.event_type.value
+                if isinstance(e.event_type, TaskEventType)
+                else e.event_type,
                 "message": e.message,
                 "timestamp": e.timestamp,
                 "stage": e.stage,
@@ -70,7 +75,9 @@ def _serialise_task(task: Task) -> Dict[str, Any]:
 def _serialise_broadcast(event: BroadcastEvent) -> Dict[str, Any]:
     """Convert a BroadcastEvent to a JSON-safe dict."""
     return {
-        "type": event.event_type.value if isinstance(event.event_type, TaskEventType) else event.event_type,
+        "type": event.event_type.value
+        if isinstance(event.event_type, TaskEventType)
+        else event.event_type,
         "task_id": event.task_id,
         "data": event.data,
         "timestamp": event.timestamp,
@@ -80,6 +87,7 @@ def _serialise_broadcast(event: BroadcastEvent) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.get("/tasks", summary="List tasks")
 async def list_tasks(
@@ -118,7 +126,9 @@ async def get_task(task_id: str) -> dict:
     store = get_monitor_store()
     task = await store.get_task(task_id)
     if task is None:
-        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Task not found: {task_id}"
+        )
     return _serialise_task(task)
 
 
@@ -127,7 +137,9 @@ async def cancel_task(task_id: str) -> dict:
     """Request best-effort cancellation for a running monitor task."""
     ok = await request_cancel_task(task_id)
     if not ok:
-        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Task not found: {task_id}"
+        )
     return {"task_id": task_id, "status": "cancel_requested"}
 
 

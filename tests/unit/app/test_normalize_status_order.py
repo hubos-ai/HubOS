@@ -45,7 +45,9 @@ def _load_utils_module():
         schemas.VideoContent = type("VideoContent", (), {})
         schemas.FileContent = type("FileContent", (), {})
         schemas.DataContent = type("DataContent", (), {})
-        schemas.FunctionCall = type("FunctionCall", (), {"model_dump": lambda self: {}})
+        schemas.FunctionCall = type(
+            "FunctionCall", (), {"model_dump": lambda self: {}}
+        )
         schemas.FunctionCallOutput = type(
             "FunctionCallOutput",
             (),
@@ -104,11 +106,16 @@ class _FakeContent:
 class _FakeMsg:
     """Minimal Message-like object used by the tests."""
 
-    def __init__(self, role: str, msg_type: str = "message", name: str | None = None):
+    def __init__(
+        self, role: str, msg_type: str = "message", name: str | None = None
+    ):
         self.role = role
         self.type = msg_type
         self.content = []
-        if name is not None and msg_type in ("plugin_call", "plugin_call_output"):
+        if name is not None and msg_type in (
+            "plugin_call",
+            "plugin_call_output",
+        ):
             self.content.append(_FakeContent({"name": name}))
 
 
@@ -117,6 +124,7 @@ def _msg(role: str, msg_type: str = "message", name: str | None = None):
 
 
 # ---- helpers ----
+
 
 def _roles(messages: list) -> list[str]:
     return [m.role for m in messages]

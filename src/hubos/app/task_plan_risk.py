@@ -38,14 +38,15 @@ class RiskAssessment:
 _HIGH_RULES: List[tuple[re.Pattern, str]] = [
     (
         re.compile(
-            r"发送邮件|群发|私信|联系客户|send\s+email|outreach"
-            r"|message\s+customer",
+            r"发送邮件|群发|私信|联系客户|send\s+email|outreach" r"|message\s+customer",
             re.IGNORECASE,
         ),
         "involves sending messages to external parties",
     ),
     (
-        re.compile(r"删除|清空|覆盖|delete|remove|overwrite|drop\s+table", re.IGNORECASE),
+        re.compile(
+            r"删除|清空|覆盖|delete|remove|overwrite|drop\s+table", re.IGNORECASE
+        ),
         "involves deleting or overwriting data",
     ),
     (

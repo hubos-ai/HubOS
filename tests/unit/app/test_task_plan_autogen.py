@@ -92,7 +92,11 @@ class TestBuildDraftPlan:
         steps = build_draft_plan("修复这个bug，启动不了了")
         assert len(steps) == 5
         assert "复现" in steps[0]["title"] or "错误" in steps[0]["title"]
-        assert steps[0]["metadata"] == {"autogen": True, "source": "heuristic", "agent_routing": "heuristic"}
+        assert steps[0]["metadata"] == {
+            "autogen": True,
+            "source": "heuristic",
+            "agent_routing": "heuristic",
+        }
 
     def test_fix_en(self):
         steps = build_draft_plan("fix the crash error exception")
@@ -128,6 +132,7 @@ class TestBuildDraftPlan:
 @pytest.fixture(autouse=True)
 def _reset_plan_store():
     import hubos.app.task_plan as _mod
+
     old = _mod._store
     _mod._store = None
     yield
@@ -375,7 +380,12 @@ class TestChooseAgentForStep:
         assert choose_agent_for_step("普通步骤", user_text="开发新功能") == "rd"
 
     def test_description_used_for_matching(self):
-        assert choose_agent_for_step("执行", step_description="investigate the logs") == "research"
+        assert (
+            choose_agent_for_step(
+                "执行", step_description="investigate the logs"
+            )
+            == "research"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -410,7 +420,9 @@ class TestTemplateAgentAssignments:
         # → default template. Some step descriptions may now match agent rules
         # (e.g. "查找" in research rule). At least some steps should have no agent.
         agents = [s.get("agent_id") for s in steps]
-        assert None in agents, f"Expected some steps without agent, got: {agents}"
+        assert (
+            None in agents
+        ), f"Expected some steps without agent, got: {agents}"
 
     def test_all_steps_have_metadata(self):
         for text in [
@@ -564,7 +576,9 @@ class TestStepDescriptionsNonEmpty:
     def test_fix_descriptions(self):
         steps = build_draft_plan("修复这个bug导致系统崩溃")
         for step in steps:
-            assert step["description"].strip(), f"Step '{step['title']}' has empty description"
+            assert step[
+                "description"
+            ].strip(), f"Step '{step['title']}' has empty description"
 
     def test_build_descriptions(self):
         steps = build_draft_plan("开发一个新的API服务模块")

@@ -55,6 +55,7 @@ def _load_ui_language_direct(tmp_settings: Path):
 # Tests for ui_language module
 # ---------------------------------------------------------------------------
 
+
 class TestUiLanguage:
     """Direct tests for get_ui_language / is_zh."""
 
@@ -92,6 +93,7 @@ class TestUiLanguage:
 # Tests for /deny no-pending (runner.py query_handler)
 # ---------------------------------------------------------------------------
 
+
 class TestDenyNoPending:
     """/deny without pending approval returns language-appropriate message."""
 
@@ -102,7 +104,11 @@ class TestDenyNoPending:
         ui_mod = _load_ui_language_direct(sf)
         assert not ui_mod.is_zh()
         # Mirror the runner.py logic
-        msg = "当前没有等待拒绝的工具操作。" if ui_mod.is_zh() else "No pending tool action to deny."
+        msg = (
+            "当前没有等待拒绝的工具操作。"
+            if ui_mod.is_zh()
+            else "No pending tool action to deny."
+        )
         assert msg == "No pending tool action to deny."
 
     @pytest.mark.asyncio
@@ -111,7 +117,11 @@ class TestDenyNoPending:
         sf.write_text(json.dumps({"language": "zh"}), "utf-8")
         ui_mod = _load_ui_language_direct(sf)
         assert ui_mod.is_zh()
-        msg = "当前没有等待拒绝的工具操作。" if ui_mod.is_zh() else "No pending tool action to deny."
+        msg = (
+            "当前没有等待拒绝的工具操作。"
+            if ui_mod.is_zh()
+            else "No pending tool action to deny."
+        )
         assert msg == "当前没有等待拒绝的工具操作。"
 
 
@@ -119,13 +129,12 @@ class TestDenyNoPending:
 # Tests for /approve via daemon_commands
 # ---------------------------------------------------------------------------
 
+
 def _approve_no_pending_text(is_zh: bool) -> str:
     """Mirror the text-selection logic from daemon_commands.py."""
     if is_zh:
         return (
-            "**暂无待审批操作**\n\n"
-            "当前会话没有等待审批的工具操作。\n"
-            "只有在敏感工具调用等待你确认时，才能使用此命令。"
+            "**暂无待审批操作**\n\n" "当前会话没有等待审批的工具操作。\n" "只有在敏感工具调用等待你确认时，才能使用此命令。"
         )
     return (
         "**No pending approval**\n\n"
@@ -206,7 +215,9 @@ class TestApproveDaemon:
         sf = tmp_path / "settings.json"
         sf.write_text(json.dumps({"language": "en"}), "utf-8")
         ui_mod = _load_ui_language_direct(sf)
-        text = _approve_success_text(ui_mod.is_zh(), "edit_file", "abc123def456")
+        text = _approve_success_text(
+            ui_mod.is_zh(), "edit_file", "abc123def456"
+        )
         assert "Tool execution approved" in text
         assert "edit_file" in text
         assert "工具" not in text
@@ -216,7 +227,9 @@ class TestApproveDaemon:
         sf = tmp_path / "settings.json"
         sf.write_text(json.dumps({"language": "zh"}), "utf-8")
         ui_mod = _load_ui_language_direct(sf)
-        text = _approve_success_text(ui_mod.is_zh(), "edit_file", "abc123def456")
+        text = _approve_success_text(
+            ui_mod.is_zh(), "edit_file", "abc123def456"
+        )
         assert "工具已批准执行" in text
         assert "edit_file" in text
         assert "Tool execution" not in text

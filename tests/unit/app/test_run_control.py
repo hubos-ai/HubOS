@@ -30,6 +30,7 @@ from hubos.app.run_control import (
 @pytest.fixture(autouse=True)
 def _reset_store_and_ctx():
     import hubos.app.run_control as _mod
+
     old = _mod._store
     _mod._store = None
     _mod._CHAT_CANCEL_HANDLER = None
@@ -140,11 +141,13 @@ async def test_chat_cancel_calls_handler():
     mock_handler = AsyncMock(return_value=True)
     register_chat_cancel_handler(mock_handler)
 
-    rid = await store.register(_make_entry(
-        run_type=RunType.CHAT,
-        monitor_task_id=None,
-        chat_id="chat-123",
-    ))
+    rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            monitor_task_id=None,
+            chat_id="chat-123",
+        ),
+    )
 
     assert await store.cancel_run(rid) is True
     mock_handler.assert_called_once_with("chat-123")
@@ -157,11 +160,13 @@ async def test_chat_cancel_calls_handler():
 @pytest.mark.asyncio
 async def test_chat_cancel_no_handler_registered():
     store = RunControlStore()
-    rid = await store.register(_make_entry(
-        run_type=RunType.CHAT,
-        monitor_task_id=None,
-        chat_id="chat-123",
-    ))
+    rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            monitor_task_id=None,
+            chat_id="chat-123",
+        ),
+    )
     # No handler registered — cancel returns False
     assert await store.cancel_run(rid) is False
 
@@ -172,11 +177,13 @@ async def test_chat_cancel_handler_failure():
     mock_handler = AsyncMock(side_effect=RuntimeError("broken"))
     register_chat_cancel_handler(mock_handler)
 
-    rid = await store.register(_make_entry(
-        run_type=RunType.CHAT,
-        monitor_task_id=None,
-        chat_id="chat-123",
-    ))
+    rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            monitor_task_id=None,
+            chat_id="chat-123",
+        ),
+    )
     assert await store.cancel_run(rid) is False
 
 
@@ -191,11 +198,13 @@ async def test_request_guidance_saves_and_cancels():
     mock_handler = AsyncMock(return_value=True)
     register_chat_cancel_handler(mock_handler)
 
-    rid = await store.register(_make_entry(
-        run_type=RunType.CHAT,
-        monitor_task_id=None,
-        chat_id="chat-1",
-    ))
+    rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            monitor_task_id=None,
+            chat_id="chat-1",
+        ),
+    )
 
     result = await store.request_guidance(rid, "请改为搜索方案B")
     assert result is not None
@@ -229,17 +238,21 @@ async def test_request_guidance_nonexistent():
 @pytest.mark.asyncio
 async def test_parent_child_link():
     store = RunControlStore()
-    parent_rid = await store.register(_make_entry(
-        run_type=RunType.CHAT,
-        chat_id="chat-1",
-        session_id="s1",
-    ))
-    child_rid = await store.register(_make_entry(
-        run_type=RunType.SPAWN,
-        monitor_task_id="mon-spawn",
-        parent_run_id=parent_rid,
-        session_id="s1",
-    ))
+    parent_rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="chat-1",
+            session_id="s1",
+        ),
+    )
+    child_rid = await store.register(
+        _make_entry(
+            run_type=RunType.SPAWN,
+            monitor_task_id="mon-spawn",
+            parent_run_id=parent_rid,
+            session_id="s1",
+        ),
+    )
 
     parent = await store.get_run(parent_rid)
     assert child_rid in parent.child_run_ids
@@ -251,10 +264,33 @@ async def test_parent_child_link():
 @pytest.mark.asyncio
 async def test_get_run_tree():
     store = RunControlStore()
-    root_rid = await store.register(_make_entry(run_type=RunType.CHAT, chat_id="c1", session_id="s1"))
-    child1_rid = await store.register(_make_entry(run_type=RunType.SPAWN, monitor_task_id="m1", parent_run_id=root_rid, session_id="s1"))
-    child2_rid = await store.register(_make_entry(run_type=RunType.WORKFLOW, workflow_id="wf1", parent_run_id=root_rid, session_id="s1"))
-    grandchild_rid = await store.register(_make_entry(run_type=RunType.SPAWN, monitor_task_id="m2", parent_run_id=child1_rid, session_id="s1"))
+    root_rid = await store.register(
+        _make_entry(run_type=RunType.CHAT, chat_id="c1", session_id="s1")
+    )
+    child1_rid = await store.register(
+        _make_entry(
+            run_type=RunType.SPAWN,
+            monitor_task_id="m1",
+            parent_run_id=root_rid,
+            session_id="s1",
+        )
+    )
+    child2_rid = await store.register(
+        _make_entry(
+            run_type=RunType.WORKFLOW,
+            workflow_id="wf1",
+            parent_run_id=root_rid,
+            session_id="s1",
+        )
+    )
+    grandchild_rid = await store.register(
+        _make_entry(
+            run_type=RunType.SPAWN,
+            monitor_task_id="m2",
+            parent_run_id=child1_rid,
+            session_id="s1",
+        )
+    )
 
     tree = await store.get_run_tree(root_rid)
     assert len(tree) == 4
@@ -267,8 +303,17 @@ async def test_cancel_parent_cancels_children():
     """cancel_run on parent should cancel all descendants."""
     store = RunControlStore()
 
-    root_rid = await store.register(_make_entry(run_type=RunType.CHAT, chat_id="c1", session_id="s1"))
-    child_rid = await store.register(_make_entry(run_type=RunType.SPAWN, monitor_task_id="m1", parent_run_id=root_rid, session_id="s1"))
+    root_rid = await store.register(
+        _make_entry(run_type=RunType.CHAT, chat_id="c1", session_id="s1")
+    )
+    child_rid = await store.register(
+        _make_entry(
+            run_type=RunType.SPAWN,
+            monitor_task_id="m1",
+            parent_run_id=root_rid,
+            session_id="s1",
+        )
+    )
 
     # Register handler for monitor cancel
     with patch(
@@ -305,12 +350,14 @@ async def test_contextvar_propagation():
 async def test_mark_only_cancel():
     """cancellable=False entries get status=cancelled but no real cancel call."""
     store = RunControlStore()
-    rid = await store.register(_make_entry(
-        run_type=RunType.DELEGATE,
-        monitor_task_id="mon-del",
-        cancellable=False,
-        cancel_behavior="mark_only",
-    ))
+    rid = await store.register(
+        _make_entry(
+            run_type=RunType.DELEGATE,
+            monitor_task_id="mon-del",
+            cancellable=False,
+            cancel_behavior="mark_only",
+        ),
+    )
 
     # Should NOT call request_cancel_task
     with patch(
@@ -349,7 +396,8 @@ async def test_cancel_run_via_monitor():
     rid = await store.register(_make_entry(monitor_task_id="mon-1"))
     with patch(
         "hubos.app.task_monitor_helpers.request_cancel_task",
-        new_callable=AsyncMock, return_value=True,
+        new_callable=AsyncMock,
+        return_value=True,
     ):
         assert await store.cancel_run(rid) is True
     entry = await store.get_run(rid)
@@ -359,10 +407,15 @@ async def test_cancel_run_via_monitor():
 @pytest.mark.asyncio
 async def test_cancel_run_via_plan():
     store = RunControlStore()
-    rid = await store.register(_make_entry(monitor_task_id=None, plan_id="plan-1"))
+    rid = await store.register(
+        _make_entry(monitor_task_id=None, plan_id="plan-1")
+    )
     mock_executor = MagicMock()
     mock_executor.cancel_plan = AsyncMock(return_value=True)
-    with patch("hubos.app.task_plan_executor.get_plan_executor", return_value=mock_executor):
+    with patch(
+        "hubos.app.task_plan_executor.get_plan_executor",
+        return_value=mock_executor,
+    ):
         assert await store.cancel_run(rid) is True
         mock_executor.cancel_plan.assert_called_once_with("plan-1")
 
@@ -370,9 +423,18 @@ async def test_cancel_run_via_plan():
 @pytest.mark.asyncio
 async def test_cancel_run_via_workflow():
     store = RunControlStore()
-    rid = await store.register(_make_entry(monitor_task_id=None, workflow_id="wf-1"))
+    rid = await store.register(
+        _make_entry(monitor_task_id=None, workflow_id="wf-1")
+    )
     fake_cancel = AsyncMock()
-    with patch.dict("sys.modules", {"hubos.agents.tools.agent_workforce": MagicMock(cancel_workflow=fake_cancel)}):
+    with patch.dict(
+        "sys.modules",
+        {
+            "hubos.agents.tools.agent_workforce": MagicMock(
+                cancel_workflow=fake_cancel
+            )
+        },
+    ):
         assert await store.cancel_run(rid) is True
         fake_cancel.assert_called_once_with("wf-1")
 
@@ -388,7 +450,11 @@ async def test_cancel_all():
     await store.register(_make_entry(session_id="s1", monitor_task_id="mon-1"))
     await store.register(_make_entry(session_id="s1", monitor_task_id="mon-2"))
     await store.register(_make_entry(session_id="s2", monitor_task_id="mon-3"))
-    with patch("hubos.app.task_monitor_helpers.request_cancel_task", new_callable=AsyncMock, return_value=True):
+    with patch(
+        "hubos.app.task_monitor_helpers.request_cancel_task",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
         cancelled = await store.cancel_all("s1")
         assert len(cancelled) == 2
 
@@ -396,7 +462,9 @@ async def test_cancel_all():
 @pytest.mark.asyncio
 async def test_cancel_all_skips_terminal():
     store = RunControlStore()
-    rid1 = await store.register(_make_entry(session_id="s1", monitor_task_id="mon-1"))
+    rid1 = await store.register(
+        _make_entry(session_id="s1", monitor_task_id="mon-1")
+    )
     await store.update_status(rid1, "done")
     await store.register(_make_entry(session_id="s1", monitor_task_id="mon-2"))
     cancelled = await store.cancel_all("s1")
@@ -415,7 +483,9 @@ async def test_evict_old_entries():
     old_entry.created_at = time.time() - 7200
     await store.register(old_entry)
     await store.update_status(old_entry.run_id, "done")
-    await store.register(_make_entry(session_id="s1", monitor_task_id="mon-new"))
+    await store.register(
+        _make_entry(session_id="s1", monitor_task_id="mon-new")
+    )
     assert await store.get_run(old_entry.run_id) is None
 
 
@@ -425,7 +495,9 @@ async def test_evict_keeps_running():
     old_entry = _make_entry(session_id="s1", monitor_task_id="mon-old")
     old_entry.created_at = time.time() - 7200
     await store.register(old_entry)
-    await store.register(_make_entry(session_id="s1", monitor_task_id="mon-new"))
+    await store.register(
+        _make_entry(session_id="s1", monitor_task_id="mon-new")
+    )
     runs = await store.list_runs("s1", active_only=False)
     assert len(runs) == 2
 
@@ -482,6 +554,7 @@ async def test_contextvar_visible_in_created_task():
 @pytest.mark.asyncio
 async def test_contextvar_none_in_created_task():
     """When no run_id is set, created task sees None."""
+
     async def check():
         return get_current_run_id()
 
@@ -501,24 +574,51 @@ async def test_cancel_root_cancels_all_descendants():
     store = RunControlStore()
     register_chat_cancel_handler(AsyncMock(return_value=True))
 
-    root = await store.register(_make_entry(
-        run_type=RunType.CHAT, chat_id="c1", session_id="s1",
-    ))
-    child_spawn = await store.register(_make_entry(
-        run_type=RunType.SPAWN, monitor_task_id="m1",
-        parent_run_id=root, session_id="s1",
-    ))
-    child_wf = await store.register(_make_entry(
-        run_type=RunType.WORKFLOW, workflow_id="wf1",
-        parent_run_id=root, session_id="s1",
-    ))
-    grandchild = await store.register(_make_entry(
-        run_type=RunType.DELEGATE, monitor_task_id="m2",
-        parent_run_id=child_spawn, session_id="s1",
-    ))
+    root = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="c1",
+            session_id="s1",
+        ),
+    )
+    child_spawn = await store.register(
+        _make_entry(
+            run_type=RunType.SPAWN,
+            monitor_task_id="m1",
+            parent_run_id=root,
+            session_id="s1",
+        ),
+    )
+    child_wf = await store.register(
+        _make_entry(
+            run_type=RunType.WORKFLOW,
+            workflow_id="wf1",
+            parent_run_id=root,
+            session_id="s1",
+        ),
+    )
+    grandchild = await store.register(
+        _make_entry(
+            run_type=RunType.DELEGATE,
+            monitor_task_id="m2",
+            parent_run_id=child_spawn,
+            session_id="s1",
+        ),
+    )
 
-    with patch("hubos.app.task_monitor_helpers.request_cancel_task", new_callable=AsyncMock, return_value=True):
-        with patch.dict("sys.modules", {"hubos.agents.tools.agent_workforce": MagicMock(cancel_workflow=AsyncMock())}):
+    with patch(
+        "hubos.app.task_monitor_helpers.request_cancel_task",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        with patch.dict(
+            "sys.modules",
+            {
+                "hubos.agents.tools.agent_workforce": MagicMock(
+                    cancel_workflow=AsyncMock()
+                )
+            },
+        ):
             ok = await store.cancel_run(root)
             assert ok is True
 
@@ -538,9 +638,13 @@ async def test_guidance_returns_ack_and_cancels():
     store = RunControlStore()
     register_chat_cancel_handler(AsyncMock(return_value=True))
 
-    rid = await store.register(_make_entry(
-        run_type=RunType.CHAT, chat_id="c1", session_id="s1",
-    ))
+    rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="c1",
+            session_id="s1",
+        ),
+    )
 
     result = await store.request_guidance(rid, "改为方案B")
     assert result is not None
@@ -560,17 +664,25 @@ async def test_guidance_restart_guided_from_run_id():
     store = RunControlStore()
     register_chat_cancel_handler(AsyncMock(return_value=True))
 
-    old_rid = await store.register(_make_entry(
-        run_type=RunType.CHAT, chat_id="c1", session_id="s1",
-    ))
+    old_rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="c1",
+            session_id="s1",
+        ),
+    )
     await store.request_guidance(old_rid, "turn left")
 
     # Simulate restart — new run with guided_from_run_id
-    new_rid = await store.register(_make_entry(
-        run_type=RunType.CHAT, chat_id="c2", session_id="s1",
-        guided_from_run_id=old_rid,
-        guidance_text="turn left",
-    ))
+    new_rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="c2",
+            session_id="s1",
+            guided_from_run_id=old_rid,
+            guidance_text="turn left",
+        ),
+    )
 
     new_entry = await store.get_run(new_rid)
     assert new_entry is not None
@@ -604,13 +716,21 @@ async def test_find_controllable_prefers_root():
     store = RunControlStore()
     register_chat_cancel_handler(AsyncMock(return_value=True))
 
-    root = await store.register(_make_entry(
-        run_type=RunType.CHAT, chat_id="c1", session_id="s1",
-    ))
-    child = await store.register(_make_entry(
-        run_type=RunType.SPAWN, monitor_task_id="m1",
-        parent_run_id=root, session_id="s1",
-    ))
+    root = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="c1",
+            session_id="s1",
+        ),
+    )
+    child = await store.register(
+        _make_entry(
+            run_type=RunType.SPAWN,
+            monitor_task_id="m1",
+            parent_run_id=root,
+            session_id="s1",
+        ),
+    )
 
     runs = await store.list_runs("s1", active_only=True)
     target = _pick_controllable(runs)
@@ -622,16 +742,24 @@ async def test_find_controllable_prefers_root():
 async def test_find_controllable_no_root_picks_recent():
     store = RunControlStore()
 
-    r1 = await store.register(_make_entry(
-        run_type=RunType.SPAWN, monitor_task_id="m1",
-        parent_run_id="orphan", session_id="s1",
-    ))
+    r1 = await store.register(
+        _make_entry(
+            run_type=RunType.SPAWN,
+            monitor_task_id="m1",
+            parent_run_id="orphan",
+            session_id="s1",
+        ),
+    )
     # Small sleep to ensure different created_at
     await asyncio.sleep(0.01)
-    r2 = await store.register(_make_entry(
-        run_type=RunType.DELEGATE, monitor_task_id="m2",
-        parent_run_id="orphan", session_id="s1",
-    ))
+    r2 = await store.register(
+        _make_entry(
+            run_type=RunType.DELEGATE,
+            monitor_task_id="m2",
+            parent_run_id="orphan",
+            session_id="s1",
+        ),
+    )
 
     runs = await store.list_runs("s1", active_only=True)
     target = _pick_controllable(runs)
@@ -643,7 +771,9 @@ async def test_find_controllable_no_root_picks_recent():
 async def test_find_controllable_none_when_all_terminal():
     store = RunControlStore()
 
-    rid = await store.register(_make_entry(session_id="s1", monitor_task_id="m1"))
+    rid = await store.register(
+        _make_entry(session_id="s1", monitor_task_id="m1")
+    )
     await store.update_status(rid, "done")
 
     runs = await store.list_runs("s1", active_only=True)
@@ -681,9 +811,13 @@ async def test_guidance_restart_preserves_text():
     register_chat_cancel_handler(AsyncMock(return_value=True))
 
     # Old chat run
-    old_rid = await store.register(_make_entry(
-        run_type=RunType.CHAT, chat_id="c1", session_id="s1",
-    ))
+    old_rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="c1",
+            session_id="s1",
+        ),
+    )
 
     # User sends guidance
     result = await store.request_guidance(old_rid, "先停，改成检查日志")
@@ -691,11 +825,15 @@ async def test_guidance_restart_preserves_text():
     assert result["guidance_text"] == "先停，改成检查日志"
 
     # Simulate new chat run with biz_params forwarded
-    new_rid = await store.register(_make_entry(
-        run_type=RunType.CHAT, chat_id="c2", session_id="s1",
-        guided_from_run_id=old_rid,
-        guidance_text="先停，改成检查日志",
-    ))
+    new_rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="c2",
+            session_id="s1",
+            guided_from_run_id=old_rid,
+            guidance_text="先停，改成检查日志",
+        ),
+    )
 
     new_entry = await store.get_run(new_rid)
     assert new_entry is not None
@@ -776,9 +914,13 @@ def test_biz_params_guidance_text_read_by_base_channel():
 async def test_find_controllable_includes_pending():
     store = RunControlStore()
 
-    rid = await store.register(_make_entry(
-        run_type=RunType.WORKFLOW, workflow_id="wf1", session_id="s1",
-    ))
+    rid = await store.register(
+        _make_entry(
+            run_type=RunType.WORKFLOW,
+            workflow_id="wf1",
+            session_id="s1",
+        ),
+    )
     await store.update_status(rid, "pending")
 
     # list_runs with active_only uses _TERMINAL filter — pending is NOT terminal
@@ -794,9 +936,13 @@ async def test_find_controllable_includes_pending():
 async def test_find_controllable_includes_waiting():
     store = RunControlStore()
 
-    rid = await store.register(_make_entry(
-        run_type=RunType.DELEGATE, monitor_task_id="m1", session_id="s1",
-    ))
+    rid = await store.register(
+        _make_entry(
+            run_type=RunType.DELEGATE,
+            monitor_task_id="m1",
+            session_id="s1",
+        ),
+    )
     await store.update_status(rid, "waiting")
 
     runs = await store.list_runs("s1", active_only=True)
@@ -813,13 +959,21 @@ async def test_find_controllable_includes_mixed_statuses():
     most recent root (by created_at), regardless of active-status."""
     store = RunControlStore()
 
-    running_rid = await store.register(_make_entry(
-        run_type=RunType.CHAT, chat_id="c1", session_id="s1",
-    ))
+    running_rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="c1",
+            session_id="s1",
+        ),
+    )
     await asyncio.sleep(0.01)
-    pending_rid = await store.register(_make_entry(
-        run_type=RunType.WORKFLOW, workflow_id="wf1", session_id="s1",
-    ))
+    pending_rid = await store.register(
+        _make_entry(
+            run_type=RunType.WORKFLOW,
+            workflow_id="wf1",
+            session_id="s1",
+        ),
+    )
     await store.update_status(pending_rid, "pending")
 
     runs = await store.list_runs("s1", active_only=True)

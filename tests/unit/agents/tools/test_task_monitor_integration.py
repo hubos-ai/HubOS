@@ -26,6 +26,7 @@ from hubos.app.task_monitor_helpers import get_monitor_store
 # Mock agentscope before any hubos.agents.tools import
 # ---------------------------------------------------------------------------
 
+
 def _install_agentscope_mocks():
     """Ensure agentscope stubs exist so tool modules can be imported.
 
@@ -35,10 +36,16 @@ def _install_agentscope_mocks():
     """
     # Save originals for restoration if they exist
     _saved: dict[str, tuple[object, object]] = {}
-    for key in ("agentscope.tool.ToolResponse", "agentscope.message.TextBlock"):
+    for key in (
+        "agentscope.tool.ToolResponse",
+        "agentscope.message.TextBlock",
+    ):
         mod_name, attr = key.rsplit(".", 1)
         if mod_name in sys.modules and hasattr(sys.modules[mod_name], attr):
-            _saved[key] = (sys.modules[mod_name], getattr(sys.modules[mod_name], attr))
+            _saved[key] = (
+                sys.modules[mod_name],
+                getattr(sys.modules[mod_name], attr),
+            )
 
     # Create all required agentscope submodules
     for mod_name in (
@@ -78,16 +85,16 @@ def _install_agentscope_mocks():
     _msg.TextBlock = _TextBlock
 
     # Also mock agentscope.icons if needed
-    for mod_name in (
-        "agentscope.icons",
-    ):
+    for mod_name in ("agentscope.icons",):
         if mod_name not in sys.modules:
             sys.modules[mod_name] = ModuleType(mod_name)
 
     return _saved
 
 
-def _restore_agentscope_mocks(_saved: dict[str, tuple[object, object]]) -> None:
+def _restore_agentscope_mocks(
+    _saved: dict[str, tuple[object, object]]
+) -> None:
     """Restore original agentscope classes after test module is loaded."""
     for key, (mod, cls) in _saved.items():
         _, attr = key.rsplit(".", 1)
@@ -173,6 +180,7 @@ def _preload_sibling_modules(dotted_name: str):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 class _FakeWorkerResult:
     def __init__(self, content: str = "ok", ms: int = 10):
         self.data = {"content": content}
@@ -180,7 +188,9 @@ class _FakeWorkerResult:
 
 
 async def _fake_execute_success(self, **kw):
-    return _FakeWorkerResult(f"result from {getattr(self, 'agent_id', 'unknown')}", 15)
+    return _FakeWorkerResult(
+        f"result from {getattr(self, 'agent_id', 'unknown')}", 15
+    )
 
 
 async def _fake_execute_fail(self, **kw):
@@ -194,17 +204,20 @@ def _make_mock_runner():
 
 def _patch_worker(mod, execute_fn):
     """Return a patch that makes HostAgentWorker(...) return a mock with execute=execute_fn."""
+
     def _make_worker(*args, **kwargs):
         w = MagicMock()
         w.agent_id = kwargs.get("agent_id", "mock-agent")
         w.execute = lambda **kw: execute_fn(w, **kw)
         return w
+
     return patch.object(mod, "HostAgentWorker", side_effect=_make_worker)
 
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def _reset_monitor_store():
@@ -220,7 +233,10 @@ def _reset_monitor_store():
 
     # Evict cached tool modules so they re-import with fresh mocks.
     for key in list(sys.modules):
-        if key.startswith("hubos.agents.tools.") and key != "hubos.agents.tools":
+        if (
+            key.startswith("hubos.agents.tools.")
+            and key != "hubos.agents.tools"
+        ):
             del sys.modules[key]
 
     yield
@@ -237,14 +253,18 @@ def store() -> TaskMonitorStore:
 # spawn_subagents
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
-async def test_spawn_subagents_creates_task_and_stage_events(store: TaskMonitorStore):
+async def test_spawn_subagents_creates_task_and_stage_events(
+    store: TaskMonitorStore,
+):
     """spawn_subagents should create a monitor task and emit stage events."""
     _mod = _import_tool_module("hubos.agents.tools.agent_workforce")
     spawn_subagents = _mod.spawn_subagents
 
-    with patch.object(_mod, "get_host_agent_runner", return_value=_make_mock_runner()), \
-         _patch_worker(_mod, _fake_execute_success):
+    with patch.object(
+        _mod, "get_host_agent_runner", return_value=_make_mock_runner()
+    ), _patch_worker(_mod, _fake_execute_success):
         result = await spawn_subagents(
             assignments=[
                 {"agent_id": "agent-a", "prompt": "do A", "label": "task_a"},
@@ -287,8 +307,9 @@ async def test_spawn_subagents_partial_failure(store: TaskMonitorStore):
             raise RuntimeError("AgentError: boom")
         return _FakeWorkerResult(f"result from {self.agent_id}", 15)
 
-    with patch.object(_mod, "get_host_agent_runner", return_value=_make_mock_runner()), \
-         _patch_worker(_mod, _execute_intermittent):
+    with patch.object(
+        _mod, "get_host_agent_runner", return_value=_make_mock_runner()
+    ), _patch_worker(_mod, _execute_intermittent):
         result = await spawn_subagents(
             assignments=[
                 {"agent_id": "agent-a", "prompt": "do A"},
@@ -311,14 +332,18 @@ async def test_spawn_subagents_partial_failure(store: TaskMonitorStore):
 # coordinate_workflow
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
-async def test_coordinate_workflow_creates_task_with_workflow_id(store: TaskMonitorStore):
+async def test_coordinate_workflow_creates_task_with_workflow_id(
+    store: TaskMonitorStore,
+):
     """coordinate_workflow should create a monitor task and record workflow_id."""
     _mod = _import_tool_module("hubos.agents.tools.agent_workforce")
     coordinate_workflow = _mod.coordinate_workflow
 
-    with patch.object(_mod, "get_host_agent_runner", return_value=_make_mock_runner()), \
-         _patch_worker(_mod, _fake_execute_success):
+    with patch.object(
+        _mod, "get_host_agent_runner", return_value=_make_mock_runner()
+    ), _patch_worker(_mod, _fake_execute_success):
         result = await coordinate_workflow(
             steps=[
                 {"id": "step1", "agent_id": "agent-a", "prompt": "do step 1"},
@@ -348,8 +373,9 @@ async def test_coordinate_workflow_step_failure(store: TaskMonitorStore):
     _mod = _import_tool_module("hubos.agents.tools.agent_workforce")
     coordinate_workflow = _mod.coordinate_workflow
 
-    with patch.object(_mod, "get_host_agent_runner", return_value=_make_mock_runner()), \
-         _patch_worker(_mod, _fake_execute_fail):
+    with patch.object(
+        _mod, "get_host_agent_runner", return_value=_make_mock_runner()
+    ), _patch_worker(_mod, _fake_execute_fail):
         result = await coordinate_workflow(
             steps=[
                 {"id": "step1", "agent_id": "agent-a", "prompt": "fail here"},
@@ -371,8 +397,11 @@ async def test_coordinate_workflow_step_failure(store: TaskMonitorStore):
 # delegate_task
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
-async def test_delegate_task_creates_task_with_runtime_mode(store: TaskMonitorStore):
+async def test_delegate_task_creates_task_with_runtime_mode(
+    store: TaskMonitorStore,
+):
     """delegate_task should create a monitor task and record runtime mode."""
     _rd = _import_tool_module("hubos.agents.tools.runtime_delegate")
     _aw = _import_tool_module("hubos.agents.tools.agent_workforce")
@@ -382,8 +411,11 @@ async def test_delegate_task_creates_task_with_runtime_mode(store: TaskMonitorSt
     with patch.dict(
         "os.environ",
         {"HUBOS_DELEGATE_AGENT_BRIDGE": "1"},
-    ), patch.object(_aw, "get_host_agent_runner", return_value=_make_mock_runner()), \
-         _patch_worker(_aw, _fake_execute_success):
+    ), patch.object(
+        _aw, "get_host_agent_runner", return_value=_make_mock_runner()
+    ), _patch_worker(
+        _aw, _fake_execute_success
+    ):
         result = await delegate_task(goal="Research pricing for product X")
 
     text = result.content[0].text
@@ -416,8 +448,11 @@ async def test_delegate_task_empty_goal(store: TaskMonitorStore):
 # Monitoring failure isolation
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
-async def test_monitor_failure_does_not_affect_spawn_subagents(store: TaskMonitorStore):
+async def test_monitor_failure_does_not_affect_spawn_subagents(
+    store: TaskMonitorStore,
+):
     """If the monitor store throws, spawn_subagents still returns normally."""
     _mod = _import_tool_module("hubos.agents.tools.agent_workforce")
     spawn_subagents = _mod.spawn_subagents
@@ -430,8 +465,9 @@ async def test_monitor_failure_does_not_affect_spawn_subagents(store: TaskMonito
 
     store.create_task = _failing_create
 
-    with patch.object(_mod, "get_host_agent_runner", return_value=_make_mock_runner()), \
-         _patch_worker(_mod, _fake_execute_success):
+    with patch.object(
+        _mod, "get_host_agent_runner", return_value=_make_mock_runner()
+    ), _patch_worker(_mod, _fake_execute_success):
         result = await spawn_subagents(
             assignments=[
                 {"agent_id": "agent-a", "prompt": "do A"},

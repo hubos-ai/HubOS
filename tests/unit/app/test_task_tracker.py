@@ -29,6 +29,7 @@ def _load_task_tracker_class():
     mod = importlib.util.module_from_spec(spec)
     # Register with a unique name so dataclass can find it in sys.modules
     import sys
+
     sys.modules["task_tracker_isolated"] = mod
     spec.loader.exec_module(mod)
     return mod.TaskTracker
@@ -69,7 +70,10 @@ async def test_normal_replay(tracker):
     await asyncio.sleep(0.1)
 
     q2, is_new2 = await tracker.attach_or_start(
-        "k1", {}, _long_stream, reconnect=True,
+        "k1",
+        {},
+        _long_stream,
+        reconnect=True,
     )
     assert is_new2 is False
 
@@ -94,7 +98,10 @@ async def test_force_new_no_replay(tracker):
 
     # force_new should cancel old run and start fresh
     q2, is_new2 = await tracker.attach_or_start(
-        "k1", {}, _long_stream, force_new=True,
+        "k1",
+        {},
+        _long_stream,
+        force_new=True,
     )
     assert is_new2 is True
 
@@ -135,7 +142,10 @@ async def test_force_new_no_replay(tracker):
 async def test_force_new_no_existing(tracker):
     """force_new=True with no existing run behaves like normal new run."""
     q, is_new = await tracker.attach_or_start(
-        "k1", {}, _long_stream, force_new=True,
+        "k1",
+        {},
+        _long_stream,
+        force_new=True,
     )
     assert is_new is True
     # Should have the started marker
@@ -153,7 +163,10 @@ async def test_force_new_old_finally_does_not_remove_new_run(tracker):
 
     # force_new replaces old run with a new one
     q_new, is_new = await tracker.attach_or_start(
-        "k1", {}, _long_stream, force_new=True,
+        "k1",
+        {},
+        _long_stream,
+        force_new=True,
     )
     assert is_new is True
 
@@ -184,7 +197,10 @@ async def test_guidance_submit_no_replay(tracker):
 
     # Normal new submit (reconnect=False, force_new=False) — no replay
     q2, is_new = await tracker.attach_or_start(
-        "k1", {}, _long_stream, reconnect=False,
+        "k1",
+        {},
+        _long_stream,
+        reconnect=False,
     )
     assert is_new is False
     assert q2.empty()
@@ -215,7 +231,10 @@ async def test_old_stream_discarded_on_force_new(tracker):
     old_sid = old_data["_hubos_stream_id"]
 
     q2, is_new = await tracker.attach_or_start(
-        "k1", {}, _long_stream, force_new=True,
+        "k1",
+        {},
+        _long_stream,
+        force_new=True,
     )
     assert is_new is True
     new_first = await asyncio.wait_for(q2.get(), timeout=2)
@@ -239,7 +258,10 @@ async def test_reconnect_false_no_replay_with_buffer(tracker):
 
     # Non-reconnect attach should NOT replay
     q2, is_new = await tracker.attach_or_start(
-        "k1", {}, _long_stream, reconnect=False,
+        "k1",
+        {},
+        _long_stream,
+        reconnect=False,
     )
     assert is_new is False
     assert q2.empty()

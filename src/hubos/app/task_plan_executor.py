@@ -34,11 +34,15 @@ _PAUSE_POLL_INTERVAL = 0.1  # seconds
 
 def _safe_monitor(func):
     """Decorator that swallows all exceptions from monitor calls."""
+
     async def wrapper(*args, **kwargs):
         try:
             await func(*args, **kwargs)
         except Exception:  # noqa: BLE001
-            logger.debug("task_plan_executor: monitor call failed", exc_info=True)
+            logger.debug(
+                "task_plan_executor: monitor call failed", exc_info=True
+            )
+
     return wrapper
 
 
@@ -54,7 +58,9 @@ class TaskPlanExecutor:
         self._running: Dict[str, asyncio.Task] = {}  # plan_id → asyncio.Task
         self._cancel_events: Dict[str, asyncio.Event] = {}
         self._lock = asyncio.Lock()
-        self._monitor_task_ids: Dict[str, str] = {}  # plan_id → monitor task_id
+        self._monitor_task_ids: Dict[
+            str, str
+        ] = {}  # plan_id → monitor task_id
 
     # -- public API ----------------------------------------------------------
 
@@ -147,17 +153,22 @@ class TaskPlanExecutor:
         # On resume, treat as confirmation for risk-gated plans
         if self._needs_confirmation(plan):
             await store.update_plan(
-                plan_id, metadata={"confirmed": True},
+                plan_id,
+                metadata={"confirmed": True},
             )
 
         # Also confirm current waiting step if any
         if plan.current_step_id:
             for step in plan.steps:
                 if step.step_id == plan.current_step_id:
-                    if (step.metadata and step.metadata.get("requires_confirmation")
-                            and not step.metadata.get("confirmed")):
+                    if (
+                        step.metadata
+                        and step.metadata.get("requires_confirmation")
+                        and not step.metadata.get("confirmed")
+                    ):
                         await store.update_step(
-                            plan_id, step.step_id,
+                            plan_id,
+                            step.step_id,
                             metadata={"confirmed": True},
                         )
                     break
@@ -230,8 +241,11 @@ class TaskPlanExecutor:
                     if step.status == PlanStepStatus.PENDING:
                         next_step = step
                         break
-                    if (step.status == PlanStepStatus.WAITING_USER
-                            and step.metadata and step.metadata.get("confirmed")):
+                    if (
+                        step.status == PlanStepStatus.WAITING_USER
+                        and step.metadata
+                        and step.metadata.get("confirmed")
+                    ):
                         next_step = step
                         break
 
@@ -253,10 +267,13 @@ class TaskPlanExecutor:
 
                 # Execute the step
                 await store.update_plan(
-                    plan_id, current_step_id=next_step.step_id,
+                    plan_id,
+                    current_step_id=next_step.step_id,
                 )
                 await store.update_step(
-                    plan_id, next_step.step_id, status=PlanStepStatus.RUNNING,
+                    plan_id,
+                    next_step.step_id,
+                    status=PlanStepStatus.RUNNING,
                 )
 
                 # Re-read plan for latest state after marking running
@@ -276,16 +293,21 @@ class TaskPlanExecutor:
                                 break  # already confirmed
                             # Pause for confirmation
                             await store.update_step(
-                                plan_id, next_step.step_id,
+                                plan_id,
+                                next_step.step_id,
                                 status=PlanStepStatus.WAITING_USER,
-                                metadata={"reason": "step requires confirmation"},
+                                metadata={
+                                    "reason": "step requires confirmation"
+                                },
                             )
                             await store.update_plan(
                                 plan_id,
                                 status=PlanStatus.WAITING_USER,
                                 current_step_id=next_step.step_id,
                             )
-                            await self._monitor_step_waiting(plan_id, next_step)
+                            await self._monitor_step_waiting(
+                                plan_id, next_step
+                            )
                             break
                     else:
                         continue
@@ -295,7 +317,9 @@ class TaskPlanExecutor:
                     if plan is None:
                         return
 
-                stop = await self._execute_step(store, plan, next_step, cancel_event)
+                stop = await self._execute_step(
+                    store, plan, next_step, cancel_event
+                )
                 if stop:
                     # Re-read to check final state
                     plan = await store.get_plan(plan_id)
@@ -303,7 +327,9 @@ class TaskPlanExecutor:
                         PlanStatus.FAILED,
                         PlanStatus.CANCELLED,
                     ):
-                        await self._monitor_step_failed(plan_id, next_step, plan)
+                        await self._monitor_step_failed(
+                            plan_id, next_step, plan
+                        )
                         return
                     # waiting_user from tool_name step
                     await self._monitor_step_waiting(plan_id, next_step)
@@ -320,7 +346,9 @@ class TaskPlanExecutor:
 
         except Exception:  # noqa: BLE001
             logger.warning(
-                "task_plan_executor: plan %s failed", plan_id, exc_info=True,
+                "task_plan_executor: plan %s failed",
+                plan_id,
+                exc_info=True,
             )
             try:
                 await store.update_plan(
@@ -352,7 +380,8 @@ class TaskPlanExecutor:
         if step.tool_name:
             # Tool execution not implemented yet — pause plan
             await store.update_step(
-                plan.plan_id, step.step_id,
+                plan.plan_id,
+                step.step_id,
                 status=PlanStepStatus.WAITING_USER,
                 metadata={"reason": "tool execution not implemented"},
             )
@@ -370,7 +399,9 @@ class TaskPlanExecutor:
             raise
 
         await store.update_step(
-            plan.plan_id, step.step_id, status=PlanStepStatus.DONE,
+            plan.plan_id,
+            step.step_id,
+            status=PlanStepStatus.DONE,
         )
         return False
 
@@ -388,7 +419,8 @@ class TaskPlanExecutor:
         runner = get_host_agent_runner()
         if runner is None:
             await store.update_step(
-                plan.plan_id, step.step_id,
+                plan.plan_id,
+                step.step_id,
                 status=PlanStepStatus.FAILED,
                 error="HostAgentRunner is not registered",
             )
@@ -419,10 +451,12 @@ class TaskPlanExecutor:
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "task_plan_executor: agent step %s failed",
-                step.step_id, exc_info=True,
+                step.step_id,
+                exc_info=True,
             )
             await store.update_step(
-                plan.plan_id, step.step_id,
+                plan.plan_id,
+                step.step_id,
                 status=PlanStepStatus.FAILED,
                 error=str(exc)[:500],
             )
@@ -435,7 +469,8 @@ class TaskPlanExecutor:
 
         if not res.success:
             await store.update_step(
-                plan.plan_id, step.step_id,
+                plan.plan_id,
+                step.step_id,
                 status=PlanStepStatus.FAILED,
                 error=res.error or "agent execution failed",
             )
@@ -447,7 +482,8 @@ class TaskPlanExecutor:
             return True
 
         await store.update_step(
-            plan.plan_id, step.step_id,
+            plan.plan_id,
+            step.step_id,
             status=PlanStepStatus.DONE,
             metadata={
                 "result_summary": res.data.get("content", "")[:1000],
@@ -491,6 +527,7 @@ class TaskPlanExecutor:
             safe_update_task,
             register_cancel_handler,
         )
+
         mid = await safe_create_task(
             session_id=plan.session_id,
             source="task_plan",
@@ -503,18 +540,29 @@ class TaskPlanExecutor:
             await safe_update_task(mid, status=TaskStatus.RUNNING)
             # Register cancel handler so TaskMonitor cancel propagates to plan
             plan_id = plan.plan_id
-            register_cancel_handler(mid, lambda pid=plan_id: asyncio.ensure_future(
-                self.cancel_plan(pid)
-            ))
+            register_cancel_handler(
+                mid,
+                lambda pid=plan_id: asyncio.ensure_future(
+                    self.cancel_plan(pid),
+                ),
+            )
             # RunControl: register for unified cancel
             try:
-                from .run_control import get_run_control_store, RunEntry, RunType
-                await get_run_control_store().register(RunEntry(
-                    run_id="", run_type=RunType.PLAN,
-                    session_id=plan.session_id,
-                    monitor_task_id=mid,
-                    plan_id=plan.plan_id,
-                ))
+                from .run_control import (
+                    get_run_control_store,
+                    RunEntry,
+                    RunType,
+                )
+
+                await get_run_control_store().register(
+                    RunEntry(
+                        run_id="",
+                        run_type=RunType.PLAN,
+                        session_id=plan.session_id,
+                        monitor_task_id=mid,
+                        plan_id=plan.plan_id,
+                    ),
+                )
             except Exception:  # noqa: BLE001
                 pass
 
@@ -522,9 +570,11 @@ class TaskPlanExecutor:
     async def _monitor_step_started(self, plan_id: str, step) -> None:
         from .task_monitor import TaskEventType
         from .task_monitor_helpers import safe_add_event, safe_update_task
+
         mid = self._monitor_task_ids.get(plan_id)
         await safe_add_event(
-            mid, TaskEventType.STAGE_STARTED,
+            mid,
+            TaskEventType.STAGE_STARTED,
             f"Step {step.order + 1}: {step.title}",
             stage=step.step_id,
             agent_id=step.agent_id,
@@ -536,9 +586,11 @@ class TaskPlanExecutor:
     async def _monitor_step_completed(self, plan_id: str, step) -> None:
         from .task_monitor import TaskEventType
         from .task_monitor_helpers import safe_add_event
+
         mid = self._monitor_task_ids.get(plan_id)
         await safe_add_event(
-            mid, TaskEventType.STAGE_COMPLETED,
+            mid,
+            TaskEventType.STAGE_COMPLETED,
             f"Step {step.order + 1} done: {step.title}",
             stage=step.step_id,
             metadata={"plan_id": plan_id},
@@ -548,6 +600,7 @@ class TaskPlanExecutor:
     async def _monitor_step_failed(self, plan_id: str, step, plan) -> None:
         from .task_monitor import TaskEventType, TaskStatus
         from .task_monitor_helpers import safe_add_event, safe_update_task
+
         mid = self._monitor_task_ids.get(plan_id)
         err = ""
         for s in plan.steps:
@@ -555,7 +608,8 @@ class TaskPlanExecutor:
                 err = s.error or ""
                 break
         await safe_add_event(
-            mid, TaskEventType.ERROR,
+            mid,
+            TaskEventType.ERROR,
             f"Step {step.order + 1} failed: {step.title} — {err}",
             stage=step.step_id,
             metadata={"plan_id": plan_id},
@@ -566,22 +620,29 @@ class TaskPlanExecutor:
     async def _monitor_step_waiting(self, plan_id: str, step) -> None:
         from .task_monitor import TaskEventType, TaskStatus
         from .task_monitor_helpers import safe_add_event, safe_update_task
+
         mid = self._monitor_task_ids.get(plan_id)
         await safe_add_event(
-            mid, TaskEventType.LOG,
+            mid,
+            TaskEventType.LOG,
             f"Step {step.order + 1} waiting: {step.title}",
             stage=step.step_id,
             metadata={"plan_id": plan_id},
         )
-        await safe_update_task(mid, status=TaskStatus.WAITING, current_stage=step.title)
+        await safe_update_task(
+            mid, status=TaskStatus.WAITING, current_stage=step.title
+        )
 
     @_safe_monitor
     async def _monitor_done(self, plan_id: str, plan) -> None:
         from .task_monitor import TaskStatus
         from .task_monitor_helpers import safe_update_task
+
         mid = self._monitor_task_ids.get(plan_id)
         await safe_update_task(
-            mid, status=TaskStatus.DONE, progress=100,
+            mid,
+            status=TaskStatus.DONE,
+            progress=100,
             result_summary="Plan completed",
         )
 
@@ -589,13 +650,17 @@ class TaskPlanExecutor:
     async def _monitor_failed(self, plan_id: str, error: str) -> None:
         from .task_monitor import TaskStatus
         from .task_monitor_helpers import safe_update_task
+
         mid = self._monitor_task_ids.get(plan_id)
-        await safe_update_task(mid, status=TaskStatus.FAILED, error=error[:500])
+        await safe_update_task(
+            mid, status=TaskStatus.FAILED, error=error[:500]
+        )
 
     @_safe_monitor
     async def _monitor_cancel(self, plan_id: str) -> None:
         from .task_monitor import TaskStatus
         from .task_monitor_helpers import safe_update_task
+
         mid = self._monitor_task_ids.get(plan_id)
         await self._monitor_cancel_with_id(mid)
 
@@ -603,8 +668,10 @@ class TaskPlanExecutor:
     async def _monitor_cancel_with_id(self, mid: Optional[str]) -> None:
         from .task_monitor import TaskStatus
         from .task_monitor_helpers import safe_update_task
+
         await safe_update_task(
-            mid, status=TaskStatus.CANCELLED,
+            mid,
+            status=TaskStatus.CANCELLED,
             result_summary="Plan cancelled",
         )
 
@@ -612,6 +679,7 @@ class TaskPlanExecutor:
     async def _monitor_pause(self, plan_id: str) -> None:
         from .task_monitor import TaskStatus
         from .task_monitor_helpers import safe_update_task
+
         mid = self._monitor_task_ids.get(plan_id)
         await safe_update_task(mid, status=TaskStatus.WAITING)
 
@@ -619,6 +687,7 @@ class TaskPlanExecutor:
     async def _monitor_resume(self, plan_id: str) -> None:
         from .task_monitor import TaskStatus
         from .task_monitor_helpers import safe_update_task
+
         mid = self._monitor_task_ids.get(plan_id)
         await safe_update_task(mid, status=TaskStatus.RUNNING)
 
@@ -630,12 +699,14 @@ class TaskPlanExecutor:
         mid = self._monitor_task_ids.pop(plan_id, None)
         if mid:
             from .task_monitor_helpers import unregister_cancel_handler
+
             unregister_cancel_handler(mid)
 
     def _update_run_control_status(self, plan_id: str, store) -> None:
         """Best-effort update RunControl status from final plan state."""
         try:
             from .run_control import get_run_control_store
+
             rc_store = get_run_control_store()
             # Find the run_id by plan_id — iterate runs for this executor.
             # We store the run_id in monitor_task metadata, but simpler:
@@ -657,12 +728,15 @@ class TaskPlanExecutor:
                                 PlanStatus.WAITING_USER: "running",
                             }
                             new_status = status_map.get(plan.status, "done")
-                            await rc_store.update_status(entry.run_id, new_status)
+                            await rc_store.update_status(
+                                entry.run_id, new_status
+                            )
                             break
                 except Exception:  # noqa: BLE001
                     logger.warning(
                         "plan executor: RunControl status update failed for plan %s",
-                        plan_id, exc_info=True,
+                        plan_id,
+                        exc_info=True,
                     )
 
             asyncio.ensure_future(_do())

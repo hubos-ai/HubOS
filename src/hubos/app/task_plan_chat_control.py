@@ -72,11 +72,13 @@ _CONFIRM_EN = re.compile(
     re.IGNORECASE,
 )
 
-_ACTIVE_STATUSES = frozenset((
-    PlanStatus.DRAFT,
-    PlanStatus.RUNNING,
-    PlanStatus.WAITING_USER,
-))
+_ACTIVE_STATUSES = frozenset(
+    (
+        PlanStatus.DRAFT,
+        PlanStatus.RUNNING,
+        PlanStatus.WAITING_USER,
+    )
+)
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +152,9 @@ async def handle_plan_chat_control(
         active_plans = []
         for status in _ACTIVE_STATUSES:
             plans = await store.list_plans(
-                session_id=session_id, status=status, limit=5,
+                session_id=session_id,
+                status=status,
+                limit=5,
             )
             active_plans.extend(plans)
 
@@ -165,41 +169,32 @@ async def handle_plan_chat_control(
         if intent == INTENT_PAUSE:
             ok = await executor.pause_plan(plan.plan_id)
             return (
-                "已暂停当前计划。你可以继续插入要求，或说「继续执行」恢复。"
-                if ok else "暂停失败：计划可能不在运行状态。"
+                "已暂停当前计划。你可以继续插入要求，或说「继续执行」恢复。" if ok else "暂停失败：计划可能不在运行状态。"
             )
 
         if intent == INTENT_RESUME:
             ok = await executor.resume_plan(plan.plan_id)
-            return (
-                "已确认并继续执行当前计划。"
-                if ok else "恢复失败：计划可能不在等待状态。"
-            )
+            return "已确认并继续执行当前计划。" if ok else "恢复失败：计划可能不在等待状态。"
 
         if intent == INTENT_START:
             try:
                 started = await executor.start_plan(plan.plan_id)
                 return (
                     "已开始执行当前计划。你可以在右侧「计划」面板查看步骤进度，也可以随时说「暂停」或「取消计划」。"
-                    if started else "启动失败：计划可能已在运行。"
+                    if started
+                    else "启动失败：计划可能已在运行。"
                 )
             except KeyError:
                 return None
 
         if intent == INTENT_CANCEL:
             ok = await executor.cancel_plan(plan.plan_id)
-            return (
-                "已取消当前计划，未完成步骤不会继续执行。"
-                if ok else "取消失败。"
-            )
+            return "已取消当前计划，未完成步骤不会继续执行。" if ok else "取消失败。"
 
         if intent == INTENT_CONFIRM:
             # Resume acts as confirmation for risk-gated plans/steps
             ok = await executor.resume_plan(plan.plan_id)
-            return (
-                "已确认并继续执行当前计划。"
-                if ok else "确认失败：计划可能不在等待状态。"
-            )
+            return "已确认并继续执行当前计划。" if ok else "确认失败：计划可能不在等待状态。"
 
         if intent == INTENT_INSERT_STEP:
             if not instruction_text:
@@ -229,7 +224,9 @@ async def handle_plan_chat_control(
                 )
                 return "已把你的新要求插入当前计划，并会按当前进度继续执行。"
             except (KeyError, ValueError) as exc:
-                logger.warning("task_plan_chat_control: insert failed: %s", exc)
+                logger.warning(
+                    "task_plan_chat_control: insert failed: %s", exc
+                )
                 return f"插入失败：{exc}"
 
         return None

@@ -20,7 +20,9 @@ class TestAssessPlanRisk:
         assert r.requires_confirmation is True
 
     def test_outreach_high(self):
-        r = assess_plan_risk("Customer outreach", [{"title": "Send cold emails"}])
+        r = assess_plan_risk(
+            "Customer outreach", [{"title": "Send cold emails"}]
+        )
         assert r.level == RISK_HIGH
 
     def test_delete_high(self):

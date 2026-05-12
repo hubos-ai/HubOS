@@ -27,6 +27,7 @@ _MAX_EVENTS_PER_TASK = 500
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class TaskStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
@@ -51,6 +52,7 @@ class TaskEventType(str, Enum):
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class TaskEvent:
@@ -86,9 +88,11 @@ class Task:
 # Broadcast event (what subscribers receive)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class BroadcastEvent:
     """Envelope pushed to every subscriber queue."""
+
     event_type: TaskEventType
     task_id: str
     data: Dict[str, Any]
@@ -98,6 +102,7 @@ class BroadcastEvent:
 # ---------------------------------------------------------------------------
 # TaskMonitorStore
 # ---------------------------------------------------------------------------
+
 
 class TaskMonitorStore:
     """Process-wide, async-safe task monitor.
@@ -125,7 +130,9 @@ class TaskMonitorStore:
     def subscribe(self) -> tuple[str, asyncio.Queue[BroadcastEvent]]:
         """Register a subscriber. Returns ``(subscriber_id, queue)``."""
         sub_id = uuid.uuid4().hex
-        queue: asyncio.Queue[BroadcastEvent] = asyncio.Queue(maxsize=_SUBSCRIBER_QUEUE_MAXSIZE)
+        queue: asyncio.Queue[BroadcastEvent] = asyncio.Queue(
+            maxsize=_SUBSCRIBER_QUEUE_MAXSIZE
+        )
         self._subscribers[sub_id] = queue
         return sub_id, queue
 
@@ -171,12 +178,14 @@ class TaskMonitorStore:
             self._tasks[task_id] = task
             self._evict_if_needed_locked()
 
-        await self._broadcast(BroadcastEvent(
-            event_type=TaskEventType.TASK_CREATED,
-            task_id=task_id,
-            data=self._task_summary(task),
-            timestamp=now,
-        ))
+        await self._broadcast(
+            BroadcastEvent(
+                event_type=TaskEventType.TASK_CREATED,
+                task_id=task_id,
+                data=self._task_summary(task),
+                timestamp=now,
+            ),
+        )
         return task
 
     # -- update_task -------------------------------------------------------
@@ -230,12 +239,14 @@ class TaskMonitorStore:
 
             summary = self._task_summary(task)
 
-        await self._broadcast(BroadcastEvent(
-            event_type=event_type,
-            task_id=task_id,
-            data=summary,
-            timestamp=now,
-        ))
+        await self._broadcast(
+            BroadcastEvent(
+                event_type=event_type,
+                task_id=task_id,
+                data=summary,
+                timestamp=now,
+            ),
+        )
         return task
 
     # -- add_event ---------------------------------------------------------
@@ -271,16 +282,18 @@ class TaskMonitorStore:
             if len(task.events) > _MAX_EVENTS_PER_TASK:
                 task.events = task.events[-_MAX_EVENTS_PER_TASK:]
 
-        await self._broadcast(BroadcastEvent(
-            event_type=event_type,
-            task_id=task_id,
-            data={
-                "message": message,
-                "stage": stage,
-                "agent_id": agent_id,
-            },
-            timestamp=now,
-        ))
+        await self._broadcast(
+            BroadcastEvent(
+                event_type=event_type,
+                task_id=task_id,
+                data={
+                    "message": message,
+                    "stage": stage,
+                    "agent_id": agent_id,
+                },
+                timestamp=now,
+            ),
+        )
         return evt
 
     # -- list_tasks --------------------------------------------------------
@@ -339,7 +352,8 @@ class TaskMonitorStore:
         if len(self._tasks) <= self._max_tasks:
             return
         sorted_ids = sorted(
-            self._tasks, key=lambda k: self._tasks[k].created_at,
+            self._tasks,
+            key=lambda k: self._tasks[k].created_at,
         )
         while len(self._tasks) > self._max_tasks:
             del self._tasks[sorted_ids.pop(0)]
@@ -353,7 +367,8 @@ class TaskMonitorStore:
             except asyncio.QueueFull:
                 logger.debug(
                     "task_monitor: dropping event %s for slow subscriber %s",
-                    event.event_type.value, sub_id,
+                    event.event_type.value,
+                    sub_id,
                 )
                 dead.append(sub_id)
         for sub_id in dead:

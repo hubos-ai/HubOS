@@ -37,6 +37,7 @@ def get_monitor_store() -> TaskMonitorStore:
 # Safe wrappers — never raise
 # ------------------------------------------------------------------
 
+
 async def safe_create_task(
     session_id: str,
     source: str,
@@ -89,6 +90,7 @@ async def safe_add_event(
 # Cancellation registry
 # ------------------------------------------------------------------
 
+
 def register_cancel_handler(
     task_id: Optional[str],
     handler: Callable[[], Any],
@@ -119,7 +121,11 @@ async def request_cancel_task(task_id: str) -> bool:
     if task is None:
         return False
 
-    if task.status in {TaskStatus.DONE, TaskStatus.FAILED, TaskStatus.CANCELLED}:
+    if task.status in {
+        TaskStatus.DONE,
+        TaskStatus.FAILED,
+        TaskStatus.CANCELLED,
+    }:
         return True
 
     await safe_add_event(

@@ -122,7 +122,9 @@ async def _do_chat_cancel(chat_id: str) -> bool:
     try:
         return await _CHAT_CANCEL_HANDLER(chat_id)
     except Exception:  # noqa: BLE001
-        logger.warning("run_control: chat cancel handler failed for %s", chat_id)
+        logger.warning(
+            "run_control: chat cancel handler failed for %s", chat_id
+        )
         return False
 
 
@@ -143,7 +145,9 @@ class RunControlStore:
         async with self._lock:
             self._evict_old()
             self._runs[entry.run_id] = entry
-            self._session_index.setdefault(entry.session_id, []).append(entry.run_id)
+            self._session_index.setdefault(entry.session_id, []).append(
+                entry.run_id
+            )
             # Link to parent if specified.
             if entry.parent_run_id and entry.parent_run_id in self._runs:
                 parent = self._runs[entry.parent_run_id]
@@ -265,26 +269,37 @@ class RunControlStore:
         if entry.monitor_task_id:
             try:
                 from .task_monitor_helpers import request_cancel_task
+
                 await request_cancel_task(entry.monitor_task_id)
                 cancelled = True
             except Exception:  # noqa: BLE001
-                logger.warning("run_control: monitor cancel failed for %s", entry.monitor_task_id)
+                logger.warning(
+                    "run_control: monitor cancel failed for %s",
+                    entry.monitor_task_id,
+                )
 
         if entry.plan_id:
             try:
                 from .task_plan_executor import get_plan_executor
+
                 await get_plan_executor().cancel_plan(entry.plan_id)
                 cancelled = True
             except Exception:  # noqa: BLE001
-                logger.warning("run_control: plan cancel failed for %s", entry.plan_id)
+                logger.warning(
+                    "run_control: plan cancel failed for %s", entry.plan_id
+                )
 
         if entry.workflow_id:
             try:
                 from ..agents.tools.agent_workforce import cancel_workflow
+
                 await cancel_workflow(entry.workflow_id)
                 cancelled = True
             except Exception:  # noqa: BLE001
-                logger.warning("run_control: workflow cancel failed for %s", entry.workflow_id)
+                logger.warning(
+                    "run_control: workflow cancel failed for %s",
+                    entry.workflow_id,
+                )
 
         if entry.chat_id:
             ok = await _do_chat_cancel(entry.chat_id)
@@ -306,7 +321,9 @@ class RunControlStore:
         return cancelled
 
     async def request_guidance(
-        self, run_id: str, text: str,
+        self,
+        run_id: str,
+        text: str,
     ) -> Optional[Dict[str, Any]]:
         """Attach guidance text to a run and cancel it.
 

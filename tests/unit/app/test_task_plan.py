@@ -157,7 +157,9 @@ async def test_add_step_after_target(store: TaskPlanStore):
     s2 = await store.add_step(plan.plan_id, title="C")
 
     # Insert after s0 → new step at order 1, B and C shift
-    s_new = await store.add_step(plan.plan_id, title="Inserted", after_step_id=s0.step_id)
+    s_new = await store.add_step(
+        plan.plan_id, title="Inserted", after_step_id=s0.step_id
+    )
 
     refreshed = await store.get_plan(plan.plan_id)
     orders = [s.order for s in refreshed.steps]
@@ -171,7 +173,9 @@ async def test_add_step_after_missing_step_raises(store: TaskPlanStore):
     plan = await store.create_plan(session_id="s1", title="P")
     await store.add_step(plan.plan_id, title="A")
     with pytest.raises(KeyError, match="Step not found"):
-        await store.add_step(plan.plan_id, title="X", after_step_id="nonexistent")
+        await store.add_step(
+            plan.plan_id, title="X", after_step_id="nonexistent"
+        )
 
 
 @pytest.mark.asyncio
@@ -188,7 +192,9 @@ async def test_add_step_after_last(store: TaskPlanStore):
     s0 = await store.add_step(plan.plan_id, title="A")
     s1 = await store.add_step(plan.plan_id, title="B")
 
-    s_new = await store.add_step(plan.plan_id, title="Tail", after_step_id=s1.step_id)
+    s_new = await store.add_step(
+        plan.plan_id, title="Tail", after_step_id=s1.step_id
+    )
 
     refreshed = await store.get_plan(plan.plan_id)
     titles = [s.title for s in refreshed.steps]
@@ -206,7 +212,9 @@ async def test_update_step_status(store: TaskPlanStore):
     step = await store.add_step(plan.plan_id, title="S")
 
     updated = await store.update_step(
-        plan.plan_id, step.step_id, status=PlanStepStatus.RUNNING,
+        plan.plan_id,
+        step.step_id,
+        status=PlanStepStatus.RUNNING,
     )
     assert updated.status == PlanStepStatus.RUNNING
 
@@ -217,7 +225,9 @@ async def test_update_step_done_sets_finished_at(store: TaskPlanStore):
     step = await store.add_step(plan.plan_id, title="S")
 
     updated = await store.update_step(
-        plan.plan_id, step.step_id, status=PlanStepStatus.DONE,
+        plan.plan_id,
+        step.step_id,
+        status=PlanStepStatus.DONE,
     )
     assert updated.finished_at is not None
     assert updated.status == PlanStepStatus.DONE
@@ -229,8 +239,10 @@ async def test_update_step_failed_sets_finished_at(store: TaskPlanStore):
     step = await store.add_step(plan.plan_id, title="S")
 
     updated = await store.update_step(
-        plan.plan_id, step.step_id,
-        status=PlanStepStatus.FAILED, error="boom",
+        plan.plan_id,
+        step.step_id,
+        status=PlanStepStatus.FAILED,
+        error="boom",
     )
     assert updated.finished_at is not None
     assert updated.error == "boom"
@@ -242,7 +254,9 @@ async def test_update_step_cancelled_sets_finished_at(store: TaskPlanStore):
     step = await store.add_step(plan.plan_id, title="S")
 
     updated = await store.update_step(
-        plan.plan_id, step.step_id, status=PlanStepStatus.CANCELLED,
+        plan.plan_id,
+        step.step_id,
+        status=PlanStepStatus.CANCELLED,
     )
     assert updated.finished_at is not None
 
@@ -253,8 +267,10 @@ async def test_update_step_title_description(store: TaskPlanStore):
     step = await store.add_step(plan.plan_id, title="Old")
 
     updated = await store.update_step(
-        plan.plan_id, step.step_id,
-        title="New", description="desc",
+        plan.plan_id,
+        step.step_id,
+        title="New",
+        description="desc",
     )
     assert updated.title == "New"
     assert updated.description == "desc"
@@ -264,11 +280,15 @@ async def test_update_step_title_description(store: TaskPlanStore):
 async def test_update_step_metadata_merges(store: TaskPlanStore):
     plan = await store.create_plan(session_id="s1", title="P")
     step = await store.add_step(
-        plan.plan_id, title="S", metadata={"a": 1},
+        plan.plan_id,
+        title="S",
+        metadata={"a": 1},
     )
 
     await store.update_step(
-        plan.plan_id, step.step_id, metadata={"b": 2},
+        plan.plan_id,
+        step.step_id,
+        metadata={"b": 2},
     )
     refreshed_plan = await store.get_plan(plan.plan_id)
     refreshed_step = refreshed_plan.steps[0]
@@ -285,7 +305,9 @@ async def test_update_step_not_found_plan(store: TaskPlanStore):
 async def test_update_step_not_found_step(store: TaskPlanStore):
     plan = await store.create_plan(session_id="s1", title="P")
     with pytest.raises(KeyError, match="Step not found"):
-        await store.update_step(plan.plan_id, "nonexistent", status=PlanStepStatus.DONE)
+        await store.update_step(
+            plan.plan_id, "nonexistent", status=PlanStepStatus.DONE
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +319,8 @@ async def test_update_step_not_found_step(store: TaskPlanStore):
 async def test_update_plan_status(store: TaskPlanStore):
     plan = await store.create_plan(session_id="s1", title="P")
     updated = await store.update_plan(
-        plan.plan_id, status=PlanStatus.RUNNING,
+        plan.plan_id,
+        status=PlanStatus.RUNNING,
     )
     assert updated.status == PlanStatus.RUNNING
 
@@ -319,7 +342,9 @@ async def test_update_plan_failed_sets_finished_at(store: TaskPlanStore):
 @pytest.mark.asyncio
 async def test_update_plan_cancelled_sets_finished_at(store: TaskPlanStore):
     plan = await store.create_plan(session_id="s1", title="P")
-    updated = await store.update_plan(plan.plan_id, status=PlanStatus.CANCELLED)
+    updated = await store.update_plan(
+        plan.plan_id, status=PlanStatus.CANCELLED
+    )
     assert updated.finished_at is not None
 
 
@@ -328,7 +353,8 @@ async def test_update_plan_current_step(store: TaskPlanStore):
     plan = await store.create_plan(session_id="s1", title="P")
     step = await store.add_step(plan.plan_id, title="S")
     updated = await store.update_plan(
-        plan.plan_id, current_step_id=step.step_id,
+        plan.plan_id,
+        current_step_id=step.step_id,
     )
     assert updated.current_step_id == step.step_id
 
@@ -336,7 +362,9 @@ async def test_update_plan_current_step(store: TaskPlanStore):
 @pytest.mark.asyncio
 async def test_update_plan_metadata_merges(store: TaskPlanStore):
     plan = await store.create_plan(
-        session_id="s1", title="P", metadata={"a": 1},
+        session_id="s1",
+        title="P",
+        metadata={"a": 1},
     )
     await store.update_plan(plan.plan_id, metadata={"b": 2})
     refreshed = await store.get_plan(plan.plan_id)
@@ -369,8 +397,12 @@ async def test_cancel_plan_cancels_incomplete_steps(store: TaskPlanStore):
     s2 = await store.add_step(plan.plan_id, title="Done")
     s3 = await store.add_step(plan.plan_id, title="Pending")
 
-    await store.update_step(plan.plan_id, s1.step_id, status=PlanStepStatus.RUNNING)
-    await store.update_step(plan.plan_id, s2.step_id, status=PlanStepStatus.DONE)
+    await store.update_step(
+        plan.plan_id, s1.step_id, status=PlanStepStatus.RUNNING
+    )
+    await store.update_step(
+        plan.plan_id, s2.step_id, status=PlanStepStatus.DONE
+    )
 
     cancelled = await store.cancel_plan(plan.plan_id)
 
@@ -525,7 +557,9 @@ async def test_subscribe_receives_step_updated(store: TaskPlanStore):
     sub_id, queue = store.subscribe()
     try:
         await store.update_step(
-            plan.plan_id, step.step_id, status=PlanStepStatus.RUNNING,
+            plan.plan_id,
+            step.step_id,
+            status=PlanStepStatus.RUNNING,
         )
         event = queue.get_nowait()
         assert event.event_type == PlanEventType.STEP_STARTED

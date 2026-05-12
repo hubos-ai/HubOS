@@ -109,7 +109,9 @@ async def test_start_draft_plan(store, executor: TaskPlanExecutor):
 
 
 @pytest.mark.asyncio
-async def test_start_running_plan_returns_false(store, executor: TaskPlanExecutor):
+async def test_start_running_plan_returns_false(
+    store, executor: TaskPlanExecutor
+):
     plan = await store.create_plan(session_id="s1", title="P")
     await store.update_plan(plan.plan_id, status=PlanStatus.RUNNING)
 
@@ -118,7 +120,9 @@ async def test_start_running_plan_returns_false(store, executor: TaskPlanExecuto
 
 
 @pytest.mark.asyncio
-async def test_start_done_plan_returns_false(store, executor: TaskPlanExecutor):
+async def test_start_done_plan_returns_false(
+    store, executor: TaskPlanExecutor
+):
     plan = await store.create_plan(session_id="s1", title="P")
     await store.update_plan(plan.plan_id, status=PlanStatus.DONE)
 
@@ -127,7 +131,9 @@ async def test_start_done_plan_returns_false(store, executor: TaskPlanExecutor):
 
 
 @pytest.mark.asyncio
-async def test_start_cancelled_plan_returns_false(store, executor: TaskPlanExecutor):
+async def test_start_cancelled_plan_returns_false(
+    store, executor: TaskPlanExecutor
+):
     plan = await store.create_plan(session_id="s1", title="P")
     await store.cancel_plan(plan.plan_id)
 
@@ -141,7 +147,9 @@ async def test_start_cancelled_plan_returns_false(store, executor: TaskPlanExecu
 
 
 @pytest.mark.asyncio
-async def test_execution_updates_step_statuses(store, executor: TaskPlanExecutor):
+async def test_execution_updates_step_statuses(
+    store, executor: TaskPlanExecutor
+):
     plan = await store.create_plan(
         session_id="s1",
         title="Steps test",
@@ -241,7 +249,9 @@ async def test_executor_cleanup_after_done(store, executor: TaskPlanExecutor):
 
 
 @pytest.mark.asyncio
-async def test_executor_failure_marks_plan_failed(store, executor: TaskPlanExecutor):
+async def test_executor_failure_marks_plan_failed(
+    store, executor: TaskPlanExecutor
+):
     plan = await store.create_plan(
         session_id="s1",
         title="Fail test",
@@ -283,7 +293,9 @@ async def test_executor_failure_marks_plan_failed(store, executor: TaskPlanExecu
 
 
 @pytest.mark.asyncio
-async def test_step_without_agent_still_uses_mock(store, executor: TaskPlanExecutor):
+async def test_step_without_agent_still_uses_mock(
+    store, executor: TaskPlanExecutor
+):
     """Steps without agent_id or tool_name use simulated execution."""
     plan = await store.create_plan(
         session_id="s1",
@@ -306,7 +318,9 @@ async def test_step_without_agent_still_uses_mock(store, executor: TaskPlanExecu
 @pytest.mark.asyncio
 @patch("hubos.core.workers.registry.get_host_agent_runner")
 async def test_step_with_agent_calls_runner(
-    mock_get_runner, store, executor: TaskPlanExecutor,
+    mock_get_runner,
+    store,
+    executor: TaskPlanExecutor,
 ):
     """Step with agent_id dispatches to HostAgentRunner."""
     fake_runner = AsyncMock(return_value="done by agent-1")
@@ -350,7 +364,9 @@ async def test_step_with_agent_calls_runner(
 @pytest.mark.asyncio
 @patch("hubos.core.workers.registry.get_host_agent_runner")
 async def test_missing_runner_marks_step_failed(
-    mock_get_runner, store, executor: TaskPlanExecutor,
+    mock_get_runner,
+    store,
+    executor: TaskPlanExecutor,
 ):
     """No registered HostAgentRunner → step and plan marked failed."""
     mock_get_runner.return_value = None
@@ -379,7 +395,9 @@ async def test_missing_runner_marks_step_failed(
 @pytest.mark.asyncio
 @patch("hubos.core.workers.registry.get_host_agent_runner")
 async def test_runner_raises_marks_step_failed(
-    mock_get_runner, store, executor: TaskPlanExecutor,
+    mock_get_runner,
+    store,
+    executor: TaskPlanExecutor,
 ):
     """Agent runner raises → step failed, plan failed, stops execution."""
     fake_runner = AsyncMock(side_effect=RuntimeError("agent crashed"))
@@ -412,7 +430,9 @@ async def test_runner_raises_marks_step_failed(
 @pytest.mark.asyncio
 @patch("hubos.core.workers.registry.get_host_agent_runner")
 async def test_runner_returns_unsuccessful_marks_failed(
-    mock_get_runner, store, executor: TaskPlanExecutor,
+    mock_get_runner,
+    store,
+    executor: TaskPlanExecutor,
 ):
     """Worker returns success=False → step and plan failed."""
     fake_runner = AsyncMock(return_value="ignored")
@@ -450,7 +470,9 @@ async def test_runner_returns_unsuccessful_marks_failed(
 
 
 @pytest.mark.asyncio
-async def test_tool_name_without_agent_waits_user(store, executor: TaskPlanExecutor):
+async def test_tool_name_without_agent_waits_user(
+    store, executor: TaskPlanExecutor
+):
     """Step with tool_name but no agent_id → waiting_user, plan pauses."""
     plan = await store.create_plan(
         session_id="s1",
@@ -472,7 +494,10 @@ async def test_tool_name_without_agent_waits_user(store, executor: TaskPlanExecu
     assert refreshed.status == PlanStatus.WAITING_USER
     assert refreshed.steps[0].status == PlanStepStatus.WAITING_USER
     assert refreshed.steps[0].metadata is not None
-    assert refreshed.steps[0].metadata["reason"] == "tool execution not implemented"
+    assert (
+        refreshed.steps[0].metadata["reason"]
+        == "tool execution not implemented"
+    )
     # Second step stays pending
     assert refreshed.steps[1].status == PlanStepStatus.PENDING
 
@@ -480,11 +505,14 @@ async def test_tool_name_without_agent_waits_user(store, executor: TaskPlanExecu
 @pytest.mark.asyncio
 @patch("hubos.core.workers.registry.get_host_agent_runner")
 async def test_cancel_during_agent_execution(
-    mock_get_runner, store, executor: TaskPlanExecutor,
+    mock_get_runner,
+    store,
+    executor: TaskPlanExecutor,
 ):
     """Cancellation during agent execution → plan cancelled."""
     # Runner that takes a long time so we can cancel mid-execution
     fake_runner = AsyncMock()
+
     async def _slow_runner(*a, **kw):
         await asyncio.sleep(10)
 
@@ -515,7 +543,9 @@ async def test_cancel_during_agent_execution(
 @pytest.mark.asyncio
 @patch("hubos.core.workers.registry.get_host_agent_runner")
 async def test_mixed_steps_agent_then_mock(
-    mock_get_runner, store, executor: TaskPlanExecutor,
+    mock_get_runner,
+    store,
+    executor: TaskPlanExecutor,
 ):
     """Agent step followed by mock step — both complete."""
     fake_runner = AsyncMock(return_value="agent result")
@@ -556,14 +586,20 @@ async def _wait_done(executor, plan_id, store, iterations=100):
         if not executor.is_running(plan_id):
             break
         plan = await store.get_plan(plan_id)
-        if plan and plan.status in (PlanStatus.WAITING_USER, PlanStatus.FAILED, PlanStatus.CANCELLED, PlanStatus.DONE):
+        if plan and plan.status in (
+            PlanStatus.WAITING_USER,
+            PlanStatus.FAILED,
+            PlanStatus.CANCELLED,
+            PlanStatus.DONE,
+        ):
             break
 
 
 @pytest.mark.asyncio
 async def test_pause_running_plan(store, executor: TaskPlanExecutor):
     plan = await store.create_plan(
-        session_id="s1", title="Pause test",
+        session_id="s1",
+        title="Pause test",
         steps=[{"title": "A"}, {"title": "B"}, {"title": "C"}],
     )
     await executor.start_plan(plan.plan_id)
@@ -582,7 +618,8 @@ async def test_pause_running_plan(store, executor: TaskPlanExecutor):
 @pytest.mark.asyncio
 async def test_resume_paused_plan(store, executor: TaskPlanExecutor):
     plan = await store.create_plan(
-        session_id="s1", title="Resume test",
+        session_id="s1",
+        title="Resume test",
         steps=[{"title": "A"}, {"title": "B"}],
     )
     await executor.start_plan(plan.plan_id)
@@ -600,9 +637,12 @@ async def test_resume_paused_plan(store, executor: TaskPlanExecutor):
 
 
 @pytest.mark.asyncio
-async def test_insert_step_while_paused_then_resume(store, executor: TaskPlanExecutor):
+async def test_insert_step_while_paused_then_resume(
+    store, executor: TaskPlanExecutor
+):
     plan = await store.create_plan(
-        session_id="s1", title="Insert paused",
+        session_id="s1",
+        title="Insert paused",
         steps=[{"title": "A"}, {"title": "C"}],
     )
     await executor.start_plan(plan.plan_id)
@@ -610,7 +650,13 @@ async def test_insert_step_while_paused_then_resume(store, executor: TaskPlanExe
     await executor.pause_plan(plan.plan_id)
 
     # Insert a new step while paused
-    await store.add_step(plan.plan_id, title="B inserted", after_step_id=plan.steps[0].step_id if (await store.get_plan(plan.plan_id)).steps[0].status == "done" else None)
+    await store.add_step(
+        plan.plan_id,
+        title="B inserted",
+        after_step_id=plan.steps[0].step_id
+        if (await store.get_plan(plan.plan_id)).steps[0].status == "done"
+        else None,
+    )
 
     ok = await executor.resume_plan(plan.plan_id)
     assert ok is True
@@ -628,7 +674,8 @@ async def test_insert_step_while_paused_then_resume(store, executor: TaskPlanExe
 async def test_dynamic_step_discovery(store, executor: TaskPlanExecutor):
     """Executor reads latest steps each iteration, not startup snapshot."""
     plan = await store.create_plan(
-        session_id="s1", title="Dynamic",
+        session_id="s1",
+        title="Dynamic",
         steps=[{"title": "A"}, {"title": "B"}, {"title": "C"}],
     )
     await executor.start_plan(plan.plan_id)
@@ -653,7 +700,8 @@ async def test_dynamic_step_discovery(store, executor: TaskPlanExecutor):
 @pytest.mark.asyncio
 async def test_pause_does_not_cleanup_task(store, executor: TaskPlanExecutor):
     plan = await store.create_plan(
-        session_id="s1", title="Pause cleanup",
+        session_id="s1",
+        title="Pause cleanup",
         steps=[{"title": "A"}, {"title": "B"}, {"title": "C"}],
     )
     await executor.start_plan(plan.plan_id)
@@ -668,7 +716,8 @@ async def test_pause_does_not_cleanup_task(store, executor: TaskPlanExecutor):
 @pytest.mark.asyncio
 async def test_done_cleans_up_task(store, executor: TaskPlanExecutor):
     plan = await store.create_plan(
-        session_id="s1", title="Cleanup",
+        session_id="s1",
+        title="Cleanup",
         steps=[{"title": "A"}],
     )
     await executor.start_plan(plan.plan_id)
@@ -680,13 +729,17 @@ async def test_done_cleans_up_task(store, executor: TaskPlanExecutor):
 
 
 @pytest.mark.asyncio
-async def test_pause_non_running_returns_false(store, executor: TaskPlanExecutor):
+async def test_pause_non_running_returns_false(
+    store, executor: TaskPlanExecutor
+):
     ok = await executor.pause_plan("nonexistent")
     assert ok is False
 
 
 @pytest.mark.asyncio
-async def test_resume_non_waiting_returns_false(store, executor: TaskPlanExecutor):
+async def test_resume_non_waiting_returns_false(
+    store, executor: TaskPlanExecutor
+):
     ok = await executor.resume_plan("nonexistent")
     assert ok is False
 
@@ -697,9 +750,12 @@ async def test_resume_non_waiting_returns_false(store, executor: TaskPlanExecuto
 
 
 @pytest.mark.asyncio
-async def test_start_high_risk_unconfirmed_returns_false(store, executor: TaskPlanExecutor):
+async def test_start_high_risk_unconfirmed_returns_false(
+    store, executor: TaskPlanExecutor
+):
     plan = await store.create_plan(
-        session_id="s1", title="Deploy to production",
+        session_id="s1",
+        title="Deploy to production",
         steps=[{"title": "deploy"}],
         metadata={"requires_confirmation": True},
     )
@@ -711,9 +767,12 @@ async def test_start_high_risk_unconfirmed_returns_false(store, executor: TaskPl
 
 
 @pytest.mark.asyncio
-async def test_start_high_risk_confirmed_runs(store, executor: TaskPlanExecutor):
+async def test_start_high_risk_confirmed_runs(
+    store, executor: TaskPlanExecutor
+):
     plan = await store.create_plan(
-        session_id="s1", title="Deploy",
+        session_id="s1",
+        title="Deploy",
         steps=[{"title": "deploy"}],
         metadata={"requires_confirmation": True, "confirmed": True},
     )
@@ -726,9 +785,12 @@ async def test_start_high_risk_confirmed_runs(store, executor: TaskPlanExecutor)
 
 
 @pytest.mark.asyncio
-async def test_resume_confirms_high_risk_plan(store, executor: TaskPlanExecutor):
+async def test_resume_confirms_high_risk_plan(
+    store, executor: TaskPlanExecutor
+):
     plan = await store.create_plan(
-        session_id="s1", title="Deploy",
+        session_id="s1",
+        title="Deploy",
         steps=[{"title": "deploy"}],
         metadata={"requires_confirmation": True},
     )
@@ -747,12 +809,18 @@ async def test_resume_confirms_high_risk_plan(store, executor: TaskPlanExecutor)
 
 
 @pytest.mark.asyncio
-async def test_step_level_confirmation_pauses(store, executor: TaskPlanExecutor):
+async def test_step_level_confirmation_pauses(
+    store, executor: TaskPlanExecutor
+):
     plan = await store.create_plan(
-        session_id="s1", title="Mixed risk",
+        session_id="s1",
+        title="Mixed risk",
         steps=[
             {"title": "safe step"},
-            {"title": "deploy to production", "metadata": {"requires_confirmation": True}},
+            {
+                "title": "deploy to production",
+                "metadata": {"requires_confirmation": True},
+            },
             {"title": "after deploy"},
         ],
     )
@@ -770,7 +838,8 @@ async def test_step_level_confirmation_pauses(store, executor: TaskPlanExecutor)
 @pytest.mark.asyncio
 async def test_resume_confirms_waiting_step(store, executor: TaskPlanExecutor):
     plan = await store.create_plan(
-        session_id="s1", title="Step risk",
+        session_id="s1",
+        title="Step risk",
         steps=[
             {"title": "safe"},
             {"title": "deploy", "metadata": {"requires_confirmation": True}},
@@ -800,6 +869,7 @@ async def test_resume_confirms_waiting_step(store, executor: TaskPlanExecutor):
 async def _get_monitor_task(plan_id, executor):
     """Helper: get the monitor task record for a plan."""
     from hubos.app.task_monitor_helpers import get_monitor_store
+
     mon_store = get_monitor_store()
     mid = executor._monitor_task_ids.get(plan_id)
     if mid:
@@ -808,19 +878,27 @@ async def _get_monitor_task(plan_id, executor):
 
 
 @pytest.mark.asyncio
-async def test_start_plan_creates_monitor_record(store, executor: TaskPlanExecutor):
+async def test_start_plan_creates_monitor_record(
+    store, executor: TaskPlanExecutor
+):
     """start_plan should create a TaskMonitor record."""
     plan = await store.create_plan(
-        session_id="s1", title="Monitor test",
+        session_id="s1",
+        title="Monitor test",
         steps=[{"title": "A"}],
     )
     await executor.start_plan(plan.plan_id)
     await _wait_done(executor, plan.plan_id, store)
 
     from hubos.app.task_monitor_helpers import get_monitor_store
+
     mon_store = get_monitor_store()
     tasks = await mon_store.list_tasks(tool_name="task_plan_executor")
-    matching = [t for t in tasks if plan.plan_id in (t.metadata or {}).get("plan_id", "")]
+    matching = [
+        t
+        for t in tasks
+        if plan.plan_id in (t.metadata or {}).get("plan_id", "")
+    ]
     assert len(matching) > 0
     mon_task = matching[0]
     assert mon_task.source == "task_plan"
@@ -832,16 +910,22 @@ async def test_start_plan_creates_monitor_record(store, executor: TaskPlanExecut
 async def test_step_emits_stage_events(store, executor: TaskPlanExecutor):
     """Executing steps should emit stage_started and stage_completed events."""
     plan = await store.create_plan(
-        session_id="s1", title="Events test",
+        session_id="s1",
+        title="Events test",
         steps=[{"title": "Step A"}, {"title": "Step B"}],
     )
     await executor.start_plan(plan.plan_id)
     await _wait_done(executor, plan.plan_id, store)
 
     from hubos.app.task_monitor_helpers import get_monitor_store
+
     mon_store = get_monitor_store()
     tasks = await mon_store.list_tasks(tool_name="task_plan_executor")
-    matching = [t for t in tasks if plan.plan_id in (t.metadata or {}).get("plan_id", "")]
+    matching = [
+        t
+        for t in tasks
+        if plan.plan_id in (t.metadata or {}).get("plan_id", "")
+    ]
     assert len(matching) > 0
     mon_task = matching[0]
     event_types = [e.event_type for e in mon_task.events]
@@ -850,30 +934,43 @@ async def test_step_emits_stage_events(store, executor: TaskPlanExecutor):
 
 
 @pytest.mark.asyncio
-async def test_failed_step_updates_monitor_failed(store, executor: TaskPlanExecutor):
+async def test_failed_step_updates_monitor_failed(
+    store, executor: TaskPlanExecutor
+):
     """Failed step should update monitor task status to failed."""
     plan = await store.create_plan(
-        session_id="s1", title="Fail monitor",
+        session_id="s1",
+        title="Fail monitor",
         steps=[{"title": "A", "agent_id": "agent-1"}],
     )
-    with patch("hubos.core.workers.registry.get_host_agent_runner", return_value=None):
+    with patch(
+        "hubos.core.workers.registry.get_host_agent_runner", return_value=None
+    ):
         await executor.start_plan(plan.plan_id)
         await _wait_done(executor, plan.plan_id, store)
 
     from hubos.app.task_monitor import TaskStatus
     from hubos.app.task_monitor_helpers import get_monitor_store
+
     mon_store = get_monitor_store()
     tasks = await mon_store.list_tasks(tool_name="task_plan_executor")
-    matching = [t for t in tasks if plan.plan_id in (t.metadata or {}).get("plan_id", "")]
+    matching = [
+        t
+        for t in tasks
+        if plan.plan_id in (t.metadata or {}).get("plan_id", "")
+    ]
     assert len(matching) > 0
     assert matching[0].status == TaskStatus.FAILED
 
 
 @pytest.mark.asyncio
-async def test_waiting_step_updates_monitor_waiting(store, executor: TaskPlanExecutor):
+async def test_waiting_step_updates_monitor_waiting(
+    store, executor: TaskPlanExecutor
+):
     """waiting_user step should update monitor task status to waiting."""
     plan = await store.create_plan(
-        session_id="s1", title="Wait monitor",
+        session_id="s1",
+        title="Wait monitor",
         steps=[{"title": "Tool", "tool_name": "some_tool"}],
     )
     await executor.start_plan(plan.plan_id)
@@ -882,14 +979,18 @@ async def test_waiting_step_updates_monitor_waiting(store, executor: TaskPlanExe
     mon_task = await _get_monitor_task(plan.plan_id, executor)
     assert mon_task is not None
     from hubos.app.task_monitor import TaskStatus
+
     assert mon_task.status == TaskStatus.WAITING
 
 
 @pytest.mark.asyncio
-async def test_cancel_updates_monitor_cancelled(store, executor: TaskPlanExecutor):
+async def test_cancel_updates_monitor_cancelled(
+    store, executor: TaskPlanExecutor
+):
     """Cancelling a plan should update monitor task status to cancelled."""
     plan = await store.create_plan(
-        session_id="s1", title="Cancel monitor",
+        session_id="s1",
+        title="Cancel monitor",
         steps=[{"title": "A"}, {"title": "B"}, {"title": "C"}],
     )
     await executor.start_plan(plan.plan_id)
@@ -902,6 +1003,7 @@ async def test_cancel_updates_monitor_cancelled(store, executor: TaskPlanExecuto
 
     from hubos.app.task_monitor import TaskStatus
     from hubos.app.task_monitor_helpers import get_monitor_store
+
     mon_store = get_monitor_store()
     mon_task = await mon_store.get_task(mid)
     assert mon_task is not None
@@ -912,7 +1014,8 @@ async def test_cancel_updates_monitor_cancelled(store, executor: TaskPlanExecuto
 async def test_done_updates_monitor_done(store, executor: TaskPlanExecutor):
     """Completed plan should update monitor task status to done with progress 100."""
     plan = await store.create_plan(
-        session_id="s1", title="Done monitor",
+        session_id="s1",
+        title="Done monitor",
         steps=[{"title": "A"}],
     )
     await executor.start_plan(plan.plan_id)
@@ -920,19 +1023,27 @@ async def test_done_updates_monitor_done(store, executor: TaskPlanExecutor):
 
     from hubos.app.task_monitor import TaskStatus
     from hubos.app.task_monitor_helpers import get_monitor_store
+
     mon_store = get_monitor_store()
     tasks = await mon_store.list_tasks(tool_name="task_plan_executor")
-    matching = [t for t in tasks if plan.plan_id in (t.metadata or {}).get("plan_id", "")]
+    matching = [
+        t
+        for t in tasks
+        if plan.plan_id in (t.metadata or {}).get("plan_id", "")
+    ]
     assert len(matching) > 0
     assert matching[0].status == TaskStatus.DONE
     assert matching[0].progress == 100
 
 
 @pytest.mark.asyncio
-async def test_monitor_cancel_handler_cancels_plan(store, executor: TaskPlanExecutor):
+async def test_monitor_cancel_handler_cancels_plan(
+    store, executor: TaskPlanExecutor
+):
     """Triggering monitor cancel handler should cancel the plan."""
     plan = await store.create_plan(
-        session_id="s1", title="Handler cancel",
+        session_id="s1",
+        title="Handler cancel",
         steps=[{"title": "A"}, {"title": "B"}, {"title": "C"}],
     )
     await executor.start_plan(plan.plan_id)
@@ -942,6 +1053,7 @@ async def test_monitor_cancel_handler_cancels_plan(store, executor: TaskPlanExec
     assert mid is not None
 
     from hubos.app.task_monitor_helpers import request_cancel_task
+
     await request_cancel_task(mid)
 
     # Give it a moment for the async cancel to propagate
@@ -952,10 +1064,13 @@ async def test_monitor_cancel_handler_cancels_plan(store, executor: TaskPlanExec
 
 
 @pytest.mark.asyncio
-async def test_cleanup_unregisters_monitor_mapping(store, executor: TaskPlanExecutor):
+async def test_cleanup_unregisters_monitor_mapping(
+    store, executor: TaskPlanExecutor
+):
     """After plan finishes, monitor mapping and cancel handler should be cleaned up."""
     plan = await store.create_plan(
-        session_id="s1", title="Cleanup monitor",
+        session_id="s1",
+        title="Cleanup monitor",
         steps=[{"title": "A"}],
     )
     await executor.start_plan(plan.plan_id)
