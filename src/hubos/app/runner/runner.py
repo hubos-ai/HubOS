@@ -87,9 +87,7 @@ class AgentRunner(Runner):
         super().__init__()
         self.framework_type = "agentscope"
         self.agent_id = agent_id  # Store agent_id for config loading
-        self.workspace_dir = (
-            workspace_dir  # Store workspace_dir for prompt building
-        )
+        self.workspace_dir = workspace_dir  # Store workspace_dir for prompt building
         self._chat_manager = None  # Store chat_manager reference
         self._mcp_manager = None  # MCP client manager for hot-reload
         self._workspace: Any = None  # Workspace instance for control commands
@@ -184,9 +182,7 @@ class AgentRunner(Runner):
                     return agent
 
         # Cache miss or borrowed — create new
-        is_temporary = (
-            was_borrowed  # only temp if pool had one but it was in use
-        )
+        is_temporary = was_borrowed  # only temp if pool had one but it was in use
         agent = await self._create_agent(
             agent_config,
             env_context,
@@ -373,9 +369,7 @@ class AgentRunner(Runner):
                         approved_tool_call["_remaining_queue"] = remaining
                     thinking_blocks = record.extra.get("thinking_blocks")
                     if isinstance(thinking_blocks, list):
-                        approved_tool_call[
-                            "_thinking_blocks"
-                        ] = thinking_blocks
+                        approved_tool_call["_thinking_blocks"] = thinking_blocks
             return None, True, approved_tool_call
 
         await svc.resolve_request(
@@ -495,9 +489,7 @@ class AgentRunner(Runner):
                 user_id=user_id,
                 channel=channel,
                 working_dir=(
-                    str(self.workspace_dir)
-                    if self.workspace_dir
-                    else str(WORKING_DIR)
+                    str(self.workspace_dir) if self.workspace_dir else str(WORKING_DIR)
                 ),
             )
 
@@ -732,9 +724,7 @@ class AgentRunner(Runner):
                 exc=e,
                 locals_=locals(),
             )
-            path_hint = (
-                f"\n(Details:  {debug_dump_path})" if debug_dump_path else ""
-            )
+            path_hint = f"\n(Details:  {debug_dump_path})" if debug_dump_path else ""
             logger.exception(f"Error in query handler: {e}{path_hint}")
             if debug_dump_path:
                 setattr(e, "debug_dump_path", debug_dump_path)
@@ -936,8 +926,7 @@ class AgentRunner(Runner):
             )
 
         session_dir = str(
-            (self.workspace_dir if self.workspace_dir else WORKING_DIR)
-            / "sessions",
+            (self.workspace_dir if self.workspace_dir else WORKING_DIR) / "sessions",
         )
         self.session = SafeJSONSession(save_dir=session_dir)
 
