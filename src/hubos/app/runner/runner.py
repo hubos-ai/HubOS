@@ -757,8 +757,6 @@ class AgentRunner(Runner):
                     from ...core.infra.feature_flags import get_feature_flags
 
                     if get_feature_flags().use_work_experience():
-                        import asyncio
-
                         from ...core.work_experience.integration_v4 import (
                             get_work_experience_interceptor,
                         )
