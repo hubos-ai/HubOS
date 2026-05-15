@@ -234,6 +234,14 @@ def build_host_agent_runner(
                 user_id=user_id,
             )
 
+        # Sub-agent calls must be self-contained. Loading/saving their session
+        # memory can revive unrelated old tasks with the same derived
+        # session_id (for example sales/research outputs from prior runs),
+        # which then pollutes the parent parallel result.
+        if ctx.get("parent_session_id"):
+            setattr(request, "skip_session_state", True)
+            setattr(request, "skip_chat_registration", True)
+
         # ---- sub-agent write scope (C) + audit trail (B) ------------------
         scope = _derive_subagent_scope(agent_id, ctx)
         parent_session = str(

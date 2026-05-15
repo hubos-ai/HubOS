@@ -35,6 +35,27 @@
   }
 }
 
+.actionHeader {
+  width: 100%;
+  text-align: left;
+}
+
+.actionColumn {
+  display: inline-flex;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+
+  :global(.ant-btn-link) {
+    padding-inline: 4px;
+  }
+}
+
+.dangerAction {
+  font-weight: 500;
+}
+
 // Session ID column renders a plain <code class="sessionId">. We own the
 // background / color explicitly so both themes stay readable regardless of
 // which parent (table cell / drawer title / banner) it is mounted under.
@@ -193,5 +214,9 @@
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.14);
     color: rgba(255, 255, 255, 0.88);
+  }
+
+  .dangerAction {
+    color: #ff7875 !important;
   }
 }

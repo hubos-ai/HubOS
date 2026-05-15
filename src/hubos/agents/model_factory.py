@@ -351,6 +351,159 @@ def _get_formatter_for_chat_model(
     )
 
 
+def _assistant_has_thinking_content(msg: Any) -> bool:
+    """Return whether an AgentScope assistant message has thinking text."""
+    if getattr(msg, "role", None) != "assistant":
+        return False
+    try:
+        blocks = msg.get_content_blocks()
+    except Exception:
+        return False
+    for block in blocks:
+        if (
+            isinstance(block, dict)
+            and block.get("type") == "thinking"
+            and block.get("thinking")
+        ):
+            return True
+    return False
+
+
+def _assistant_is_thinking_only(msg: Any) -> bool:
+    """Return whether an assistant message contains only thinking blocks."""
+    if getattr(msg, "role", None) != "assistant":
+        return False
+    content = getattr(msg, "content", None)
+    return (
+        isinstance(content, list)
+        and bool(content)
+        and all(
+            isinstance(block, dict) and block.get("type") == "thinking"
+            for block in content
+        )
+    )
+
+
+def _extract_assistant_reasoning_candidates(msgs: list) -> list[str | None]:
+    """Extract reasoning text from assistant messages in original order.
+
+    Some OpenAI-compatible reasoning models, notably DeepSeek thinking mode,
+    require the prior assistant ``reasoning_content`` to be passed back on
+    follow-up requests. AgentScope stores that content as ``thinking`` blocks,
+    while the upstream OpenAI formatter drops those blocks. We therefore keep a
+    compact ordered list so the formatted OpenAI messages can be annotated after
+    the parent formatter has produced them.
+    """
+    candidates: list[str | None] = []
+    for msg in (m for m in msgs if getattr(m, "role", None) == "assistant"):
+        if _assistant_is_thinking_only(msg):
+            continue
+        reasoning = None
+        try:
+            blocks = msg.get_content_blocks()
+        except Exception:
+            blocks = []
+        for block in blocks:
+            if (
+                isinstance(block, dict)
+                and block.get("type") == "thinking"
+                and block.get("thinking")
+            ):
+                reasoning = block["thinking"]
+                break
+        candidates.append(reasoning)
+    return candidates
+
+
+def _map_reasoning_by_tool_call_id(msgs: list) -> dict[str, str]:
+    """Map original tool_use ids to the thinking text on the same message."""
+    result: dict[str, str] = {}
+    for msg in (m for m in msgs if getattr(m, "role", None) == "assistant"):
+        reasoning = None
+        tool_ids: list[str] = []
+        try:
+            blocks = msg.get_content_blocks()
+        except Exception:
+            blocks = []
+        for block in blocks:
+            if not isinstance(block, dict):
+                continue
+            if (
+                block.get("type") == "thinking"
+                and block.get("thinking")
+                and reasoning is None
+            ):
+                reasoning = block["thinking"]
+            elif block.get("type") == "tool_use" and block.get("id"):
+                tool_ids.append(str(block["id"]))
+        if reasoning:
+            for tool_id in tool_ids:
+                result[tool_id] = reasoning
+    return result
+
+
+def _inject_reasoning_content_best_effort(
+    msgs: list,
+    messages: list[dict],
+) -> None:
+    """Attach reasoning_content to formatted assistant messages.
+
+    The normal case is one-to-one alignment between original assistant messages
+    and formatted assistant messages. In real sessions, sanitization and
+    provider-specific formatting may drop some assistant/status messages. The
+    previous all-or-nothing behavior skipped every reasoning value on mismatch,
+    which breaks DeepSeek thinking mode. This helper keeps the exact path for
+    aligned messages and falls back to a conservative ordered injection when
+    counts diverge.
+    """
+    if not any(_assistant_has_thinking_content(msg) for msg in msgs):
+        return
+
+    candidates = _extract_assistant_reasoning_candidates(msgs)
+    out_assistant = [
+        message for message in messages if message.get("role") == "assistant"
+    ]
+    if not candidates or not out_assistant:
+        return
+
+    reasoning_by_tool_id = _map_reasoning_by_tool_call_id(msgs)
+    if reasoning_by_tool_id:
+        for out_msg in out_assistant:
+            if out_msg.get("reasoning_content"):
+                continue
+            for tool_call in out_msg.get("tool_calls") or []:
+                tool_id = tool_call.get("id")
+                reasoning = reasoning_by_tool_id.get(tool_id)
+                if reasoning:
+                    out_msg["reasoning_content"] = reasoning
+                    break
+
+    if len(candidates) != len(out_assistant):
+        logger.warning(
+            "Assistant message count mismatch after formatting "
+            "(%d expected survivors, %d actual). Applying best-effort "
+            "reasoning_content injection.",
+            len(candidates),
+            len(out_assistant),
+        )
+
+    unresolved = [
+        out_msg
+        for out_msg in out_assistant
+        if "reasoning_content" not in out_msg
+    ]
+    for out_msg, reasoning in zip(unresolved, candidates):
+        if reasoning:
+            out_msg["reasoning_content"] = reasoning
+
+    # DeepSeek thinking mode rejects prior assistant tool-call messages when
+    # the key is absent. Some HubOS status/tool messages are synthetic and have
+    # no actual reasoning text, so use an empty string as an explicit marker.
+    for out_msg in out_assistant:
+        if out_msg.get("tool_calls") and "reasoning_content" not in out_msg:
+            out_msg["reasoning_content"] = ""
+
+
 def _substitute_video_blocks(
     msgs: list,
 ) -> dict[str, dict]:
@@ -513,6 +666,10 @@ def _truncate_tool_results(
     the current tool-call turn while reducing token consumption for results
     from earlier turns.
 
+    When truncation occurs, the full output is archived to a refs file
+    and replaced with a structured summary that helps subsequent turns
+    continue from where the context left off.
+
     Args:
         messages: Formatted message list (Anthropic or OpenAI format).
         is_anthropic: True when messages are in Anthropic format.
@@ -523,12 +680,22 @@ def _truncate_tool_results(
     if len(messages) <= _TOOL_RESULT_KEEP_RECENT:
         return messages
 
+    from hubos.core.tool_output_archive import archive_tool_output
+
     old = messages[:-_TOOL_RESULT_KEEP_RECENT]
     recent = messages[-_TOOL_RESULT_KEEP_RECENT:]
     suffix = "…[truncated]"
 
-    def _trunc(text: str) -> str:
+    def _trunc(text: str, *, tool_name: str = "") -> str:
         if len(text) > _TOOL_RESULT_MAX_CHARS:
+            # Try to archive full output and use structured summary
+            archived = archive_tool_output(
+                text,
+                tool_name=tool_name,
+            )
+            if archived:
+                return archived
+            # Fallback to simple truncation
             return text[:_TOOL_RESULT_MAX_CHARS] + suffix
         return text
 
@@ -544,13 +711,15 @@ def _truncate_tool_results(
                 continue
             if block.get("type") == "tool_result":
                 result_content = block.get("content")
+                # Extract tool name from the preceding tool_use message
+                tool_name = ""
                 if isinstance(result_content, list):
                     new_rc = []
                     block_changed = False
                     for rb in result_content:
                         if isinstance(rb, dict) and rb.get("type") == "text":
                             orig = rb.get("text", "")
-                            truncated = _trunc(orig)
+                            truncated = _trunc(orig, tool_name=tool_name)
                             if truncated != orig:
                                 rb = {**rb, "text": truncated}
                                 block_changed = True
@@ -564,8 +733,9 @@ def _truncate_tool_results(
     def _truncate_openai(msg: dict) -> dict:
         if msg.get("role") == "tool":
             content = msg.get("content", "")
+            tool_name = msg.get("name", "")
             if isinstance(content, str):
-                truncated = _trunc(content)
+                truncated = _trunc(content, tool_name=tool_name)
                 if truncated != content:
                     return {**msg, "content": truncated}
         return msg
@@ -606,17 +776,10 @@ def _create_file_block_support_formatter(
             """
             msgs = _sanitize_tool_messages(msgs)
 
-            reasoning_contents = {}
             extra_contents: dict[str, Any] = {}
             for msg in msgs:
                 if msg.role != "assistant":
                     continue
-                for block in msg.get_content_blocks():
-                    if block.get("type") == "thinking":
-                        thinking = block.get("thinking", "")
-                        if thinking:
-                            reasoning_contents[id(msg)] = thinking
-                        break
                 for block in msg.get_content_blocks():
                     if (
                         block.get("type") == "tool_use"
@@ -691,39 +854,7 @@ def _create_file_block_support_formatter(
                         if ec:
                             tc["extra_content"] = ec
 
-            if reasoning_contents:
-                # Build a list of reasoning values aligned with surviving
-                # assistant messages.  The parent formatter drops
-                # thinking-only messages (no content/tool_calls), so we
-                # predict survivors and collect reasoning only for those.
-                aligned_reasoning = []
-                for m in (msg for msg in msgs if msg.role == "assistant"):
-                    is_thinking_only = (
-                        isinstance(m.content, list)
-                        and m.content
-                        and all(b.get("type") == "thinking" for b in m.content)
-                    )
-                    if not is_thinking_only:
-                        aligned_reasoning.append(
-                            reasoning_contents.get(id(m)),
-                        )
-
-                out_assistant = [
-                    m for m in messages if m.get("role") == "assistant"
-                ]
-
-                if len(aligned_reasoning) != len(out_assistant):
-                    logger.warning(
-                        "Assistant message count mismatch after formatting "
-                        "(%d expected survivors, %d actual). "
-                        "Skipping reasoning_content injection.",
-                        len(aligned_reasoning),
-                        len(out_assistant),
-                    )
-                else:
-                    for i, out_msg in enumerate(out_assistant):
-                        if aligned_reasoning[i]:
-                            out_msg["reasoning_content"] = aligned_reasoning[i]
+            _inject_reasoning_content_best_effort(msgs, messages)
 
             # Phase-1 token optimization: truncate old tool results
             # (OpenAI / Gemini path; Anthropic handles this above)
@@ -861,6 +992,11 @@ def create_model_and_formatter(
     model_slot = None
     retry_config = None
     rate_limit_config = None
+
+    # Check for runtime model override (e.g. from cron jobs)
+    from ..config.context import get_current_model_override
+    _override = get_current_model_override()
+
     if agent_id:
         try:
             agent_config = load_agent_config(agent_id)
@@ -880,6 +1016,10 @@ def create_model_and_formatter(
             )
         except Exception:
             pass
+
+    # Model override takes highest priority (e.g. cron wants DeepSeek)
+    if _override is not None and getattr(_override, "provider_id", None) and getattr(_override, "model", None):
+        model_slot = _override
 
     # Create chat model from agent-specific or global config
     if model_slot and model_slot.provider_id and model_slot.model:

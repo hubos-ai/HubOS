@@ -152,11 +152,35 @@
   color: #1890ff;
 }
 
+.actionHeader {
+  width: 100%;
+  text-align: left;
+}
+
 /* Action column */
 .actionColumn {
   display: flex;
-  gap: 8px;
+  width: 100%;
+  justify-content: center;
+  gap: 2px;
   align-items: center;
+  flex-wrap: nowrap;
+
+  :global(.ant-btn-link) {
+    padding-inline: 4px;
+  }
+}
+
+.primaryAction {
+  font-weight: 500;
+}
+
+.secondaryAction {
+  opacity: 0.88;
+}
+
+.dangerAction {
+  font-weight: 500;
 }
 
 /* ─── Dark mode ─────────────────────────────────────────────────────────────── */
@@ -202,5 +226,9 @@
 
   .formHelperLink {
     color: #69b1ff !important;
+  }
+
+  .dangerAction {
+    color: #ff7875 !important;
   }
 }

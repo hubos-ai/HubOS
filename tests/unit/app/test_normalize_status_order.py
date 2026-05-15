@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """Tests for normalize_pre_agent_status_order in runner/utils.py.
 
-Verifies that "Context understanding" / "Experience matching" status tool
-messages that appear before a user message get reordered after it, while
-normal tool calls (edit_file, execute_shell_command, …) are left untouched.
+Verifies that "Context understanding" / "Experience matching" /
+"Knowledge injection" status tool messages that appear before a user message
+get reordered after it, while normal tool calls (edit_file,
+execute_shell_command, …) are left untouched.
 
 Uses importlib to load utils.py directly, bypassing heavy dependencies.
 """
@@ -24,17 +25,31 @@ def _load_utils_module():
     """Load utils.py without triggering agentscope imports in __init__.py."""
     import sys
 
-    # Register parent packages so relative imports resolve.
-    for pkg in ("hubos", "hubos.app", "hubos.app.runner"):
-        if pkg not in sys.modules:
-            sys.modules[pkg] = type(sys)(pkg)
+    injected_modules = [
+        "hubos",
+        "hubos.app",
+        "hubos.app.runner",
+        "agentscope.message",
+        "agentscope_runtime",
+        "agentscope_runtime.engine",
+        "agentscope_runtime.engine.schemas",
+        "agentscope_runtime.engine.schemas.agent_schemas",
+        "hubos.config",
+        "hubos.app.runner.utils",
+    ]
+    previous_modules = {name: sys.modules.get(name) for name in injected_modules}
 
-    # Pre-register stub modules to satisfy the top-level imports.
-    if "agentscope.message" not in sys.modules:
+    # Register parent packages so relative imports resolve.
+    try:
+        for pkg in ("hubos", "hubos.app", "hubos.app.runner"):
+            if pkg not in sys.modules:
+                sys.modules[pkg] = type(sys)(pkg)
+
+        # Pre-register stub modules to satisfy the top-level imports.
         m = type(sys)("agentscope.message")
         m.Msg = type("Msg", (), {})
         sys.modules["agentscope.message"] = m
-    if "agentscope_runtime.engine.schemas.agent_schemas" not in sys.modules:
+
         schemas = type(sys)(
             "agentscope_runtime.engine.schemas.agent_schemas",
         )
@@ -75,20 +90,26 @@ def _load_utils_module():
         sys.modules[
             "agentscope_runtime.engine.schemas.agent_schemas"
         ] = schemas
-    if "hubos.config" not in sys.modules:
+
         config = type(sys)("hubos.config")
         _cfg = type("Config", (), {"user_timezone": "UTC"})()
         config.load_config = lambda: _cfg
         sys.modules["hubos.config"] = config
 
-    spec = importlib.util.spec_from_file_location(
-        "hubos.app.runner.utils",
-        str(_MODULE_PATH),
-    )
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules["hubos.app.runner.utils"] = mod
-    spec.loader.exec_module(mod)
-    return mod
+        spec = importlib.util.spec_from_file_location(
+            "hubos.app.runner.utils",
+            str(_MODULE_PATH),
+        )
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["hubos.app.runner.utils"] = mod
+        spec.loader.exec_module(mod)
+        return mod
+    finally:
+        for name, previous in previous_modules.items():
+            if previous is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = previous
 
 
 _mod = _load_utils_module()
@@ -113,11 +134,22 @@ class _FakeMsg:
         role: str,
         msg_type: str = "message",
         name: str | None = None,
+        *,
+        hubos_status: bool = False,
     ):
         self.role = role
         self.type = msg_type
         self.content = []
-        if name is not None and msg_type in (
+        if hubos_status:
+            self.content.append(
+                _FakeContent(
+                    {
+                        "kind": "hubos_status",
+                        "name": name or "Status",
+                    },
+                ),
+            )
+        elif name is not None and msg_type in (
             "plugin_call",
             "plugin_call_output",
         ):
@@ -126,6 +158,10 @@ class _FakeMsg:
 
 def _msg(role: str, msg_type: str = "message", name: str | None = None):
     return _FakeMsg(role, msg_type, name)
+
+
+def _status_msg(name: str):
+    return _FakeMsg("assistant", "message", name, hubos_status=True)
 
 
 # ---- helpers ----
@@ -153,8 +189,8 @@ def _names(messages: list) -> list[str | None]:
 
 
 class TestStatusToolReorder:
-    """Status tools (Context understanding, Experience matching) before user
-    message get moved after it."""
+    """Status tools (Context understanding, Experience matching, Knowledge
+    injection) before user message get moved after it."""
 
     def test_basic_reorder(self):
         """Status plugin_call + output before user → moved after user."""
@@ -222,6 +258,69 @@ class TestStatusToolReorder:
     def test_single_user(self):
         msgs = [_msg("user", "message")]
         assert normalize_pre_agent_status_order(msgs) == msgs
+
+    def test_knowledge_injection_reorder(self):
+        """Knowledge injection before user message gets moved after it."""
+        msgs = [
+            _msg("assistant", "message"),
+            _msg("assistant", "plugin_call", "Knowledge injection"),
+            _msg("tool", "plugin_call_output", "Knowledge injection"),
+            _msg("user", "message"),
+            _msg("assistant", "message"),
+        ]
+        result = normalize_pre_agent_status_order(msgs)
+        assert _names(result) == [
+            None,  # assistant message
+            None,  # user message (moved forward)
+            "Knowledge injection",  # ← moved after user
+            "Knowledge injection",
+            None,  # assistant message
+        ]
+
+    def test_all_three_status_tools_reordered(self):
+        """Context understanding + Experience matching + Knowledge injection
+        all get reordered before user."""
+        msgs = [
+            _msg("assistant", "message"),
+            _msg("assistant", "plugin_call", "Context understanding"),
+            _msg("tool", "plugin_call_output", "Context understanding"),
+            _msg("assistant", "plugin_call", "Experience matching"),
+            _msg("tool", "plugin_call_output", "Experience matching"),
+            _msg("assistant", "plugin_call", "Knowledge injection"),
+            _msg("tool", "plugin_call_output", "Knowledge injection"),
+            _msg("user", "message"),
+            _msg("assistant", "message"),
+        ]
+        result = normalize_pre_agent_status_order(msgs)
+        assert _names(result) == [
+            None,  # assistant message
+            None,  # user message (moved forward)
+            "Context understanding",
+            "Context understanding",
+            "Experience matching",
+            "Experience matching",
+            "Knowledge injection",
+            "Knowledge injection",
+            None,  # assistant message
+        ]
+
+    def test_hubos_status_protocol_reordered(self):
+        """New dedicated hubos_status messages are moved after the user."""
+        msgs = [
+            _msg("assistant", "message"),
+            _status_msg("Context understanding"),
+            _status_msg("Experience matching"),
+            _msg("user", "message"),
+            _msg("assistant", "message"),
+        ]
+        result = normalize_pre_agent_status_order(msgs)
+        assert _names(result) == [
+            None,
+            None,
+            "Context understanding",
+            "Experience matching",
+            None,
+        ]
 
 
 class TestNormalToolsUntouched:

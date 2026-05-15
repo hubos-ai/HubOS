@@ -36,6 +36,7 @@ from hubos.core.work_experience.integration_v4 import (
 )
 from hubos.core.work_experience.schemas_v4 import WorkflowCard
 from hubos.core.work_experience.store_v4 import CardStore
+from hubos.core.work_experience.retriever_v4 import MatchResult
 from hubos.core.orchestrator.reflection_engine import TaskContext
 from hubos.core.schemas.memory import ReflectionReport
 from hubos.core.schemas.tasks import TaskResult, TaskStatus as TaskStatusEnum
@@ -365,6 +366,139 @@ class TestWorkExperienceV4Interceptor:
             "pitfalls": ["不要泛搜 distributor"],
             "success_patterns": ["中标公司比泛搜索更精准"],
             "has_lessons": True,
+            "knowledge_candidates": [
+                {
+                    "title": "FNDE 使用 SIGARP",
+                    "domain": "business",
+                    "entities": ["Brazil", "FNDE", "SIGARP"],
+                    "tags": ["brazil", "procurement"],
+                    "summary": "FNDE 教育采购不完全在 Comprasnet，核心系统包含 SIGARP。",
+                    "confidence": "high",
+                },
+            ],
+        }
+
+        with patch.dict(os.environ, {"HUBOS_WORKING_DIR": str(tmp_path)}):
+            with patch.object(
+                V4WorkExperienceInterceptor,
+                "_reflect_with_llm",
+                return_value=reflection,
+            ):
+                result = interceptor.post_chat_turn(
+                    session_id="session-v4-create",
+                    user_input="开发巴西客户",
+                    assistant_response="已完成，测试通过。",
+                )
+
+        pending = list((tmp_path / "memory" / "knowledge_pending").glob("*.md"))
+        assert len(pending) == 1
+        assert "FNDE 使用 SIGARP" in pending[0].read_text(encoding="utf-8")
+        assert result is not None
+        assert result["knowledge_candidates"] == 1
+
+        card = store.get(result["card_id"])
+        assert card is not None
+        assert card.task_type == "政府采购客户开发"
+        assert card.executions == 1
+        assert card.source_sessions == ["session-v4-create"]
+
+    def test_completion_skips_sensitive_knowledge_candidate(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        store = CardStore(root=tmp_path / "we_v4")
+        interceptor = V4WorkExperienceInterceptor(store=store)
+        reflection = {
+            "task_type": "工具配置",
+            "description": "工具配置经验",
+            "workflow": ["检查配置"],
+            "tools": {},
+            "pitfalls": ["不要泄露密钥"],
+            "success_patterns": ["敏感信息留在安全配置"],
+            "has_lessons": True,
+            "knowledge_candidates": [
+                {
+                    "title": "API key 配置",
+                    "summary": "secret token 是 sk-abc123，不应写入知识库。",
+                },
+            ],
+        }
+
+        with patch.dict(os.environ, {"HUBOS_WORKING_DIR": str(tmp_path)}):
+            with patch.object(
+                V4WorkExperienceInterceptor,
+                "_reflect_with_llm",
+                return_value=reflection,
+            ):
+                result = interceptor.post_chat_turn(
+                    session_id="session-sensitive",
+                    user_input="配置工具",
+                    assistant_response="已完成，测试通过。",
+                )
+
+        assert result is not None
+        assert result["knowledge_candidates"] == 0
+        assert not (tmp_path / "memory" / "knowledge_pending").exists()
+
+    def test_completion_writes_fact_candidate_without_experience_card(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        store = CardStore(root=tmp_path / "we_v4")
+        interceptor = V4WorkExperienceInterceptor(store=store)
+        reflection = {
+            "task_type": "",
+            "description": "",
+            "workflow": [],
+            "tools": {},
+            "pitfalls": [],
+            "success_patterns": [],
+            "has_lessons": False,
+            "knowledge_candidates": [
+                {
+                    "title": "Electron 修改需要重新打包",
+                    "domain": "dev",
+                    "entities": ["Electron", "asar"],
+                    "summary": "Electron 桌面端运行的是打包后的 asar，改源码后需要重新打包。",
+                    "confidence": "high",
+                },
+            ],
+        }
+
+        with patch.dict(os.environ, {"HUBOS_WORKING_DIR": str(tmp_path)}):
+            with patch.object(
+                V4WorkExperienceInterceptor,
+                "_reflect_with_llm",
+                return_value=reflection,
+            ):
+                result = interceptor.post_chat_turn(
+                    session_id="session-fact-only",
+                    user_input="桌面端为什么没变化",
+                    assistant_response="完成了，已验证。",
+                )
+
+        assert result is None
+        assert store.list_all() == []
+        pending = list((tmp_path / "memory" / "knowledge_pending").glob("*.md"))
+        assert len(pending) == 1
+        assert "Electron 修改需要重新打包" in pending[0].read_text(
+            encoding="utf-8",
+        )
+
+    def test_completion_creates_methodology_card_legacy_assertions(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        store = CardStore(root=tmp_path / "we_v4")
+        interceptor = V4WorkExperienceInterceptor(store=store)
+        reflection = {
+            "task_type": "政府采购客户开发",
+            "description": "从政府采购中标结果寻找精准客户",
+            "workflow": ["找到采购平台", "抓取中标结果", "反查供应商联系方式"],
+            "tools": {"browser": "验证政府平台", "curl": "调用开放API"},
+            "pitfalls": ["不要泛搜 distributor"],
+            "success_patterns": ["中标公司比泛搜索更精准"],
+            "has_lessons": True,
         }
 
         with patch.object(
@@ -436,6 +570,312 @@ class TestWorkExperienceV4Interceptor:
 
 
 # =============================================================================
+# V4 Traceability Tests
+# =============================================================================
+
+
+class TestWorkExperienceV4Traceability:
+    """Tests for session/agent traceability fields on WorkflowCard."""
+
+    def test_new_card_writes_ref_session_and_agent(self, tmp_path: Path) -> None:
+        """New card created via post_chat_turn includes ref_session_id and ref_agent_id."""
+        store = CardStore(root=tmp_path / "we_trace")
+        interceptor = V4WorkExperienceInterceptor(store=store)
+        reflection = {
+            "task_type": "CSV数据处理",
+            "description": "CSV数据清洗和导出",
+            "workflow": ["读取CSV", "清洗数据"],
+            "tools": {},
+            "pitfalls": [],
+            "success_patterns": [],
+            "has_lessons": True,
+        }
+
+        with patch.object(
+            V4WorkExperienceInterceptor,
+            "_reflect_with_llm",
+            return_value=reflection,
+        ):
+            result = interceptor.post_chat_turn(
+                session_id="trace-session-1",
+                user_input="处理CSV",
+                assistant_response="已完成，测试通过。",
+                agent_id="agent-csv",
+            )
+
+        assert result is not None
+        card = store.get(result["card_id"])
+        assert card is not None
+        assert card.ref_session_id == "trace-session-1"
+        assert card.ref_agent_id == "agent-csv"
+        assert card.last_ref_session_id == "trace-session-1"
+        assert card.source_turn_count >= 1
+
+    def test_update_preserves_first_ref_and_updates_last_ref(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Updating a card preserves the original ref_session_id, updates last_ref_session_id."""
+        store = CardStore(root=tmp_path / "we_trace2")
+        card = WorkflowCard(
+            card_id="csv-process",
+            task_type="CSV数据处理",
+            description="旧描述",
+            workflow=["旧步骤"],
+            tools={},
+            pitfalls=["旧坑"],
+            success_patterns=["旧方法"],
+            executions=1,
+            ref_session_id="original-session",
+            ref_agent_id="original-agent",
+            last_ref_session_id="original-session",
+            source_turn_count=2,
+        )
+        store.save(card)
+        interceptor = V4WorkExperienceInterceptor(store=store)
+        interceptor._session_card_id = "csv-process"
+
+        reflection = {
+            "task_type": "CSV数据处理",
+            "description": "更新后的描述",
+            "workflow": ["新步骤"],
+            "tools": {"pandas": "数据处理"},
+            "pitfalls": ["新坑"],
+            "success_patterns": ["新方法"],
+            "has_lessons": True,
+        }
+
+        with patch.object(
+            V4WorkExperienceInterceptor,
+            "_reflect_with_llm",
+            return_value=reflection,
+        ):
+            result = interceptor.post_chat_turn(
+                session_id="update-session-2",
+                user_input="继续处理",
+                assistant_response="完成了。",
+                agent_id="agent-update",
+            )
+
+        assert result is not None
+        assert result["action"] == "updated"
+        updated = store.get("csv-process")
+        assert updated is not None
+        # First ref preserved
+        assert updated.ref_session_id == "original-session"
+        assert updated.ref_agent_id == "original-agent"
+        # Last ref updated
+        assert updated.last_ref_session_id == "update-session-2"
+        assert updated.source_turn_count >= 1
+
+    def test_old_card_without_trace_fields_loads_without_crash(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Cards serialized without traceability fields deserialize safely."""
+        import json
+
+        old_json = json.dumps({
+            "card_id": "legacy-card",
+            "task_type": "遗留任务",
+            "description": "没有追溯字段",
+            "workflow": [],
+            "tools": {},
+            "pitfalls": [],
+            "success_patterns": [],
+            "experience_type": "general",
+            "entities": [],
+            "executions": 5,
+            "last_executed_at": "",
+            "created_at": "2024-01-01T00:00:00+00:00",
+            "updated_at": "2024-01-01T00:00:00+00:00",
+            "source_sessions": ["old-s1"],
+            "status": "approved",
+            "experience_level": "mature",
+            "disabled": False,
+        })
+        card = WorkflowCard.from_json(old_json)
+        assert card.task_type == "遗留任务"
+        assert card.ref_session_id == ""
+        assert card.ref_agent_id == ""
+        assert card.last_ref_session_id == ""
+        assert card.source_turn_count == 0
+        assert card.executions == 5
+
+        # Roundtrip: serialise and load again
+        card2 = WorkflowCard.from_json(card.to_json())
+        assert card2.ref_session_id == ""
+        assert card2.source_turn_count == 0
+
+    def test_knowledge_pending_includes_source_session_and_agent(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Knowledge candidates written to disk include source_session and source_agent."""
+        from hubos.core.knowledge_maintenance import write_pending_candidates
+
+        paths = write_pending_candidates(
+            [
+                {
+                    "title": "测试知识",
+                    "summary": "测试摘要",
+                    "domain": "dev",
+                },
+            ],
+            workspace_dir=tmp_path,
+            session_id="k-session-1",
+            agent_id="k-agent-1",
+        )
+        assert len(paths) == 1
+        text = paths[0].read_text(encoding="utf-8")
+        assert "source_session: k-session-1" in text
+        assert "source_agent: k-agent-1" in text
+
+    def test_trace_fields_roundtrip_via_store(self, tmp_path: Path) -> None:
+        """Card with trace fields roundtrips through store save/load."""
+        store = CardStore(root=tmp_path / "we_roundtrip")
+        card = WorkflowCard(
+            task_type="Roundtrip测试",
+            description="验证追溯字段落盘",
+            ref_session_id="rt-session",
+            ref_agent_id="rt-agent",
+            last_ref_session_id="rt-session",
+            source_turn_count=7,
+        )
+        store.save(card)
+
+        loaded = store.get(card.card_id)
+        assert loaded is not None
+        assert loaded.ref_session_id == "rt-session"
+        assert loaded.ref_agent_id == "rt-agent"
+        assert loaded.last_ref_session_id == "rt-session"
+        assert loaded.source_turn_count == 7
+
+
+# =============================================================================
+# PreExecute Result Status Tests
+# =============================================================================
+
+
+class TestPreExecuteStatus:
+    """Verify pre_execute returns real status, not just card/None."""
+
+    def test_matched_card_returns_matched_status(self, tmp_path: Path) -> None:
+        """When a card is matched, status='matched' and task_type is set."""
+        store = CardStore(root=tmp_path / "we_v4")
+        card = WorkflowCard(
+            task_type="客户开发",
+            description="客户开发流程",
+            workflow=["步骤1"],
+            tools={},
+            pitfalls=[],
+            success_patterns=[],
+            experience_type="customer_development",
+            entities=[],
+        )
+        store.save(card)
+
+        interceptor = V4WorkExperienceInterceptor(store=store)
+
+        with patch.object(
+            interceptor._retriever,
+            "_classify_and_match",
+        ) as mock_clf:
+            from hubos.core.work_experience.retriever_v4 import MatchResult
+
+            mock_clf.return_value = MatchResult(
+                card=card,
+                status="matched",
+                task_type="客户开发",
+                elapsed_ms=42,
+            )
+            result = interceptor.pre_execute(user_message="帮我找客户")
+
+        assert result.card is not None
+        assert result.status == "matched"
+        assert result.task_type == "客户开发"
+        assert result.elapsed_ms == 42
+
+    def test_no_match_returns_no_match_status(self, tmp_path: Path) -> None:
+        """When no card matches, status='no_match'."""
+        store = CardStore(root=tmp_path / "we_v4")
+        interceptor = V4WorkExperienceInterceptor(store=store)
+
+        with patch.object(
+            interceptor._retriever,
+            "get_or_suggest",
+        ) as mock_gos:
+            from hubos.core.work_experience.retriever_v4 import MatchResult
+
+            mock_gos.return_value = MatchResult(
+                status="no_match",
+                task_type="新任务",
+                elapsed_ms=93,
+            )
+            result = interceptor.pre_execute(user_message="随便聊聊")
+
+        assert result.card is None
+        assert result.status == "no_match"
+        assert result.elapsed_ms == 93
+
+    def test_model_unavailable_status(self, tmp_path: Path) -> None:
+        """When LLM is unavailable, status='model_unavailable'."""
+        store = CardStore(root=tmp_path / "we_v4")
+        interceptor = V4WorkExperienceInterceptor(store=store)
+
+        with patch.object(
+            interceptor._retriever,
+            "get_or_suggest",
+        ) as mock_gos:
+            from hubos.core.work_experience.retriever_v4 import MatchResult
+
+            mock_gos.return_value = MatchResult(
+                status="model_unavailable",
+                elapsed_ms=2,
+            )
+            result = interceptor.pre_execute(user_message="test")
+
+        assert result.card is None
+        assert result.status == "model_unavailable"
+        assert result.elapsed_ms == 2
+
+    def test_invalid_output_status(self, tmp_path: Path) -> None:
+        """When LLM returns invalid JSON, status='invalid_output'."""
+        store = CardStore(root=tmp_path / "we_v4")
+        interceptor = V4WorkExperienceInterceptor(store=store)
+
+        with patch.object(
+            interceptor._retriever,
+            "get_or_suggest",
+        ) as mock_gos:
+            from hubos.core.work_experience.retriever_v4 import MatchResult
+
+            mock_gos.return_value = MatchResult(
+                status="invalid_output",
+                elapsed_ms=500,
+            )
+            result = interceptor.pre_execute(user_message="test")
+
+        assert result.card is None
+        assert result.status == "invalid_output"
+
+    def test_exception_returns_model_call_failed(self, tmp_path: Path) -> None:
+        """When pre_execute throws, status='model_call_failed'."""
+        store = CardStore(root=tmp_path / "we_v4")
+        interceptor = V4WorkExperienceInterceptor(store=store)
+
+        with patch.object(
+            interceptor._retriever,
+            "get_or_suggest",
+            side_effect=RuntimeError("boom"),
+        ):
+            result = interceptor.pre_execute(user_message="test")
+
+        assert result.card is None
+        assert result.status == "model_call_failed"
+
+
+# =============================================================================
 # Orchestrator Integration Tests
 # =============================================================================
 
@@ -460,9 +900,9 @@ class TestOrchestratorWorkExperienceIntegration:
 
             reload_feature_flags()
 
-            import hubos.core.work_experience.integration as integ_mod
+            import hubos.core.work_experience.integration_v4 as integ_v4_mod
 
-            integ_mod._interceptor = None
+            integ_v4_mod._interceptor = None
 
             task_store = TaskStore()
             event_store = EventStore()
@@ -546,7 +986,12 @@ class TestOrchestratorWorkExperienceIntegration:
                 with patch.object(
                     interceptor._retriever,
                     "get_or_suggest",
-                    return_value=(v4_card, None),
+                    return_value=MatchResult(
+                        card=v4_card,
+                        status="matched",
+                        task_type="CSV处理",
+                        elapsed_ms=50,
+                    ),
                 ):
                     with patch.object(
                         integ_v4_mod,
@@ -601,9 +1046,11 @@ class TestOrchestratorWorkExperienceIntegration:
 
             reload_feature_flags()
 
-            import hubos.core.work_experience.integration as integ_mod
+            import hubos.core.work_experience.integration_v4 as integ_v4_mod
 
-            integ_mod._interceptor = None
+            integ_v4_mod._interceptor = None
+
+            v4_store = CardStore(root=tmp_path / "we_v4_no_match")
 
             task_store = TaskStore()
             event_store = EventStore()
@@ -615,23 +1062,29 @@ class TestOrchestratorWorkExperienceIntegration:
                 "hubos.core.infra.agent_registry.get_agent_registry",
                 return_value=mock_registry,
             ):
-                # Create the interceptor and inject the populated store directly
-                interceptor = get_work_experience_interceptor()
-                interceptor._store = we_store_with_cards
-                interceptor._retriever = WorkExperienceRetriever(
-                    store=we_store_with_cards,
-                    max_results=5,
-                )
-
-                task = orch.submit_task(
-                    input_text="do something with quantum computing xyz",
-                    session_id="session-no-match",
-                    channel="api",
-                )
-                result_task = orch.execute_task(task.task_id)
+                interceptor = V4WorkExperienceInterceptor(store=v4_store)
+                with patch.object(
+                    interceptor._retriever,
+                    "get_or_suggest",
+                    return_value=MatchResult(
+                        status="no_match",
+                        task_type="量子计算",
+                        elapsed_ms=10,
+                    ),
+                ):
+                    with patch.object(
+                        integ_v4_mod,
+                        "get_work_experience_interceptor",
+                        return_value=interceptor,
+                    ):
+                        task = orch.submit_task(
+                            input_text="do something with quantum computing xyz",
+                            session_id="session-no-match",
+                            channel="api",
+                        )
+                        result_task = orch.execute_task(task.task_id)
 
         assert result_task.current_status == TaskStatus.DONE
-        # No cards were found for this unrelated query
         assert result_task.work_experience_cards == []
 
     def test_retrieval_error_does_not_crash_execution(
@@ -651,9 +1104,9 @@ class TestOrchestratorWorkExperienceIntegration:
 
             reload_feature_flags()
 
-            import hubos.core.work_experience.integration as integ_mod
+            import hubos.core.work_experience.integration_v4 as integ_v4_mod
 
-            integ_mod._interceptor = None
+            integ_v4_mod._interceptor = None
 
             task_store = TaskStore()
             event_store = EventStore()
@@ -662,13 +1115,12 @@ class TestOrchestratorWorkExperienceIntegration:
             mock_registry = MagicMock()
             mock_registry.list_agents.return_value = [MagicMock()]
 
-            # Simulate retrieval error by patching get_work_experience_interceptor
             with patch(
                 "hubos.core.infra.agent_registry.get_agent_registry",
                 return_value=mock_registry,
             ):
                 with patch.object(
-                    integ_mod,
+                    integ_v4_mod,
                     "get_work_experience_interceptor",
                 ) as mock_get:
                     mock_interceptor = MagicMock()
@@ -760,11 +1212,11 @@ class TestOrchestratorWorkExperienceIntegration:
 
             reload_feature_flags()
 
-            import hubos.core.work_experience.integration as integ_mod
+            import hubos.core.work_experience.integration_v4 as integ_v4_mod
 
-            integ_mod._interceptor = None
+            integ_v4_mod._interceptor = None
 
-            empty_store = LocalWorkExperienceStore(root=tmp_path / "we")
+            v4_store = CardStore(root=tmp_path / "we_v4_off")
             task_store = TaskStore()
             event_store = EventStore()
             orch = _make_orchestrator(task_store, event_store)
@@ -775,23 +1227,22 @@ class TestOrchestratorWorkExperienceIntegration:
                 "hubos.core.infra.agent_registry.get_agent_registry",
                 return_value=mock_registry,
             ):
-                interceptor = get_work_experience_interceptor()
-                interceptor._store = empty_store
-                interceptor._retriever = WorkExperienceRetriever(
-                    store=empty_store,
-                    max_results=5,
-                )
-
-                task = orch.submit_task(
-                    input_text="write a short summary for this CSV file",
-                    session_id="session-no-save-card",
-                    channel="api",
-                    requested_workflow="one_person_default",
-                )
-                result_task = orch.execute_task(task.task_id)
+                interceptor = V4WorkExperienceInterceptor(store=v4_store)
+                with patch.object(
+                    integ_v4_mod,
+                    "get_work_experience_interceptor",
+                    return_value=interceptor,
+                ):
+                    task = orch.submit_task(
+                        input_text="write a short summary for this CSV file",
+                        session_id="session-no-save-card",
+                        channel="api",
+                        requested_workflow="one_person_default",
+                    )
+                    result_task = orch.execute_task(task.task_id)
 
         assert result_task.current_status == TaskStatus.DONE
-        assert empty_store.list_all(include_disabled=True) == []
+        assert v4_store.list_all() == []
 
     def test_work_experience_cards_field_exists_on_task(self) -> None:
         """Task dataclass has work_experience_cards field."""

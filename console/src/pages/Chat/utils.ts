@@ -39,6 +39,53 @@ type RuntimeResponseChunk =
       code?: string;
     };
 
+const STATUS_TOOL_NAMES = new Set([
+  "Context understanding",
+  "Experience matching",
+  "Knowledge injection",
+]);
+
+function normalizeToolData(
+  rawData: Record<string, unknown>,
+  fallbackId: string,
+): Record<string, unknown> {
+  return {
+    ...rawData,
+    call_id: rawData.call_id || rawData.tool_use_id || rawData.id || fallbackId,
+  };
+}
+
+function getToolKey(data: Record<string, unknown>, fallbackId: string): string {
+  return String(
+    data.call_id || data.tool_use_id || data.id || data.name || fallbackId,
+  );
+}
+
+function isStatusToolData(data: Record<string, unknown>): boolean {
+  return typeof data.name === "string" && STATUS_TOOL_NAMES.has(data.name);
+}
+
+function isStatusToolKey(inputContent?: Record<string, unknown>): boolean {
+  const inputData =
+    inputContent?.data && typeof inputContent.data === "object"
+      ? (inputContent.data as Record<string, unknown>)
+      : undefined;
+  return Boolean(inputData && isStatusToolData(inputData));
+}
+
+function hasToolOutput(data: Record<string, unknown>): boolean {
+  return (
+    data.output !== undefined ||
+    data.result !== undefined ||
+    data.text !== undefined ||
+    data.content !== undefined
+  );
+}
+
+function hasToolInput(data: Record<string, unknown>): boolean {
+  return data.arguments !== undefined || data.input !== undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Text extraction utilities
 // ---------------------------------------------------------------------------
@@ -267,6 +314,7 @@ export function createSseChunkParser(
 ): SseChunkParser {
   const accumulators = new Map<string, string>();
   const contentAccumulators = new Map<string, string>();
+  const toolInputContent = new Map<string, Record<string, unknown>>();
   const messageMeta = new Map<
     string,
     Pick<AgentScopeStreamMessage, "id" | "role" | "type">
@@ -278,6 +326,7 @@ export function createSseChunkParser(
   const reset = () => {
     accumulators.clear();
     contentAccumulators.clear();
+    toolInputContent.clear();
     messageMeta.clear();
     outputMessages = [];
     assistantSeq = 0;
@@ -294,6 +343,61 @@ export function createSseChunkParser(
     object: "response",
     status: "in_progress",
     output: outputMessages.map((m) => ({ ...m })),
+  });
+
+  const buildStatusToolMessage = (
+    key: string,
+    outputData: Record<string, unknown>,
+    status?: string,
+  ): AgentScopeStreamMessage => {
+    const inputContent = toolInputContent.get(key) || {
+      type: "data",
+      data: {
+        call_id: key,
+        name: typeof outputData.name === "string" ? outputData.name : "Status",
+        arguments: "{}",
+      },
+      status: "completed",
+    };
+
+    const inputData =
+      inputContent.data && typeof inputContent.data === "object"
+        ? (inputContent.data as Record<string, unknown>)
+        : {};
+    const mergedOutputData = {
+      ...outputData,
+      call_id: outputData.call_id || inputData.call_id || key,
+      name: outputData.name || inputData.name || "Status",
+    };
+
+    return {
+      object: "message",
+      id: `status-tool-${key}`,
+      role: "assistant",
+      type: "plugin_call",
+      status: status || "completed",
+      content: [
+        inputContent,
+        {
+          type: "data",
+          data: mergedOutputData,
+          status: status || "completed",
+        },
+      ],
+    };
+  };
+
+  const buildStatusToolStartMessage = (
+    key: string,
+    inputContent: Record<string, unknown>,
+    status?: string,
+  ): AgentScopeStreamMessage => ({
+    object: "message",
+    id: `status-tool-${key}`,
+    role: "assistant",
+    type: "plugin_call",
+    status: status || "in_progress",
+    content: [inputContent],
   });
 
   const finalize = (
@@ -378,6 +482,83 @@ export function createSseChunkParser(
       // msg_id so the fake message carries the full text so far (not just
       // the delta), which keeps Builder's output consistent.
       if (data.object === "content" && typeof data.msg_id === "string") {
+        // DataContent (type: "data") carries structured tool data (name,
+        // arguments, output) — NOT text deltas.  Builder.handleContent only
+        // works if a matching message shell is already present. We deliberately
+        // do not keep empty shells in outputMessages because they can block
+        // streaming thinking updates, so synthesize a full message here instead
+        // of passing the content event through and letting Builder drop it.
+        if (data.type === "data") {
+          const rawData =
+            data.data && typeof data.data === "object"
+              ? (data.data as Record<string, unknown>)
+              : {};
+          const normalizedData = normalizeToolData(rawData, data.msg_id);
+          const toolKey = getToolKey(normalizedData, data.msg_id);
+
+          if (hasToolInput(normalizedData) && !hasToolOutput(normalizedData)) {
+            toolInputContent.set(toolKey, {
+              type: "data",
+              data: normalizedData,
+              status: data.status || "in_progress",
+            });
+          }
+
+          // Status tools are tiny pre-agent diagnostics. Feed AgentScope a
+          // fully-merged assistant tool message as soon as output arrives
+          // instead of relying on plugin_call/plugin_call_output pairing,
+          // because the stream sends these as separate message ids.
+          const cachedInput = toolInputContent.get(toolKey);
+          const isStatusTool =
+            isStatusToolData(normalizedData) || isStatusToolKey(cachedInput);
+
+          if (isStatusTool) {
+            if (!hasToolOutput(normalizedData)) {
+              // Render the stage label immediately, then replace this same
+              // card with the completed output when tool_result arrives.
+              const inputContent = cachedInput || {
+                type: "data",
+                data: normalizedData,
+                status: data.status || "in_progress",
+              };
+              const converted = buildStatusToolStartMessage(
+                toolKey,
+                inputContent,
+                data.status || "in_progress",
+              );
+              upsertMessage(converted);
+              return keepAlive();
+            }
+            const converted = buildStatusToolMessage(
+              toolKey,
+              normalizedData,
+              data.status || "completed",
+            );
+            upsertMessage(converted);
+            return keepAlive();
+          }
+
+          const msg =
+            outputMessages.find((m) => m.id === data.msg_id) ||
+            messageMeta.get(data.msg_id);
+          const converted: AgentScopeStreamMessage = {
+            object: "message",
+            id: data.msg_id,
+            role: msg?.role || "assistant",
+            type: msg?.type || "message",
+            status: data.status || "in_progress",
+            content: [
+              {
+                type: "data",
+                data: normalizedData,
+                status: data.status || "in_progress",
+              },
+            ],
+          };
+          upsertMessage(converted);
+          return keepAlive();
+        }
+
         const text = typeof data.text === "string" ? data.text : "";
         const prev = contentAccumulators.get(data.msg_id) || "";
         const full = data.delta ? prev + text : text;
@@ -402,7 +583,7 @@ export function createSseChunkParser(
             : [],
         };
         upsertMessage(converted);
-        return converted;
+        return keepAlive();
       }
 
       // Track message metadata for content→message conversion above.
@@ -413,10 +594,52 @@ export function createSseChunkParser(
           role: msg.role,
           type: msg.type,
         });
+
+        const firstContent = Array.isArray(msg.content)
+          ? (msg.content[0] as { data?: Record<string, unknown> } | undefined)
+          : undefined;
+        const rawToolData =
+          firstContent?.data && typeof firstContent.data === "object"
+            ? firstContent.data
+            : undefined;
+        if (rawToolData) {
+          const normalizedData = normalizeToolData(rawToolData, msg.id);
+          const toolKey = getToolKey(normalizedData, msg.id);
+          const cachedInput = toolInputContent.get(toolKey);
+          const isStatusTool =
+            isStatusToolData(normalizedData) || isStatusToolKey(cachedInput);
+
+          if (isStatusTool) {
+            if (!hasToolOutput(normalizedData)) {
+              const inputContent = {
+                type: "data",
+                data: normalizedData,
+                status: msg.status || "completed",
+              };
+              toolInputContent.set(toolKey, inputContent);
+              const converted = buildStatusToolStartMessage(
+                toolKey,
+                inputContent,
+                msg.status || "in_progress",
+              );
+              upsertMessage(converted);
+              return keepAlive();
+            }
+            const converted = buildStatusToolMessage(
+              toolKey,
+              normalizedData,
+              msg.status || "completed",
+            );
+            upsertMessage(converted);
+            return keepAlive();
+          }
+        }
+
         // Do not push empty message shells into output. They can block
         // AgentScope's update guard and hide later reasoning/content.
         if (Array.isArray(msg.content) && msg.content.length > 0) {
           upsertMessage(msg);
+          return keepAlive();
         }
       }
 
@@ -454,11 +677,14 @@ export function createSseChunkParser(
       for (const raw of data.output) {
         if (!raw || typeof raw !== "object") continue;
         const r = raw as Record<string, unknown>;
+        // Final values snapshots can carry `role: "assistant"` together with
+        // a more specific `type` such as `reasoning`. Prefer `type` first so
+        // Thinking blocks survive history/final-snapshot reconstruction.
         const rawType =
-          typeof r.role === "string"
-            ? (r.role as string)
-            : typeof r.type === "string"
+          typeof r.type === "string"
             ? (r.type as string)
+            : typeof r.role === "string"
+            ? (r.role as string)
             : "ai";
         const mapped = mapLangchainTypeToAgentscope(rawType);
         if (mapped.role === "user" || mapped.role === "system") continue;
@@ -466,13 +692,45 @@ export function createSseChunkParser(
           typeof r.id === "string" && r.id
             ? (r.id as string)
             : `final-${next.length}`;
+        const content = toAgentScopeContent(r.content, "completed");
+        const statusContent = content.find((item) => {
+          const dataItem = item.data;
+          if (!dataItem || typeof dataItem !== "object") return false;
+          const record = dataItem as Record<string, unknown>;
+          return (
+            record.kind === "hubos_status" ||
+            record.type === "hubos_status" ||
+            isStatusToolData(record)
+          );
+        });
+        if (statusContent?.data && typeof statusContent.data === "object") {
+          const normalizedData = normalizeToolData(
+            statusContent.data as Record<string, unknown>,
+            id,
+          );
+          const key = getToolKey(normalizedData, id);
+          next.push(
+            hasToolOutput(normalizedData)
+              ? buildStatusToolMessage(key, normalizedData, "completed")
+              : buildStatusToolStartMessage(
+                  key,
+                  {
+                    type: "data",
+                    data: normalizedData,
+                    status: "completed",
+                  },
+                  "completed",
+                ),
+          );
+          continue;
+        }
         next.push({
           object: "message",
           id,
           role: mapped.role,
           type: mapped.type,
           status: "completed",
-          content: toAgentScopeContent(r.content, "completed"),
+          content,
         });
       }
       outputMessages = next;
@@ -536,7 +794,7 @@ export function createSseChunkParser(
         content: [{ type: "text", text: accumulated, status: "in_progress" }],
       };
       upsertMessage(msg);
-      return msg;
+      return keepAlive();
     }
 
     // Anything else (pure metadata, heartbeats) — keep the spinner alive.

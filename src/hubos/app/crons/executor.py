@@ -10,6 +10,29 @@ from .models import CronJobSpec
 logger = logging.getLogger(__name__)
 
 
+def _normalize_runner_input(value: Any) -> Any:
+    """Normalize legacy cron prompt text to AgentRequest.input shape.
+
+    Older cron jobs stored ``request.input`` as a plain string.  Runner
+    ``stream_query`` validates dict requests as AgentRequest, whose ``input``
+    must be a list of message objects.  Keep already-valid list inputs intact
+    and wrap legacy strings just before execution so existing jobs continue to
+    run without a data migration.
+    """
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        return [
+            {
+                "role": "user",
+                "type": "message",
+                "content": [{"type": "text", "text": text}],
+            },
+        ]
+    return value
+
+
 class CronExecutor:
     def __init__(self, *, runner: Any, channel_manager: Any):
         self._runner = runner
@@ -59,8 +82,15 @@ class CronExecutor:
         )
         assert job.request is not None
         req: Dict[str, Any] = job.request.model_dump(mode="json")
+        req["input"] = _normalize_runner_input(req.get("input"))
         req["user_id"] = target_user_id or "cron"
         req["session_id"] = target_session_id or f"cron:{job.id}"
+
+        # Set model override if configured (e.g. DeepSeek V4 Flash for cron)
+        from ...config.context import set_current_model_override
+        _model_token = None
+        if job.request.model_override:
+            _model_token = set_current_model_override(job.request.model_override)
 
         async def _run() -> None:
             async for event in self._runner.stream_query(req):
@@ -87,3 +117,8 @@ class CronExecutor:
         except asyncio.CancelledError:
             logger.info("cron execute: job_id=%s cancelled", job.id)
             raise
+        finally:
+            # Clear model override ContextVar
+            if _model_token is not None:
+                from ...config.context import current_model_override
+                current_model_override.reset(_model_token)

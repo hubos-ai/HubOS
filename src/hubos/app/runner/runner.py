@@ -16,7 +16,12 @@ from typing import TYPE_CHECKING, Any
 from agentscope.message import Msg, TextBlock
 from agentscope.pipeline import stream_printing_messages
 from agentscope_runtime.engine.runner import Runner
-from agentscope_runtime.engine.schemas.agent_schemas import AgentRequest
+from agentscope_runtime.engine.schemas.agent_schemas import (
+    AgentRequest,
+    DataContent,
+    Message,
+    MessageType,
+)
 from agentscope_runtime.engine.schemas.exception import AgentException
 from dotenv import load_dotenv
 
@@ -51,6 +56,100 @@ _APPROVE_EXACT = frozenset(
     },
 )
 
+_INTERNAL_STATUS_MEMORY_MARK = "hubos_internal_status"
+_INTERNAL_STATUS_TOOL_NAMES = frozenset(
+    {
+        "Context understanding",
+        "Experience matching",
+        "Knowledge injection",
+    },
+)
+# Maximum internal-status messages retained in memory.
+# Each turn produces 3 status cards; keep the last 5 turns = 15 messages.
+_MAX_STATUS_MESSAGES = 15
+
+
+def _make_internal_status_msg(
+    *,
+    status_id: str,
+    label: str,
+    state: str,
+    output: str | None = None,
+) -> Msg:
+    """Create a HubOS-internal status card message.
+
+    These cards are UI progress markers, not model-selected tool calls.
+    Keeping them on a dedicated block type prevents future LLM turns from
+    seeing fake ``tool_use`` / ``tool_result`` history.
+    """
+    block: dict[str, Any] = {
+        "type": "hubos_status",
+        "id": status_id,
+        "name": label,
+        "status": state,
+    }
+    if output is not None:
+        block["output"] = output
+        block["content"] = output
+        block["result"] = output
+    return Msg(name="assistant", role="assistant", content=[block])
+
+
+def _hubos_status_stream_converter(
+    element: dict,
+    _message: Message,
+    _last: bool,
+    _tool_start: bool,
+    metadata: dict | None,
+    usage: Any,
+):
+    """Convert ``hubos_status`` AgentScope blocks to runtime DataContent.
+
+    AgentScope Runtime's built-in adapter only understands text/thinking/tool
+    blocks.  Without this converter it renders the raw dict as text during
+    streaming.  The frontend then maps this structured DataContent to the
+    dedicated status-card UI.
+    """
+    status = element.get("status") or "in_progress"
+    status_message = Message(type=MessageType.MESSAGE, role="assistant")
+    status_message.metadata = metadata or {}
+    status_message.usage = usage
+
+    status_data = {
+        "kind": "hubos_status",
+        "id": element.get("id") or "",
+        "call_id": element.get("id") or "",
+        "name": element.get("name") or "Status",
+        "status": status,
+    }
+    raw_output = element.get(
+        "output",
+        element.get("result", element.get("content")),
+    )
+    if raw_output is not None:
+        status_data["output"] = (
+            json.dumps(raw_output, ensure_ascii=False)
+            if isinstance(raw_output, (dict, list))
+            else raw_output
+        )
+        status_data["result"] = status_data["output"]
+
+    data_content = DataContent(
+        index=0,
+        delta=False,
+        data=status_data,
+    )
+
+    status_message.add_content(new_content=data_content)
+    data_content.msg_id = status_message.id
+    if status == "completed":
+        yield status_message.in_progress()
+        yield data_content.completed()
+        yield status_message.completed()
+    else:
+        yield status_message.in_progress()
+        yield data_content.in_progress()
+
 
 def _is_approval(text: str) -> bool:
     """Return True only when *text* is exactly ``approve``,
@@ -61,6 +160,172 @@ def _is_approval(text: str) -> bool:
     """
     normalized = " ".join(text.split()).lower()
     return normalized in _APPROVE_EXACT
+
+
+def _is_internal_status_msg(msg: Msg) -> bool:
+    """Return True for HubOS pre-agent status card messages.
+
+    They are rendered as tool cards in the UI, but they are not real tools
+    chosen by the model and must not be replayed into future LLM context.
+    """
+    content = getattr(msg, "content", None)
+    if not isinstance(content, list):
+        return False
+
+    for block in content:
+        if _is_internal_status_block(block):
+            return True
+    return False
+
+
+def _is_internal_status_block(block: Any) -> bool:
+    """Return True for internal status blocks, including legacy tool-shaped ones."""
+    if not isinstance(block, dict):
+        return False
+    block_type = block.get("type")
+    if block_type == "hubos_status":
+        return True
+    if block_type not in {"tool_use", "tool_result"}:
+        return False
+    name = block.get("name")
+    if name in _INTERNAL_STATUS_TOOL_NAMES:
+        return True
+    block_id = str(block.get("id") or block.get("tool_use_id") or "")
+    return block_id.startswith("status-")
+
+
+def _strip_hallucinated_internal_status_blocks(
+    msg: Msg,
+) -> tuple[Msg | None, bool]:
+    """Remove model-emitted fake calls to internal status phases.
+
+    Runner-created ``hubos_status`` blocks are legitimate UI status cards and
+    are not stripped here.  Only old-style/model-emitted ``tool_use`` /
+    ``tool_result`` blocks targeting internal phase names are removed.
+    """
+    content = getattr(msg, "content", None)
+    if not isinstance(content, list):
+        return msg, False
+
+    filtered: list[Any] = []
+    removed = False
+    for block in content:
+        if (
+            isinstance(block, dict)
+            and block.get("type") in {"tool_use", "tool_result"}
+            and _is_internal_status_block(block)
+        ):
+            removed = True
+            continue
+        filtered.append(block)
+
+    if not removed:
+        return msg, False
+    if not filtered:
+        return None, True
+
+    return (
+        Msg(
+            name=msg.name,
+            role=msg.role,
+            content=filtered,
+            metadata=msg.metadata,
+            timestamp=msg.timestamp,
+            invocation_id=msg.invocation_id,
+        ),
+        True,
+    )
+
+
+def _strip_hallucinated_internal_status_from_memory(memory: Any) -> None:
+    """Scrub hallucinated internal status tool calls from persisted memory."""
+    content = getattr(memory, "content", None)
+    if not isinstance(content, list):
+        return
+
+    next_content = []
+    stripped = 0
+    for item in content:
+        if not isinstance(item, (list, tuple)) or len(item) != 2:
+            next_content.append(item)
+            continue
+        msg, marks = item
+        if not isinstance(msg, Msg):
+            next_content.append(item)
+            continue
+        cleaned, removed = _strip_hallucinated_internal_status_blocks(msg)
+        if not removed:
+            next_content.append(item)
+            continue
+        stripped += 1
+        if cleaned is not None:
+            next_content.append((cleaned, marks))
+
+    if stripped:
+        logger.warning(
+            "Stripped %s hallucinated internal status message(s) from memory",
+            stripped,
+        )
+        content[:] = next_content
+
+
+def _mark_internal_status_messages(memory: Any) -> None:
+    """Mark existing status cards in memory so model reads can exclude them.
+
+    Also prunes old internal-status messages to prevent unbounded growth.
+    Only the most recent ``_MAX_STATUS_MESSAGES`` are kept.
+    """
+    content = getattr(memory, "content", None)
+    if not isinstance(content, list):
+        return
+
+    # Collect indices of internal status messages
+    status_indices: list[int] = []
+    for idx, item in enumerate(content):
+        if not isinstance(item, (list, tuple)) or len(item) != 2:
+            continue
+        msg, marks = item
+        if not isinstance(msg, Msg) or not _is_internal_status_msg(msg):
+            continue
+        # Ensure the mark is present
+        if marks is None:
+            next_marks: list[str] = []
+        elif isinstance(marks, str):
+            next_marks = [marks]
+        else:
+            next_marks = list(marks)
+        if _INTERNAL_STATUS_MEMORY_MARK not in next_marks:
+            next_marks.append(_INTERNAL_STATUS_MEMORY_MARK)
+            content[idx] = (msg, next_marks)
+        status_indices.append(idx)
+
+    # Prune oldest status messages if exceeding the cap
+    if len(status_indices) > _MAX_STATUS_MESSAGES:
+        to_remove = set(status_indices[: -_MAX_STATUS_MESSAGES])
+        # Remove from end to preserve earlier indices
+        for idx in sorted(to_remove, reverse=True):
+            content.pop(idx)
+
+
+def _install_internal_status_memory_filter(memory: Any) -> Any:
+    """Make ordinary model memory reads skip internal status card messages.
+
+    The messages remain persisted for history rendering.  Only unqualified
+    ``get_memory()`` calls are filtered; explicit mark/exclude_mark callers keep
+    their requested behavior.
+    """
+    original_get_memory = memory.get_memory
+
+    async def filtered_get_memory(*args: Any, **kwargs: Any) -> Any:
+        # If no mark/exclude_mark specified via keyword args, add our filter.
+        # We intentionally only inspect kwargs to avoid fragile positional-arg
+        # guessing that could conflict with positional None values.
+        if "mark" not in kwargs and "exclude_mark" not in kwargs and len(args) < 2:
+            kwargs["exclude_mark"] = _INTERNAL_STATUS_MEMORY_MARK
+        return await original_get_memory(*args, **kwargs)
+
+    memory.get_memory = filtered_get_memory
+    return original_get_memory
 
 
 class AgentRunner(Runner):
@@ -86,6 +351,9 @@ class AgentRunner(Runner):
     ) -> None:
         super().__init__()
         self.framework_type = "agentscope"
+        self.out_type_converters = {
+            "hubos_status": _hubos_status_stream_converter,
+        }
         self.agent_id = agent_id  # Store agent_id for config loading
         self.workspace_dir = (
             workspace_dir  # Store workspace_dir for prompt building
@@ -458,6 +726,20 @@ class AgentRunner(Runner):
             user_id = request.user_id
             channel = getattr(request, "channel", DEFAULT_CHANNEL)
 
+            # Set session ID in context so downstream modules (tool output
+            # archival, etc.) can resolve it without parameter threading.
+            # ContextVars are async-task-local, so concurrent requests do
+            # not interfere with each other.
+            from ...config.context import set_current_session_id
+
+            set_current_session_id(session_id)
+            skip_session_state = bool(
+                getattr(request, "skip_session_state", False),
+            )
+            skip_chat_registration = bool(
+                getattr(request, "skip_chat_registration", False),
+            )
+
             logger.info(
                 "Handle agent query:\n%s",
                 json.dumps(
@@ -475,17 +757,10 @@ class AgentRunner(Runner):
 
             # --- Phase 1: Context Understanding ---
             ctx_call_id = f"status-{uuid.uuid4().hex[:8]}"
-            _ctx_start = Msg(
-                name="assistant",
-                role="assistant",
-                content=[
-                    {
-                        "type": "tool_use",
-                        "id": ctx_call_id,
-                        "name": "Context understanding",
-                        "input": {},
-                    },
-                ],
+            _ctx_start = _make_internal_status_msg(
+                status_id=ctx_call_id,
+                label="Context understanding",
+                state="in_progress",
             )
             yield _ctx_start, True
             pre_agent_status_msgs.append(_ctx_start)
@@ -500,26 +775,37 @@ class AgentRunner(Runner):
                     else str(WORKING_DIR)
                 ),
             )
+            env_context = (
+                f"{env_context}\n\n"
+                "Internal runner note:\n"
+                "- Context understanding, Experience matching, and "
+                "Knowledge injection are internal pre-execution stages "
+                "already handled by the Runner.\n"
+                "- Do not call them as tools, do not emit function calls "
+                "for them, and do not repeat them after your answer.\n"
+            )
 
-            _ctx_done = Msg(
-                name="assistant",
-                role="assistant",
-                content=[
-                    {
-                        "type": "tool_result",
-                        "id": ctx_call_id,
-                        "tool_use_id": ctx_call_id,
-                        "name": "Context understanding",
-                        "output": "done",
-                        "content": "done",
-                        "status": "completed",
-                    },
-                ],
+            # --- Phase 2: RunPolicy (depth + mode) ---
+            from ..run_policy import (
+                classify_run_depth,
+                knowledge_budget_for,
+            )
+
+            run_depth = classify_run_depth(query or "")
+            ki_budget = max(300, knowledge_budget_for(run_depth, query or ""))
+
+            ctx_summary = f"depth={run_depth}"
+
+            _ctx_done = _make_internal_status_msg(
+                status_id=ctx_call_id,
+                label="Context understanding",
+                state="completed",
+                output=ctx_summary,
             )
             yield _ctx_done, True
             pre_agent_status_msgs.append(_ctx_done)
 
-            # --- Phase 2: Experience matching (if WE enabled) ---
+            # --- Phase 3: Experience matching (if WE enabled + not light) ---
             matched_card = None
             try:
                 from ...core.infra.feature_flags import get_feature_flags
@@ -527,17 +813,10 @@ class AgentRunner(Runner):
                 flags = get_feature_flags()
                 if flags.use_work_experience():
                     exp_call_id = f"status-{uuid.uuid4().hex[:8]}"
-                    _exp_start = Msg(
-                        name="assistant",
-                        role="assistant",
-                        content=[
-                            {
-                                "type": "tool_use",
-                                "id": exp_call_id,
-                                "name": "Experience matching",
-                                "input": {},
-                            },
-                        ],
+                    _exp_start = _make_internal_status_msg(
+                        status_id=exp_call_id,
+                        label="Experience matching",
+                        state="in_progress",
                     )
                     yield _exp_start, True
                     pre_agent_status_msgs.append(_exp_start)
@@ -547,25 +826,32 @@ class AgentRunner(Runner):
                     )
 
                     interceptor = get_work_experience_interceptor()
-                    matched_card = interceptor.pre_execute(
+                    exp_result = interceptor.pre_execute(
                         user_message=query or "",
                         session_id=session_id,
                     )
+                    matched_card = exp_result.card
 
-                    _exp_done = Msg(
-                        name="assistant",
-                        role="assistant",
-                        content=[
-                            {
-                                "type": "tool_result",
-                                "id": exp_call_id,
-                                "tool_use_id": exp_call_id,
-                                "name": "Experience matching",
-                                "output": "done",
-                                "content": "done",
-                                "status": "completed",
-                            },
-                        ],
+                    # Build status summary from real result
+                    exp_status = exp_result.status
+                    exp_task = exp_result.task_type
+                    exp_ms = exp_result.elapsed_ms
+                    if exp_status == "matched" and exp_task:
+                        exp_summary = f"matched: {exp_task} · {exp_ms}ms"
+                    elif exp_status == "no_match":
+                        exp_summary = f"no matching card · {exp_ms}ms"
+                    elif exp_status == "model_unavailable":
+                        exp_summary = f"model unavailable · {exp_ms}ms"
+                    elif exp_status == "invalid_output":
+                        exp_summary = f"invalid model output · {exp_ms}ms"
+                    else:
+                        exp_summary = f"model call failed · {exp_ms}ms"
+
+                    _exp_done = _make_internal_status_msg(
+                        status_id=exp_call_id,
+                        label="Experience matching",
+                        state="completed",
+                        output=exp_summary,
                     )
                     yield _exp_done, True
                     pre_agent_status_msgs.append(_exp_done)
@@ -576,21 +862,76 @@ class AgentRunner(Runner):
                     exc_info=True,
                 )
 
-            if matched_card:
-                card_guidance = matched_card.formatted_for_injection()
-                env_context = (
-                    f"{env_context}\n\n---\n"
-                    f"📌 相关工作经验（参考以下流程执行，但不要逐字复述）：\n"
-                    f"{card_guidance}\n---\n"
+            # --- Phase 4: Knowledge injection ---
+            try:
+                from ...core.knowledge_injection import (
+                    KnowledgeInjectionConfig,
+                    build_relevant_guidance,
                 )
+
+                ws_dir = (
+                    self.workspace_dir if self.workspace_dir else WORKING_DIR
+                )
+
+                ki_call_id = f"status-{uuid.uuid4().hex[:8]}"
+                _ki_start = _make_internal_status_msg(
+                    status_id=ki_call_id,
+                    label="Knowledge injection",
+                    state="in_progress",
+                )
+                yield _ki_start, True
+                pre_agent_status_msgs.append(_ki_start)
+
+                ki_config = KnowledgeInjectionConfig(
+                    default_max_tokens=ki_budget,
+                    complex_max_tokens=ki_budget,
+                    explicit_max_tokens=1000,
+                )
+                guidance_text, guidance_meta = build_relevant_guidance(
+                    user_message=query or "",
+                    experience_card=matched_card,
+                    workspace_dir=ws_dir,
+                    config=ki_config,
+                )
+                if guidance_text:
+                    env_context = f"{env_context}\n\n---\n{guidance_text}\n---"
+
+                # Build human-readable summary
+                ic = guidance_meta.get("item_count", 0)
+                if ic > 0:
+                    et = guidance_meta.get("estimated_tokens", 0)
+                    bt = guidance_meta.get("budget_tokens", 0)
+                    sc = guidance_meta.get("sources", {})
+                    src_parts = ", ".join(f"{k} {v}" for k, v in sc.items())
+                    ki_summary = (
+                        f"{ic} items · ~{et} tokens · budget {bt}"
+                        f" · sources: {src_parts}"
+                    )
+                else:
+                    ki_summary = "0 items · no relevant knowledge injected"
+
+                _ki_done = _make_internal_status_msg(
+                    status_id=ki_call_id,
+                    label="Knowledge injection",
+                    state="completed",
+                    output=ki_summary,
+                )
+                yield _ki_done, True
+                pre_agent_status_msgs.append(_ki_done)
+
                 logger.info(
-                    "WorkExperience v4 guidance injected",
+                    "Knowledge injection applied",
                     extra={
                         "session_id": session_id,
                         "agent_id": self.agent_id,
-                        "card_id": matched_card.card_id,
-                        "task_type": matched_card.task_type,
+                        "depth": run_depth,
+                        **guidance_meta,
                     },
+                )
+            except Exception:
+                logger.warning(
+                    "Knowledge injection failed, continuing without guidance",
+                    exc_info=True,
                 )
 
             # Get MCP clients from manager (hot-reloadable)
@@ -644,7 +985,13 @@ class AgentRunner(Runner):
                 f"agent_id={self.agent_id}",
             )
 
-            if self._chat_manager is not None:
+            if skip_chat_registration:
+                logger.debug(
+                    "Skipping chat registration for session_id=%s channel=%s",
+                    session_id,
+                    channel,
+                )
+            elif self._chat_manager is not None:
                 logger.debug(
                     f"Runner: Calling get_or_create_chat for "
                     f"session_id={session_id}, user_id={user_id}, "
@@ -663,19 +1010,26 @@ class AgentRunner(Runner):
                     f"session_id={session_id}",
                 )
 
-            try:
-                await self.session.load_session_state(
-                    session_id=session_id,
-                    user_id=user_id,
-                    agent=agent,
+            if skip_session_state:
+                logger.debug(
+                    "Skipping session state load for session_id=%s channel=%s",
+                    session_id,
+                    channel,
                 )
-            except KeyError as e:
-                logger.warning(
-                    "load_session_state skipped (state schema mismatch): %s; "
-                    "will save fresh state on completion to recover file",
-                    e,
-                )
-            session_state_loaded = True
+            else:
+                try:
+                    await self.session.load_session_state(
+                        session_id=session_id,
+                        user_id=user_id,
+                        agent=agent,
+                    )
+                except KeyError as e:
+                    logger.warning(
+                        "load_session_state skipped (state schema mismatch): %s; "
+                        "will save fresh state on completion to recover file",
+                        e,
+                    )
+                session_state_loaded = True
 
             # Phase-2 token optimization: drop messages older than 2 hours.
             # Always keeps system messages + last 10 non-system messages.
@@ -685,6 +1039,7 @@ class AgentRunner(Runner):
                     max_age_hours=2.0,
                     min_keep=10,
                 )
+                _mark_internal_status_messages(agent.memory)
 
             # Rebuild system prompt so it always reflects the latest
             # AGENTS.md / SOUL.md / PROFILE.md, not the stale one saved
@@ -696,21 +1051,43 @@ class AgentRunner(Runner):
             # restored session state.  They persist across page refresh
             # because the session state is saved again when the run ends.
             if pre_agent_status_msgs:
-                await agent.memory.add(pre_agent_status_msgs)
+                await agent.memory.add(
+                    pre_agent_status_msgs,
+                    marks=_INTERNAL_STATUS_MEMORY_MARK,
+                )
 
-            async for msg, last in stream_printing_messages(
-                agents=[agent],
-                coroutine_task=agent(msgs),
-            ):
-                if last and getattr(msg, "role", None) == "assistant":
-                    text = ""
-                    try:
-                        text = msg.get_text_content() or ""
-                    except Exception:
+            original_get_memory = _install_internal_status_memory_filter(
+                agent.memory,
+            )
+            try:
+                async for msg, last in stream_printing_messages(
+                    agents=[agent],
+                    coroutine_task=agent(msgs),
+                ):
+                    clean_msg, stripped = (
+                        _strip_hallucinated_internal_status_blocks(msg)
+                    )
+                    if stripped:
+                        logger.warning(
+                            "Dropped hallucinated internal status block "
+                            "from model stream: session_id=%s agent_id=%s",
+                            session_id,
+                            self.agent_id,
+                        )
+                    if clean_msg is None:
+                        continue
+
+                    if last and getattr(clean_msg, "role", None) == "assistant":
                         text = ""
-                    if text.strip():
-                        final_response_text = text
-                yield msg, last
+                        try:
+                            text = clean_msg.get_text_content() or ""
+                        except Exception:
+                            text = ""
+                        if text.strip():
+                            final_response_text = text
+                    yield clean_msg, last
+            finally:
+                agent.memory.get_memory = original_get_memory
 
             if not final_response_text.strip():
                 logger.warning(
@@ -796,6 +1173,8 @@ class AgentRunner(Runner):
                     )
 
             if agent is not None and session_state_loaded:
+                _strip_hallucinated_internal_status_from_memory(agent.memory)
+                _mark_internal_status_messages(agent.memory)
                 await self.session.save_session_state(
                     session_id=session_id,
                     user_id=user_id,
@@ -808,6 +1187,13 @@ class AgentRunner(Runner):
             # Return agent to the pool for reuse
             if agent is not None:
                 self._return_agent(agent)
+
+            # Clear session_id ContextVar to prevent leakage across tasks
+            try:
+                from ...config.context import set_current_session_id
+                set_current_session_id(None)
+            except Exception:
+                pass
 
     async def _cleanup_denied_session_memory(
         self,

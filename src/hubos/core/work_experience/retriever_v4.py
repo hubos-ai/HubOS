@@ -8,12 +8,25 @@ from __future__ import annotations
 
 import json
 import logging
+import time
+from dataclasses import dataclass, field
 from typing import Optional
 
 from .schemas_v4 import WorkflowCard
 from .store_v4 import CardStore
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class MatchResult:
+    """Result of a card match attempt."""
+
+    card: Optional[WorkflowCard] = None
+    suggestion: Optional[dict] = None
+    status: str = ""  # matched / no_match / model_unavailable / model_call_failed / invalid_output
+    task_type: str = ""  # matched task_type or suggested new_type
+    elapsed_ms: int = 0
 
 
 class CardRetriever:
@@ -25,19 +38,16 @@ class CardRetriever:
     def _classify_and_match(
         self,
         user_message: str,
-    ) -> tuple[Optional[WorkflowCard], Optional[dict]]:
+    ) -> MatchResult:
         """
         Single LLM call: classify task → match card OR suggest new type.
 
-        Returns:
-            (matched_card, None) if found
-            (None, suggestion_dict) if new type suggested
-            (None, None) if LLM unavailable / no useful output
+        Returns MatchResult with card, status, task_type, elapsed_ms.
         """
         cards_index = self._store.list_index()
 
         if not cards_index:
-            return None, None
+            return MatchResult(status="no_match")
 
         # Build the classification prompt
         card_list = "\n".join(
@@ -60,10 +70,16 @@ class CardRetriever:
             "只输出JSON，不要解释。"
         )
 
+        t0 = time.monotonic()
         try:
             result = self._call_llm(prompt)
+            elapsed_ms = int((time.monotonic() - t0) * 1000)
+
             if not result:
-                return None, None
+                return MatchResult(
+                    status="model_unavailable",
+                    elapsed_ms=elapsed_ms,
+                )
 
             # Parse JSON
             text = result.strip()
@@ -89,7 +105,12 @@ class CardRetriever:
                             "user_msg_preview": user_message[:80],
                         },
                     )
-                    return card, None
+                    return MatchResult(
+                        card=card,
+                        status="matched",
+                        task_type=matched_type,
+                        elapsed_ms=elapsed_ms,
+                    )
                 logger.warning(
                     "LLM matched type '%s' but no card found in store",
                     matched_type,
@@ -106,53 +127,68 @@ class CardRetriever:
                         "description": new_desc,
                     },
                 )
-                return None, {
-                    "new_type": new_type,
-                    "description": new_desc,
-                }
+                return MatchResult(
+                    suggestion={"new_type": new_type, "description": new_desc},
+                    status="no_match",
+                    task_type=new_type,
+                    elapsed_ms=elapsed_ms,
+                )
 
-            return None, None
+            return MatchResult(status="no_match", elapsed_ms=elapsed_ms)
 
         except json.JSONDecodeError:
+            elapsed_ms = int((time.monotonic() - t0) * 1000)
             logger.warning("LLM returned invalid JSON for card matching")
-            return None, None
+            return MatchResult(
+                status="invalid_output",
+                elapsed_ms=elapsed_ms,
+            )
         except Exception as exc:
+            elapsed_ms = int((time.monotonic() - t0) * 1000)
             logger.warning("Card matching failed: %s", exc)
-            return None, None
+            return MatchResult(
+                status="model_call_failed",
+                elapsed_ms=elapsed_ms,
+            )
 
     def match(
         self,
         user_message: str,
     ) -> Optional[WorkflowCard]:
         """Convenience wrapper: return matched card only (ignore suggestion)."""
-        card, _ = self._classify_and_match(user_message)
-        return card
+        result = self._classify_and_match(user_message)
+        return result.card
 
     def get_or_suggest(
         self,
         user_message: str,
-    ) -> tuple[Optional[WorkflowCard], Optional[dict]]:
+    ) -> MatchResult:
         """
         Match a card OR return a suggestion for a new card.
 
         Single LLM call — no double invocation.
 
-        Returns:
-            (matched_card, None) if found
-            (None, suggestion_dict) if new type suggested
-            (None, None) if LLM unavailable
+        Returns MatchResult with card/suggestion/status/elapsed_ms.
         """
-        card, suggestion = self._classify_and_match(user_message)
+        result = self._classify_and_match(user_message)
 
-        if card:
-            return card, None
+        if result.card:
+            return result
 
         # If we already got a suggestion from the classify call, use it
-        if suggestion:
-            return None, suggestion
+        if result.suggestion:
+            return result
 
         # No cards in store at all — ask LLM to suggest a new type
-        return None, self._suggest_new_type(user_message)
+        suggestion = self._suggest_new_type(user_message)
+        if suggestion:
+            return MatchResult(
+                suggestion=suggestion,
+                status="no_match",
+                task_type=suggestion.get("new_type", ""),
+                elapsed_ms=result.elapsed_ms,
+            )
+        return result
 
     def _suggest_new_type(self, user_message: str) -> Optional[dict]:
         """Ask LLM to suggest a new task type (only when store is empty)."""

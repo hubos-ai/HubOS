@@ -137,10 +137,11 @@ class ExecutionOrchestrator:
 
         try:
             interceptor = get_work_experience_interceptor()
-            card = interceptor.pre_execute(
+            result = interceptor.pre_execute(
                 user_message=task.input_text or "",
                 session_id=task.session_id or "",
             )
+            card = result.card
             task.work_experience_cards = []
             if card:
                 task.work_experience_cards = [

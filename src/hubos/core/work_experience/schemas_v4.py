@@ -54,6 +54,16 @@ class WorkflowCard:
         default_factory=list,
     )  # what works well
 
+    # Classification
+    experience_type: str = "general"  # category tag
+    entities: list[str] = field(default_factory=list)  # key entities
+
+    # Traceability — link back to originating session
+    ref_session_id: str = ""  # first session that created this card
+    ref_agent_id: str = ""  # agent that created this card
+    last_ref_session_id: str = ""  # most recent session that updated this card
+    source_turn_count: int = 0  # turns processed when card was last updated
+
     # Metadata
     executions: int = 0
     last_executed_at: str = ""
@@ -68,6 +78,13 @@ class WorkflowCard:
     disabled: bool = False
 
     def __post_init__(self) -> None:
+        # Sanitize entities: list[str], no empties, deduplicated, max 8
+        clean: list[str] = []
+        for e in self.entities:
+            if isinstance(e, str) and e.strip() and e.strip() not in clean:
+                clean.append(e.strip())
+        self.entities = clean[:8]
+
         if not self.card_id and self.task_type:
             self.card_id = _slugify(self.task_type)
         if not self.created_at:
@@ -86,6 +103,12 @@ class WorkflowCard:
             "tools": self.tools,
             "pitfalls": self.pitfalls,
             "success_patterns": self.success_patterns,
+            "experience_type": self.experience_type,
+            "entities": self.entities,
+            "ref_session_id": self.ref_session_id,
+            "ref_agent_id": self.ref_agent_id,
+            "last_ref_session_id": self.last_ref_session_id,
+            "source_turn_count": self.source_turn_count,
             "executions": self.executions,
             "last_executed_at": self.last_executed_at,
             "created_at": self.created_at,
@@ -106,6 +129,12 @@ class WorkflowCard:
             tools=data.get("tools", {}),
             pitfalls=data.get("pitfalls", []),
             success_patterns=data.get("success_patterns", []),
+            experience_type=data.get("experience_type", "general"),
+            entities=data.get("entities", []),
+            ref_session_id=data.get("ref_session_id", ""),
+            ref_agent_id=data.get("ref_agent_id", ""),
+            last_ref_session_id=data.get("last_ref_session_id", ""),
+            source_turn_count=data.get("source_turn_count", 0),
             executions=data.get("executions", 0),
             last_executed_at=data.get("last_executed_at", ""),
             created_at=data.get("created_at", _utcnow()),

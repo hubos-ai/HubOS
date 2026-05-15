@@ -57,7 +57,7 @@ def list_jobs(
     base_url = _base_url(ctx, base_url)
     with client(base_url) as c:
         headers = {"X-Agent-Id": agent_id}
-        r = c.get("/cron/jobs", headers=headers)
+        r = c.get("/api/cron/jobs", headers=headers)
         r.raise_for_status()
         print_json(r.json())
 
@@ -85,7 +85,7 @@ def get_job(
     base_url = _base_url(ctx, base_url)
     with client(base_url) as c:
         headers = {"X-Agent-Id": agent_id}
-        r = c.get(f"/cron/jobs/{job_id}", headers=headers)
+        r = c.get(f"/api/cron/jobs/{job_id}", headers=headers)
         if r.status_code == 404:
             raise click.ClickException("Job not found.")
         r.raise_for_status()
@@ -115,7 +115,7 @@ def job_state(
     base_url = _base_url(ctx, base_url)
     with client(base_url) as c:
         headers = {"X-Agent-Id": agent_id}
-        r = c.get(f"/cron/jobs/{job_id}/state", headers=headers)
+        r = c.get(f"/api/cron/jobs/{job_id}/state", headers=headers)
         if r.status_code == 404:
             raise click.ClickException("Job not found.")
         r.raise_for_status()
@@ -352,7 +352,7 @@ def create_job(
         )
     with client(base_url) as c:
         headers = {"X-Agent-Id": agent_id}
-        r = c.post("/cron/jobs", json=payload, headers=headers)
+        r = c.post("/api/cron/jobs", json=payload, headers=headers)
         r.raise_for_status()
         print_json(r.json())
 
@@ -380,7 +380,7 @@ def delete_job(
     base_url = _base_url(ctx, base_url)
     with client(base_url) as c:
         headers = {"X-Agent-Id": agent_id}
-        r = c.delete(f"/cron/jobs/{job_id}", headers=headers)
+        r = c.delete(f"/api/cron/jobs/{job_id}", headers=headers)
         if r.status_code == 404:
             raise click.ClickException("Job not found.")
         r.raise_for_status()
@@ -412,7 +412,7 @@ def pause_job(
     base_url = _base_url(ctx, base_url)
     with client(base_url) as c:
         headers = {"X-Agent-Id": agent_id}
-        r = c.post(f"/cron/jobs/{job_id}/pause", headers=headers)
+        r = c.post(f"/api/cron/jobs/{job_id}/pause", headers=headers)
         if r.status_code == 404:
             raise click.ClickException("Job not found.")
         r.raise_for_status()
@@ -442,7 +442,7 @@ def resume_job(
     base_url = _base_url(ctx, base_url)
     with client(base_url) as c:
         headers = {"X-Agent-Id": agent_id}
-        r = c.post(f"/cron/jobs/{job_id}/resume", headers=headers)
+        r = c.post(f"/api/cron/jobs/{job_id}/resume", headers=headers)
         if r.status_code == 404:
             raise click.ClickException("Job not found.")
         r.raise_for_status()
@@ -472,7 +472,7 @@ def run_job(
     base_url = _base_url(ctx, base_url)
     with client(base_url) as c:
         headers = {"X-Agent-Id": agent_id}
-        r = c.post(f"/cron/jobs/{job_id}/run", headers=headers)
+        r = c.post(f"/api/cron/jobs/{job_id}/run", headers=headers)
         if r.status_code == 404:
             raise click.ClickException("Job not found.")
         r.raise_for_status()

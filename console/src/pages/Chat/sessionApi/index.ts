@@ -22,8 +22,10 @@ const ROLE_TOOL = "tool";
 const ROLE_USER = "user";
 const ROLE_ASSISTANT = "assistant";
 const ROLE_SYSTEM = "system";
+const TYPE_PLUGIN_CALL = "plugin_call";
 const TYPE_PLUGIN_CALL_OUTPUT = "plugin_call_output";
 const TYPE_MESSAGE = "message";
+const HUBOS_STATUS_KIND = "hubos_status";
 
 // LangChain BaseMessage discriminators emitted by XClaw / LangGraph history
 // payloads. They must be mapped to AgentScope runtime message types before
@@ -197,6 +199,7 @@ function normalizeOutputMessageContent(
   // call/response info (name, arguments, output).  Do NOT transform these —
   // the Card component expects the raw data shape for rendering.
   if (
+    msgType === TYPE_PLUGIN_CALL ||
     msgType === "plugin_call" ||
     msgType === "plugin_call_output" ||
     msgType === "function_call" ||
@@ -205,6 +208,22 @@ function normalizeOutputMessageContent(
     return content;
   }
   return (content as ContentItem[]).map(resolveContentItemUrl);
+}
+
+function getHubOSStatusData(content: unknown): Record<string, unknown> | null {
+  if (!Array.isArray(content)) return null;
+  for (const item of content as Array<Record<string, unknown>>) {
+    const data = item?.data;
+    if (!data || typeof data !== "object") continue;
+    const record = data as Record<string, unknown>;
+    if (
+      record.kind === HUBOS_STATUS_KIND ||
+      record.type === HUBOS_STATUS_KIND
+    ) {
+      return record;
+    }
+  }
+  return null;
 }
 
 /**
@@ -268,11 +287,27 @@ function resolveMessageType(rawType: unknown, role: string): string {
  */
 const toOutputMessage = (msg: Message): OutputMessage => {
   const role = resolveMessageRole(msg);
-  const type = resolveMessageType(msg.type, role);
+  const statusData = getHubOSStatusData(msg.content);
+  const type = statusData ? TYPE_PLUGIN_CALL : resolveMessageType(msg.type, role);
+  const content = statusData
+    ? [
+        {
+          type: "data",
+          data: {
+            call_id: statusData.call_id || statusData.id || generateId(),
+            name: statusData.name || "Status",
+            arguments: "{}",
+            ...statusData,
+          },
+          status: statusData.status || "completed",
+        },
+      ]
+    : msg.content;
   return {
     ...msg,
     role,
     type,
+    content,
     metadata: null,
   };
 };
@@ -403,11 +438,7 @@ const isLocalTimestamp = (id: string): boolean => /^\d+$/.test(id);
 /** Detect if backend is still generating content for this chat. */
 const isGenerating = (chatHistory: ChatHistory): boolean => {
   if (chatHistory.status === "running") return true;
-  if (chatHistory.status === "idle") return false;
-  const msgs = chatHistory.messages || [];
-  if (msgs.length === 0) return false;
-  const last = msgs[msgs.length - 1];
-  return last.role === ROLE_USER;
+  return false;
 };
 
 /**

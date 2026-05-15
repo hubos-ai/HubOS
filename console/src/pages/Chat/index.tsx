@@ -40,6 +40,7 @@ import ChatActionGroup from "./components/ChatActionGroup";
 import ChatHeaderTitle from "./components/ChatHeaderTitle";
 import ChatSessionInitializer from "./components/ChatSessionInitializer";
 import SelectiveTextCard from "./components/SelectiveTextCard";
+import StatusToolCard from "./components/StatusToolCard";
 import { SLASH_COMMANDS } from "./slashCommands";
 import {
   toDisplayUrl,
@@ -883,6 +884,9 @@ export default function ChatPage() {
       const wrappedBody = new ReadableStream<Uint8Array>({
         start(controller) {
           let timeoutId: ReturnType<typeof setTimeout> | null = null;
+          let sawTerminalEvent = false;
+          const decoder = new TextDecoder();
+          const encoder = new TextEncoder();
 
           const clearTimer = () => {
             if (timeoutId) {
@@ -911,6 +915,16 @@ export default function ChatPage() {
                 if (done) {
                   clearTimer();
                   currentAbortRef.current = null;
+                  // Some backend/proxy paths close the SSE stream after the
+                  // last message without delivering the terminal
+                  // `event: end\ndata: null` marker. AgentScope only flips
+                  // the response to "finished" after parsing that marker, and
+                  // the copy footer is hidden while the response is generating.
+                  if (!sawTerminalEvent) {
+                    controller.enqueue(
+                      encoder.encode("event: end\ndata: null\n\n"),
+                    );
+                  }
                   // Immediate release: SSE stream ended → task complete.
                   // This lets beforeSubmit see runtimeLoading=false instantly,
                   // without waiting for the next heartbeat cycle.
@@ -930,6 +944,13 @@ export default function ChatPage() {
                   return;
                 }
                 armTimer();
+                const text = decoder.decode(value, { stream: true });
+                if (
+                  text.includes("event: end") ||
+                  text.includes("data: null")
+                ) {
+                  sawTerminalEvent = true;
+                }
                 controller.enqueue(value);
                 pump();
               })
@@ -1144,6 +1165,11 @@ export default function ChatPage() {
       },
       cards: {
         Text: SelectiveTextCard,
+      },
+      customToolRenderConfig: {
+        "Context understanding": StatusToolCard,
+        "Experience matching": StatusToolCard,
+        "Knowledge injection": StatusToolCard,
       },
       api: {
         ...defaultConfig.api,

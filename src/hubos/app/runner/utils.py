@@ -25,6 +25,14 @@ from ...config import load_config
 
 logger = logging.getLogger(__name__)
 
+_INTERNAL_STATUS_NAMES = frozenset(
+    {
+        "Context understanding",
+        "Experience matching",
+        "Knowledge injection",
+    },
+)
+
 
 def build_env_context(
     session_id: Optional[str] = None,
@@ -345,6 +353,15 @@ def agentscope_msg_to_message(
             else:
                 continue
 
+            if _is_hallucinated_internal_status_block(block):
+                logger.debug(
+                    "Skipped hallucinated internal status block from history: "
+                    "name=%s id=%s",
+                    block.get("name"),
+                    block.get("id") or block.get("tool_use_id"),
+                )
+                continue
+
             if btype == "text":
                 if current_type != MessageType.MESSAGE:
                     if current_message:
@@ -380,6 +397,44 @@ def agentscope_msg_to_message(
                     text=block.get("thinking", ""),
                 )
                 current_message.add_content(new_content=text_content)
+
+            elif btype == "hubos_status":
+                if current_message:
+                    results.append(current_message.completed())
+
+                current_message = Message(
+                    type=MessageType.MESSAGE,
+                    role=role,
+                )
+                current_message.metadata = metadata
+                current_type = MessageType.MESSAGE
+
+                raw_output = block.get(
+                    "output",
+                    block.get("result", block.get("content")),
+                )
+                status_data = {
+                    "kind": "hubos_status",
+                    "id": block.get("id") or "",
+                    "call_id": block.get("id") or "",
+                    "name": block.get("name") or "Status",
+                    "status": block.get("status") or "in_progress",
+                }
+                if raw_output is not None:
+                    status_data["output"] = (
+                        json.dumps(raw_output, ensure_ascii=False)
+                        if isinstance(raw_output, (dict, list))
+                        else raw_output
+                    )
+                    status_data["result"] = status_data["output"]
+
+                data_content = DataContent(
+                    delta=False,
+                    index=None,
+                    status=block.get("status") or "in_progress",
+                    data=status_data,
+                )
+                current_message.add_content(new_content=data_content)
 
             elif btype == "tool_use":
                 if current_message:
@@ -424,7 +479,10 @@ def agentscope_msg_to_message(
                 current_message.metadata = metadata
                 current_type = MessageType.PLUGIN_CALL_OUTPUT
 
-                raw_output = block.get("output", block.get("content"))
+                raw_output = block.get(
+                    "output",
+                    block.get("result", block.get("content")),
+                )
                 if isinstance(raw_output, (dict, list)):
                     output = json.dumps(
                         raw_output,
@@ -641,16 +699,27 @@ def agentscope_msg_to_message(
     return results
 
 
+def _is_hallucinated_internal_status_block(block: dict) -> bool:
+    """True for model-emitted fake status phase tool calls.
+
+    Legacy Runner status cards used ``status-`` ids and should still render.
+    Hallucinated model calls use provider-generated call ids (for example
+    ``call_...``) and often produce FunctionNotFoundError records; these are
+    skipped during history conversion.
+    """
+    if block.get("type") not in {"tool_use", "tool_result"}:
+        return False
+    if block.get("name") not in _INTERNAL_STATUS_NAMES:
+        return False
+    block_id = str(block.get("id") or block.get("tool_use_id") or "")
+    return not block_id.startswith("status-")
+
+
 # ---------------------------------------------------------------------------
 # Message ordering normalization
 # ---------------------------------------------------------------------------
 
-_STATUS_TOOL_NAMES = frozenset(
-    {
-        "Context understanding",
-        "Experience matching",
-    },
-)
+_STATUS_TOOL_NAMES = _INTERNAL_STATUS_NAMES
 
 
 def _is_status_tool(msg: Message) -> bool:
@@ -662,15 +731,12 @@ def _is_status_tool(msg: Message) -> bool:
     2. ``data.call_id`` starts with ``"status-"`` prefix — this catches
        legacy tool_result blocks that lacked the ``name`` field.
     """
-    if msg.type not in (
-        MessageType.PLUGIN_CALL,
-        MessageType.PLUGIN_CALL_OUTPUT,
-    ):
-        return False
     for content in msg.content:
         data = getattr(content, "data", None)
         if not isinstance(data, dict):
             continue
+        if data.get("kind") == "hubos_status":
+            return True
         name = data.get("name", "")
         if name in _STATUS_TOOL_NAMES:
             return True
@@ -682,6 +748,8 @@ def _is_status_tool(msg: Message) -> bool:
 
 def _is_status_or_tool(msg: Message) -> bool:
     """True for any tool call/output (status or normal)."""
+    if _is_status_tool(msg):
+        return True
     return msg.type in (
         MessageType.PLUGIN_CALL,
         MessageType.PLUGIN_CALL_OUTPUT,

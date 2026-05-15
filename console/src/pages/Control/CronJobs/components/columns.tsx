@@ -1,8 +1,7 @@
-import { Button, Tooltip, Dropdown } from "@agentscope-ai/design";
+import { Button, Tooltip } from "@agentscope-ai/design";
 import type { ColumnsType } from "antd/es/table";
-import type { MenuProps } from "antd";
 import type { CronJobSpecOutput } from "../../../../api/types";
-import { CopyOutlined, MoreOutlined } from "@ant-design/icons";
+import { CopyOutlined } from "@ant-design/icons";
 import { useAppMessage } from "../../../../hooks/useAppMessage";
 import { TFunction } from "i18next";
 import { parseCron } from "./parseCron";
@@ -296,32 +295,18 @@ export const createColumns = (
       width: 240,
     },
     {
-      title: handlers.t("cronJobs.action"),
+      title: <div className={styles.actionHeader}>{handlers.t("cronJobs.action")}</div>,
       key: "action",
-      width: 240,
+      width: 276,
+      align: "center",
       fixed: "right",
       render: (_: unknown, record: CronJob) => {
-        const menuItems: MenuProps["items"] = [
-          {
-            key: "edit",
-            label: handlers.t("cronJobs.edit"),
-            disabled: record.enabled,
-            onClick: () => handlers.onEdit(record),
-          },
-          {
-            key: "delete",
-            label: handlers.t("cronJobs.delete"),
-            disabled: record.enabled,
-            danger: true,
-            onClick: () => handlers.onDelete(record.id),
-          },
-        ];
-
         return (
           <div className={styles.actionColumn}>
             <Button
               type="link"
               size="small"
+              className={styles.primaryAction}
               onClick={() => handlers.onToggleEnabled(record)}
             >
               {record.enabled
@@ -331,13 +316,30 @@ export const createColumns = (
             <Button
               type="link"
               size="small"
+              className={styles.primaryAction}
               onClick={() => handlers.onExecuteNow(record)}
             >
               {handlers.t("cronJobs.executeNow")}
             </Button>
-            <Dropdown menu={{ items: menuItems }} placement="bottomRight">
-              <Button type="text" size="small" icon={<MoreOutlined />} />
-            </Dropdown>
+            <Button
+              type="link"
+              size="small"
+              disabled={record.enabled}
+              className={styles.secondaryAction}
+              onClick={() => handlers.onEdit(record)}
+            >
+              {handlers.t("cronJobs.edit")}
+            </Button>
+            <Button
+              type="link"
+              size="small"
+              danger
+              disabled={record.enabled}
+              className={styles.dangerAction}
+              onClick={() => handlers.onDelete(record.id)}
+            >
+              {handlers.t("cronJobs.delete")}
+            </Button>
           </div>
         );
       },

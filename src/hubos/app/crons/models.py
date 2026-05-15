@@ -13,6 +13,7 @@ from pydantic import (
 )
 
 from ..channels.schema import DEFAULT_CHANNEL
+from ...providers.models import ModelSlotConfig
 
 # ---------------------------------------------------------------------------
 # APScheduler v3 uses ISO 8601 weekday numbering (0=Mon … 6=Sun) for
@@ -115,6 +116,7 @@ class CronJobRequest(BaseModel):
     input: Any
     session_id: Optional[str] = None
     user_id: Optional[str] = None
+    model_override: Optional[ModelSlotConfig] = None
 
 
 TaskType = Literal["text", "agent"]

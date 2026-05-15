@@ -145,6 +145,14 @@ export const adminSessionsApi = {
       })}`,
     ),
 
+  delete: (sessionId: string) =>
+    request<{ success?: boolean; deleted?: boolean }>(
+      `/chats/${encodeURIComponent(sessionId)}`,
+      {
+        method: "DELETE",
+      },
+    ),
+
   /** Lightweight probe used by `useIsAdmin` — 200 ⇒ admin, 403 ⇒ not. */
   probe: () => request<AdminSessionListResponse>("/admin/sessions?limit=1"),
 };

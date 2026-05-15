@@ -5,6 +5,7 @@ import {
   Drawer,
   Empty,
   Input,
+  Modal,
   Pagination,
   Space,
   Spin,
@@ -190,6 +191,33 @@ function AdminSessionsPage() {
     [message, refetchAdmin, t],
   );
 
+  const handleDelete = useCallback(
+    (sessionId: string) => {
+      Modal.confirm({
+        title: t("sessions.confirmDelete"),
+        content: t("sessions.deleteConfirm"),
+        okText: t("common.delete"),
+        okButtonProps: { danger: true },
+        cancelText: t("common.cancel"),
+        onOk: async () => {
+          try {
+            await adminSessionsApi.delete(sessionId);
+            message.success(t("sessions.deleteSuccess"));
+            if (detail?.session_id === sessionId) {
+              setDetailOpen(false);
+              setDetail(null);
+            }
+            await load(page, pageSize, filters);
+          } catch (err) {
+            console.error("Failed to delete admin session:", err);
+            message.error(t("sessions.deleteFailed"));
+          }
+        },
+      });
+    },
+    [detail?.session_id, filters, load, message, page, pageSize, t],
+  );
+
   const columns = useMemo(
     () => [
       {
@@ -261,19 +289,34 @@ function AdminSessionsPage() {
         render: (v?: number) => v ?? 0,
       },
       {
-        title: t("adminSessions.columns.actions", {
-          defaultValue: "Actions",
-        }),
+        title: (
+          <div className={styles.actionHeader}>
+            {t("adminSessions.columns.actions", {
+              defaultValue: "Actions",
+            })}
+          </div>
+        ),
         key: "actions",
-        width: 100,
+        width: 138,
+        align: "center" as const,
         render: (_: unknown, row: AdminSessionSummary) => (
-          <Button type="link" onClick={() => openDetail(row.session_id)}>
-            {t("adminSessions.view", { defaultValue: "View" })}
-          </Button>
+          <Space size="small" className={styles.actionColumn}>
+            <Button type="link" onClick={() => openDetail(row.session_id)}>
+              {t("adminSessions.view", { defaultValue: "View" })}
+            </Button>
+            <Button
+              type="link"
+              danger
+              className={styles.dangerAction}
+              onClick={() => handleDelete(row.session_id)}
+            >
+              {t("common.delete")}
+            </Button>
+          </Space>
         ),
       },
     ],
-    [openDetail, t],
+    [handleDelete, openDetail, t],
   );
 
   // ─── Gate states ────────────────────────────────────────────────────────
