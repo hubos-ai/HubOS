@@ -58,6 +58,9 @@ class WorkflowCard:
     experience_type: str = "general"  # category tag
     entities: list[str] = field(default_factory=list)  # key entities
 
+    # Topic key — normalised identifier for merge/dedup
+    topic_key: str = ""  # e.g. "code_fix-electron-asar"
+
     # Traceability — link back to originating session
     ref_session_id: str = ""  # first session that created this card
     ref_agent_id: str = ""  # agent that created this card
@@ -105,6 +108,7 @@ class WorkflowCard:
             "success_patterns": self.success_patterns,
             "experience_type": self.experience_type,
             "entities": self.entities,
+            "topic_key": self.topic_key,
             "ref_session_id": self.ref_session_id,
             "ref_agent_id": self.ref_agent_id,
             "last_ref_session_id": self.last_ref_session_id,
@@ -131,6 +135,7 @@ class WorkflowCard:
             success_patterns=data.get("success_patterns", []),
             experience_type=data.get("experience_type", "general"),
             entities=data.get("entities", []),
+            topic_key=data.get("topic_key", ""),
             ref_session_id=data.get("ref_session_id", ""),
             ref_agent_id=data.get("ref_agent_id", ""),
             last_ref_session_id=data.get("last_ref_session_id", ""),

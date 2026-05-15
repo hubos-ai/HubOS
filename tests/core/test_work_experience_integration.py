@@ -366,6 +366,7 @@ class TestWorkExperienceV4Interceptor:
             "pitfalls": ["不要泛搜 distributor"],
             "success_patterns": ["中标公司比泛搜索更精准"],
             "has_lessons": True,
+            "entities": ["Comprasnet", "FNDE", "SIGARP"],
             "knowledge_candidates": [
                 {
                     "title": "FNDE 使用 SIGARP",
@@ -418,6 +419,7 @@ class TestWorkExperienceV4Interceptor:
             "pitfalls": ["不要泄露密钥"],
             "success_patterns": ["敏感信息留在安全配置"],
             "has_lessons": True,
+            "entities": ["密钥管理", "安全配置"],
             "knowledge_candidates": [
                 {
                     "title": "API key 配置",
@@ -479,8 +481,9 @@ class TestWorkExperienceV4Interceptor:
                     assistant_response="完成了，已验证。",
                 )
 
-        assert result is None
+        # Card should NOT be created (only knowledge candidates)
         assert store.list_all() == []
+        # But knowledge candidates should still be written
         pending = list(
             (tmp_path / "memory" / "knowledge_pending").glob("*.md"),
         )
@@ -503,6 +506,7 @@ class TestWorkExperienceV4Interceptor:
             "pitfalls": ["不要泛搜 distributor"],
             "success_patterns": ["中标公司比泛搜索更精准"],
             "has_lessons": True,
+            "entities": ["Comprasnet", "FNDE"],
         }
 
         with patch.object(
@@ -517,7 +521,7 @@ class TestWorkExperienceV4Interceptor:
             )
 
         assert result is not None
-        assert result["action"] == "created"
+        assert result["action"] in ("created", "created_new_card")
         card = store.get(result["card_id"])
         assert card is not None
         assert card.task_type == "政府采购客户开发"
@@ -537,6 +541,7 @@ class TestWorkExperienceV4Interceptor:
             tools={"browser": "验证页面"},
             pitfalls=["旧坑"],
             success_patterns=["旧方法"],
+            entities=["Comprasnet"],
             executions=2,
         )
         store.save(card)
@@ -551,6 +556,7 @@ class TestWorkExperienceV4Interceptor:
             "pitfalls": ["旧坑", "不要泛搜 distributor"],
             "success_patterns": ["旧方法", "中标公司更精准"],
             "has_lessons": True,
+            "entities": ["Comprasnet", "curl"],
         }
 
         with patch.object(
@@ -596,6 +602,7 @@ class TestWorkExperienceV4Traceability:
             "pitfalls": [],
             "success_patterns": [],
             "has_lessons": True,
+            "entities": ["CSV", "pandas"],
         }
 
         with patch.object(
@@ -650,6 +657,7 @@ class TestWorkExperienceV4Traceability:
             "pitfalls": ["新坑"],
             "success_patterns": ["新方法"],
             "has_lessons": True,
+            "entities": ["CSV", "pandas"],
         }
 
         with patch.object(
@@ -759,6 +767,510 @@ class TestWorkExperienceV4Traceability:
         assert loaded.ref_agent_id == "rt-agent"
         assert loaded.last_ref_session_id == "rt-session"
         assert loaded.source_turn_count == 7
+
+
+# =============================================================================
+# Quality Filter Tests
+# =============================================================================
+
+
+def _good_reflection(**overrides) -> dict:
+    """Build a reflection dict that passes the quality filter."""
+    base = {
+        "task_type": "CSV数据处理",
+        "description": "CSV数据清洗导出",
+        "workflow": ["读取CSV", "清洗数据", "导出结果"],
+        "tools": {"pandas": "read_csv"},
+        "pitfalls": ["编码不是UTF-8"],
+        "success_patterns": ["抽样读回验证"],
+        "has_lessons": True,
+        "entities": ["CSV", "pandas"],
+    }
+    base.update(overrides)
+    return base
+
+
+class TestQualityFilter:
+    """Tests for _should_create_card quality gate."""
+
+    def test_generic_task_type_rejected(self) -> None:
+        from hubos.core.work_experience.integration_v4 import (
+            _should_create_card,
+        )
+
+        ok, reason = _should_create_card(_good_reflection(task_type="一般任务"))
+        assert not ok
+        assert reason == "generic_task_type"
+
+    def test_empty_task_type_rejected(self) -> None:
+        from hubos.core.work_experience.integration_v4 import (
+            _should_create_card,
+        )
+
+        ok, reason = _should_create_card(_good_reflection(task_type=""))
+        assert not ok
+        assert reason == "empty_task_type"
+
+    def test_short_task_type_rejected(self) -> None:
+        from hubos.core.work_experience.integration_v4 import (
+            _should_create_card,
+        )
+
+        ok, reason = _should_create_card(_good_reflection(task_type="x"))
+        assert not ok
+        assert reason == "generic_task_type"
+
+    def test_too_few_entities_rejected(self) -> None:
+        from hubos.core.work_experience.integration_v4 import (
+            _should_create_card,
+        )
+
+        ok, reason = _should_create_card(_good_reflection(entities=[]))
+        assert not ok
+        assert reason == "too_few_entities"
+
+    def test_insufficient_methodology_rejected(self) -> None:
+        from hubos.core.work_experience.integration_v4 import (
+            _should_create_card,
+        )
+
+        ok, reason = _should_create_card(
+            _good_reflection(workflow=[], pitfalls=[], success_patterns=[]),
+        )
+        assert not ok
+        assert reason == "insufficient_methodology"
+
+    def test_no_reusable_lesson_rejected(self) -> None:
+        from hubos.core.work_experience.integration_v4 import (
+            _should_create_card,
+        )
+
+        ok, reason = _should_create_card(
+            _good_reflection(
+                has_lessons=False,
+                pitfalls=[],
+                success_patterns=[],
+            ),
+        )
+        assert not ok
+        assert reason == "no_reusable_lesson"
+
+    def test_good_reflection_passes(self) -> None:
+        from hubos.core.work_experience.integration_v4 import (
+            _should_create_card,
+        )
+
+        ok, reason = _should_create_card(_good_reflection())
+        assert ok
+        assert reason == "ok"
+
+    def test_knowledge_candidates_still_written_when_filtered(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Low-quality reflection still writes knowledge_candidates."""
+        store = CardStore(root=tmp_path / "we_filter")
+        interceptor = V4WorkExperienceInterceptor(store=store)
+        reflection = {
+            "task_type": "一般任务",
+            "description": "",
+            "workflow": [],
+            "tools": {},
+            "pitfalls": [],
+            "success_patterns": [],
+            "has_lessons": False,
+            "entities": [],
+            "knowledge_candidates": [
+                {
+                    "title": "测试事实",
+                    "summary": "稳定事实",
+                    "domain": "dev",
+                },
+            ],
+        }
+        with patch.dict(os.environ, {"HUBOS_WORKING_DIR": str(tmp_path)}):
+            with patch.object(
+                V4WorkExperienceInterceptor,
+                "_reflect_with_llm",
+                return_value=reflection,
+            ):
+                result = interceptor.post_chat_turn(
+                    session_id="s-filter",
+                    user_input="随便聊聊",
+                    assistant_response="完成了。",
+                )
+
+        # Knowledge candidate should still be written
+        pending = list(
+            (tmp_path / "memory" / "knowledge_pending").glob("*.md"),
+        )
+        assert len(pending) == 1
+        # But no card should be created
+        assert store.list_all() == []
+        assert result is not None
+        assert result["action"] == "skipped_low_quality"
+
+
+# =============================================================================
+# Topic Key + Similarity Merge Tests
+# =============================================================================
+
+
+class TestTopicKey:
+    """Tests for _build_topic_key and topic_key persistence."""
+
+    def test_builds_stable_key(self) -> None:
+        from hubos.core.work_experience.integration_v4 import _build_topic_key
+
+        key1 = _build_topic_key(_good_reflection())
+        key2 = _build_topic_key(_good_reflection())
+        assert key1 == key2
+        assert len(key1) > 0
+
+    def test_includes_experience_type(self) -> None:
+        from hubos.core.work_experience.integration_v4 import _build_topic_key
+
+        key = _build_topic_key(_good_reflection(experience_type="code_fix"))
+        assert "code_fix" in key
+
+    def test_includes_entities(self) -> None:
+        from hubos.core.work_experience.integration_v4 import _build_topic_key
+
+        key = _build_topic_key(_good_reflection(entities=["Electron", "asar"]))
+        assert "electron" in key or "asar" in key
+
+    def test_fallback_uses_task_type(self) -> None:
+        from hubos.core.work_experience.integration_v4 import _build_topic_key
+
+        key = _build_topic_key(
+            _good_reflection(experience_type="general", entities=[]),
+        )
+        assert len(key) > 0
+
+    def test_old_card_without_topic_key_loads(self, tmp_path: Path) -> None:
+        """Card serialized without topic_key loads safely."""
+        import json
+
+        old_json = json.dumps(
+            {
+                "card_id": "old-card",
+                "task_type": "旧任务",
+                "description": "",
+                "workflow": [],
+                "tools": {},
+                "pitfalls": [],
+                "success_patterns": [],
+                "experience_type": "general",
+                "entities": [],
+                "executions": 1,
+                "created_at": "2024-01-01T00:00:00+00:00",
+                "updated_at": "2024-01-01T00:00:00+00:00",
+                "source_sessions": [],
+            },
+        )
+        card = WorkflowCard.from_json(old_json)
+        assert card.topic_key == ""
+
+    def test_topic_key_roundtrip_via_store(self, tmp_path: Path) -> None:
+        store = CardStore(root=tmp_path / "we_topic")
+        card = WorkflowCard(
+            task_type="Test",
+            topic_key="code_fix-electron-asar",
+        )
+        store.save(card)
+        loaded = store.get(card.card_id)
+        assert loaded is not None
+        assert loaded.topic_key == "code_fix-electron-asar"
+
+    def test_new_card_gets_topic_key(self, tmp_path: Path) -> None:
+        """Cards created via post_chat_turn get a topic_key."""
+        store = CardStore(root=tmp_path / "we_topic_create")
+        interceptor = V4WorkExperienceInterceptor(store=store)
+        reflection = _good_reflection()
+        with patch.object(
+            V4WorkExperienceInterceptor,
+            "_reflect_with_llm",
+            return_value=reflection,
+        ):
+            result = interceptor.post_chat_turn(
+                session_id="s-topic",
+                user_input="处理CSV",
+                assistant_response="完成了。",
+            )
+        assert result is not None
+        card = store.get(result["card_id"])
+        assert card is not None
+        assert card.topic_key != ""
+
+    def test_get_by_topic_key(self, tmp_path: Path) -> None:
+        store = CardStore(root=tmp_path / "we_topic_store")
+        card = WorkflowCard(
+            task_type="Test",
+            topic_key="data_import-csv-pandas",
+        )
+        store.save(card)
+        found = store.get_by_topic_key("data_import-csv-pandas")
+        assert found is not None
+        assert found.card_id == card.card_id
+        assert store.get_by_topic_key("nonexistent") is None
+
+
+class TestSimilarityMerge:
+    """Tests for similarity matching and merge-before-create."""
+
+    def test_topic_key_match_merges_not_creates(self, tmp_path: Path) -> None:
+        """Same topic_key → updates existing card instead of creating new."""
+        store = CardStore(root=tmp_path / "we_sim")
+        existing = WorkflowCard(
+            task_type="CSV数据处理",
+            description="旧描述",
+            workflow=["旧步骤"],
+            tools={"pandas": "旧用法"},
+            pitfalls=["旧坑"],
+            success_patterns=["旧方法"],
+            entities=["CSV", "pandas"],
+            experience_type="data_import",
+            topic_key="data_import-csv-pandas",
+            executions=1,
+        )
+        store.save(existing)
+        interceptor = V4WorkExperienceInterceptor(store=store)
+        # No session card set → will search by topic_key
+
+        reflection = _good_reflection(
+            experience_type="data_import",
+            entities=["CSV", "pandas"],
+        )
+        with patch.object(
+            V4WorkExperienceInterceptor,
+            "_reflect_with_llm",
+            return_value=reflection,
+        ):
+            result = interceptor.post_chat_turn(
+                session_id="s-merge-tk",
+                user_input="继续处理CSV",
+                assistant_response="完成了。",
+            )
+
+        assert result is not None
+        assert result["action"] == "updated"
+        assert result["match_method"] == "matched_by_topic_key"
+        # Only 1 card, not 2
+        assert store.count() == 1
+        updated = store.get(existing.card_id)
+        assert updated is not None
+        assert updated.executions == 2
+
+    def test_similarity_match_merges_different_task_type(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Different task_type but high similarity → merges."""
+        store = CardStore(root=tmp_path / "we_sim2")
+        existing = WorkflowCard(
+            task_type="CSV数据导入",
+            description="CSV文件导入到数据库",
+            workflow=["读取CSV"],
+            tools={"pandas": "read_csv"},
+            pitfalls=["编码问题"],
+            success_patterns=["抽样验证"],
+            entities=["CSV", "pandas"],
+            experience_type="data_import",
+            executions=2,
+        )
+        store.save(existing)
+        interceptor = V4WorkExperienceInterceptor(store=store)
+
+        # Different task_type but same entities, tools, experience_type
+        reflection = _good_reflection(
+            task_type="表格数据清洗",
+            description="CSV/Excel数据清洗流程",
+            entities=["CSV", "pandas"],
+            experience_type="data_import",
+            tools={"pandas": "read_csv"},
+        )
+        with patch.object(
+            V4WorkExperienceInterceptor,
+            "_reflect_with_llm",
+            return_value=reflection,
+        ):
+            result = interceptor.post_chat_turn(
+                session_id="s-sim-merge",
+                user_input="清洗表格数据",
+                assistant_response="完成了。",
+            )
+
+        assert result is not None
+        assert result["action"] == "updated"
+        assert "similarity" in result["match_method"]
+        assert store.count() == 1
+
+    def test_truly_different_topic_creates_new(self, tmp_path: Path) -> None:
+        """Truly different topic → creates a new card."""
+        store = CardStore(root=tmp_path / "we_sim3")
+        existing = WorkflowCard(
+            task_type="政府采购客户开发",
+            description="政府中标结果寻找客户",
+            workflow=["抓取中标结果"],
+            tools={"browser": "验证"},
+            pitfalls=["不要泛搜"],
+            success_patterns=["中标公司更精准"],
+            entities=["Comprasnet", "FNDE"],
+            experience_type="customer_development",
+            topic_key="customer_development-comprasnet-fnde",
+            executions=5,
+        )
+        store.save(existing)
+        interceptor = V4WorkExperienceInterceptor(store=store)
+
+        # Completely different domain
+        reflection = _good_reflection(
+            task_type="Docker部署",
+            description="Docker容器化部署流程",
+            entities=["Docker", "nginx"],
+            experience_type="deployment",
+            tools={"docker": "build & run"},
+        )
+        with patch.object(
+            V4WorkExperienceInterceptor,
+            "_reflect_with_llm",
+            return_value=reflection,
+        ):
+            result = interceptor.post_chat_turn(
+                session_id="s-new-topic",
+                user_input="部署Docker",
+                assistant_response="完成了。",
+            )
+
+        assert result is not None
+        assert "created" in result["action"]
+        assert store.count() == 2
+
+    def test_merge_preserves_traceability(self, tmp_path: Path) -> None:
+        """Merge updates traceability fields correctly."""
+        store = CardStore(root=tmp_path / "we_sim_trace")
+        existing = WorkflowCard(
+            task_type="CSV数据处理",
+            description="旧",
+            workflow=["旧"],
+            tools={},
+            pitfalls=["旧坑"],
+            success_patterns=["旧法"],
+            entities=["CSV"],
+            experience_type="data_import",
+            topic_key="data_import-csv",
+            ref_session_id="first-session",
+            ref_agent_id="first-agent",
+            executions=1,
+        )
+        store.save(existing)
+        interceptor = V4WorkExperienceInterceptor(store=store)
+
+        reflection = _good_reflection(
+            entities=["CSV"],
+            experience_type="data_import",
+        )
+        with patch.object(
+            V4WorkExperienceInterceptor,
+            "_reflect_with_llm",
+            return_value=reflection,
+        ):
+            result = interceptor.post_chat_turn(
+                session_id="merge-session",
+                agent_id="merge-agent",
+                user_input="继续",
+                assistant_response="完成了。",
+            )
+
+        assert result is not None
+        card = store.get(existing.card_id)
+        assert card is not None
+        # First ref preserved
+        assert card.ref_session_id == "first-session"
+        assert card.ref_agent_id == "first-agent"
+        # Last ref updated
+        assert card.last_ref_session_id == "merge-session"
+        assert card.executions == 2
+
+    def test_merge_preserves_updated_at(self, tmp_path: Path) -> None:
+        """Merge updates updated_at."""
+        store = CardStore(root=tmp_path / "we_sim_time")
+        existing = WorkflowCard(
+            task_type="CSV数据处理",
+            description="old",
+            workflow=["old"],
+            tools={},
+            pitfalls=["old pit"],
+            success_patterns=["old suc"],
+            entities=["CSV"],
+            experience_type="data_import",
+            topic_key="data_import-csv",
+            executions=1,
+            updated_at="2024-01-01T00:00:00+00:00",
+        )
+        store.save(existing)
+        interceptor = V4WorkExperienceInterceptor(store=store)
+
+        reflection = _good_reflection(
+            entities=["CSV"],
+            experience_type="data_import",
+        )
+        with patch.object(
+            V4WorkExperienceInterceptor,
+            "_reflect_with_llm",
+            return_value=reflection,
+        ):
+            interceptor.post_chat_turn(
+                session_id="s-time",
+                user_input="继续",
+                assistant_response="完成了。",
+            )
+
+        card = store.get(existing.card_id)
+        assert card is not None
+        assert card.updated_at != "2024-01-01T00:00:00+00:00"
+
+
+class TestSimilarityScore:
+    """Unit tests for _similarity_score."""
+
+    def test_identical_card_high_score(self) -> None:
+        from hubos.core.work_experience.integration_v4 import _similarity_score
+
+        card = WorkflowCard(
+            task_type="CSV数据处理",
+            description="CSV清洗导出",
+            entities=["CSV", "pandas"],
+            experience_type="data_import",
+            tools={"pandas": "read_csv"},
+        )
+        reflection = _good_reflection(
+            experience_type="data_import",
+            entities=["CSV", "pandas"],
+            tools={"pandas": "read_csv"},
+        )
+        score = _similarity_score(reflection, card)
+        assert score >= 0.7
+
+    def test_completely_different_low_score(self) -> None:
+        from hubos.core.work_experience.integration_v4 import _similarity_score
+
+        card = WorkflowCard(
+            task_type="政府采购客户开发",
+            description="政府中标结果寻找客户",
+            entities=["Comprasnet", "FNDE"],
+            experience_type="customer_development",
+            tools={"browser": "验证"},
+        )
+        reflection = _good_reflection(
+            task_type="Docker部署",
+            description="Docker容器化部署",
+            entities=["Docker", "nginx"],
+            experience_type="deployment",
+            tools={"docker": "build"},
+        )
+        score = _similarity_score(reflection, card)
+        assert score < 0.35
 
 
 # =============================================================================

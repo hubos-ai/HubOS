@@ -35,6 +35,43 @@ _TASK_COMPLETE_PATTERNS = re.compile(
 # Max turns to keep in buffer
 _MAX_BUFFER_SIZE = 50
 
+# ── Quality filter ──────────────────────────────────────────────────────────
+# Generic task_type patterns that indicate low-information tasks.
+_GENERIC_TASK_TYPES: frozenset[str] = frozenset(
+    {
+        "一般任务",
+        "普通任务",
+        "其他",
+        "任务处理",
+        "问题处理",
+        "普通问答",
+        "问答",
+        "对话",
+        "聊天",
+        "闲聊",
+        "chat",
+        "task",
+        "general",
+        "other",
+        "misc",
+        "unknown",
+        "帮助",
+        "帮助用户",
+        "回复",
+        "回答问题",
+    },
+)
+
+# Minimum thresholds for card creation
+_MIN_TASK_TYPE_LEN = 2  # at least 2 non-whitespace characters
+_MIN_TASK_TYPE_WORDS = 1  # at least 1 meaningful word
+_MIN_METHODOLOGY_ITEMS = (
+    2  # total non-empty items across workflow/pitfalls/success
+)
+
+# Similarity threshold for merge-before-create
+_SIMILARITY_MERGE_THRESHOLD = 0.35
+
 
 @dataclass
 class PreExecuteResult:
@@ -226,7 +263,46 @@ class WorkExperienceInterceptor:
             agent_id=agent_id,
         )
 
-        # Update or create card
+        # ── Quality gate ──────────────────────────────────────────────
+        should_create, reason = _should_create_card(reflection)
+        if not should_create:
+            logger.info(
+                "WorkExperience v4: card creation skipped (%s)",
+                reason,
+                extra={"task_type": reflection.get("task_type", "")},
+            )
+            # Still return knowledge_candidates count if any were written
+            if knowledge_candidate_count > 0:
+                return {
+                    "action": "skipped_low_quality",
+                    "reason": reason,
+                    "knowledge_candidates": knowledge_candidate_count,
+                }
+            return None
+
+        # ── Match: existing_card > topic_key > similarity > create ────
+        match_method = ""
+        if existing_card:
+            match_method = "matched_by_session"
+        else:
+            # Try topic_key match
+            topic_key = _build_topic_key(reflection)
+            if topic_key:
+                tk_card = self._store.get_by_topic_key(topic_key)
+                if tk_card:
+                    existing_card = tk_card
+                    match_method = "matched_by_topic_key"
+
+            # Try similarity match
+            if not existing_card:
+                all_cards = self._store.list_all()
+                if all_cards:
+                    sim_card = _find_similar_card(reflection, all_cards)
+                    if sim_card:
+                        existing_card = sim_card
+                        match_method = "matched_by_similarity"
+
+        # ── Update or create ──────────────────────────────────────────
         if existing_card:
             card = self._merge_reflection_into_card(
                 existing_card,
@@ -237,7 +313,8 @@ class WorkExperienceInterceptor:
             )
             self._store.save(card)
             logger.info(
-                "WorkExperience v4: card updated",
+                "WorkExperience v4: card updated via %s",
+                match_method,
                 extra={
                     "card_id": card.card_id,
                     "task_type": card.task_type,
@@ -247,6 +324,7 @@ class WorkExperienceInterceptor:
             )
             return {
                 "action": "updated",
+                "match_method": match_method,
                 "card_id": card.card_id,
                 "task_type": card.task_type,
                 "knowledge_candidates": knowledge_candidate_count,
@@ -268,10 +346,11 @@ class WorkExperienceInterceptor:
                     extra={
                         "card_id": card.card_id,
                         "task_type": card.task_type,
+                        "topic_key": card.topic_key,
                     },
                 )
                 return {
-                    "action": "created",
+                    "action": "created_new_card",
                     "card_id": card.card_id,
                     "task_type": card.task_type,
                     "knowledge_candidates": knowledge_candidate_count,
@@ -618,6 +697,7 @@ class WorkExperienceInterceptor:
             success_patterns=reflection.get("success_patterns", []),
             experience_type=reflection.get("experience_type", "general"),
             entities=reflection.get("entities", []),
+            topic_key=_build_topic_key(reflection),
             ref_session_id=session_id,
             ref_agent_id=agent_id,
             last_ref_session_id=session_id,
@@ -642,8 +722,189 @@ class WorkExperienceInterceptor:
 
 
 # ======================================================================
-# Helpers
+# Quality filter + topic key + similarity helpers
 # ======================================================================
+
+
+def _should_create_card(reflection: dict) -> tuple[bool, str]:
+    """Decide whether a reflection is worth persisting as an experience card.
+
+    Returns (should_create, reason).  When *should_create* is False the
+    reflection is still valid — knowledge_candidates will still be written.
+    """
+    task_type = (reflection.get("task_type") or "").strip()
+    description = (reflection.get("description") or "").strip()
+    entities = reflection.get("entities") or []
+    workflow = reflection.get("workflow") or []
+    pitfalls = reflection.get("pitfalls") or []
+    success_patterns = reflection.get("success_patterns") or []
+    has_lessons = reflection.get("has_lessons", True)
+
+    # 1. task_type too generic
+    if not task_type:
+        return False, "empty_task_type"
+    tt_lower = task_type.lower().strip()
+    if tt_lower in _GENERIC_TASK_TYPES:
+        return False, "generic_task_type"
+    if len(tt_lower) < _MIN_TASK_TYPE_LEN:
+        return False, "generic_task_type"
+
+    # 2. has_lessons explicitly false and no methodology
+    if not has_lessons and not pitfalls and not success_patterns:
+        return False, "no_reusable_lesson"
+
+    # 3. Too few entities — no topic anchor
+    real_entities = [
+        e
+        for e in entities
+        if isinstance(e, str) and e.strip() and len(e.strip()) > 1
+    ]
+    if not real_entities:
+        return False, "too_few_entities"
+
+    # 4. Methodology too thin
+    methodology_count = (
+        len([s for s in workflow if isinstance(s, str) and s.strip()])
+        + len([s for s in pitfalls if isinstance(s, str) and s.strip()])
+        + len(
+            [s for s in success_patterns if isinstance(s, str) and s.strip()],
+        )
+    )
+    if methodology_count < _MIN_METHODOLOGY_ITEMS:
+        return False, "insufficient_methodology"
+
+    return True, "ok"
+
+
+def _build_topic_key(reflection: dict) -> str:
+    """Build a stable, normalised topic key from reflection data.
+
+    Combines experience_type + top entities + normalised task_type keywords.
+    """
+    import re as _re
+
+    et = (reflection.get("experience_type") or "general").strip()
+    entities = reflection.get("entities") or []
+    task_type = (reflection.get("task_type") or "").strip()
+
+    parts: list[str] = []
+
+    # experience_type as prefix
+    if et and et != "general":
+        parts.append(et)
+
+    # Top 2 entities (most discriminative)
+    for e in entities[:2]:
+        if isinstance(e, str) and e.strip():
+            parts.append(e.strip())
+
+    # Fallback: use task_type keywords if parts are too few
+    if len(parts) < 2 and task_type:
+        # Extract meaningful words from task_type
+        words = _re.sub(r"[^\w\u4e00-\u9fff]", " ", task_type).split()
+        for w in words:
+            if len(w) > 1 and w.lower() not in _GENERIC_TASK_TYPES:
+                parts.append(w)
+            if len(parts) >= 3:
+                break
+
+    if not parts:
+        return ""
+
+    raw = "-".join(parts).lower()
+    # Normalise: only alphanumeric, CJK, hyphens
+    key = _re.sub(r"[^\w\u4e00-\u9fff-]", "-", raw)
+    key = _re.sub(r"-+", "-", key).strip("-")
+    return key[:80]
+
+
+def _similarity_score(reflection: dict, card: WorkflowCard) -> float:
+    """Compute a similarity score between a reflection and an existing card.
+
+    Uses local rules only — no LLM, no embeddings.
+    Returns float in [0, 1].
+    """
+    score = 0.0
+    max_score = 0.0
+
+    # Factor 1: experience_type match (weight 0.20)
+    max_score += 0.20
+    ref_et = (reflection.get("experience_type") or "").strip()
+    if ref_et and ref_et == card.experience_type and ref_et != "general":
+        score += 0.20
+
+    # Factor 2: entity overlap (weight 0.30)
+    max_score += 0.30
+    ref_entities = {
+        e.strip().lower()
+        for e in (reflection.get("entities") or [])
+        if isinstance(e, str) and e.strip()
+    }
+    card_entities = {e.strip().lower() for e in card.entities if e.strip()}
+    if ref_entities and card_entities:
+        overlap = len(ref_entities & card_entities)
+        union = len(ref_entities | card_entities)
+        if union > 0:
+            score += 0.30 * (overlap / union)
+
+    # Factor 3: task_type / description word overlap (weight 0.30)
+    max_score += 0.30
+    import re as _re
+
+    def _tokenize(text: str) -> set[str]:
+        return {
+            w.lower()
+            for w in _re.sub(r"[^\w\u4e00-\u9fff]", " ", text).split()
+            if len(w) > 1
+        }
+
+    ref_words = _tokenize(
+        (reflection.get("task_type") or "")
+        + " "
+        + (reflection.get("description") or ""),
+    )
+    card_words = _tokenize(card.task_type + " " + card.description)
+    if ref_words and card_words:
+        overlap = len(ref_words & card_words)
+        union = len(ref_words | card_words)
+        if union > 0:
+            score += 0.30 * (overlap / union)
+
+    # Factor 4: tool overlap (weight 0.20)
+    max_score += 0.20
+    ref_tools = set((reflection.get("tools") or {}).keys())
+    card_tools = set(card.tools.keys())
+    if ref_tools and card_tools:
+        overlap = len(ref_tools & card_tools)
+        union = len(ref_tools | card_tools)
+        if union > 0:
+            score += 0.20 * (overlap / union)
+
+    return score / max_score if max_score > 0 else 0.0
+
+
+def _find_similar_card(
+    reflection: dict,
+    cards: list[WorkflowCard],
+    threshold: float = _SIMILARITY_MERGE_THRESHOLD,
+) -> Optional[WorkflowCard]:
+    """Find the most similar existing card above *threshold*."""
+    best_card: Optional[WorkflowCard] = None
+    best_score = 0.0
+    for card in cards:
+        s = _similarity_score(reflection, card)
+        if s > best_score:
+            best_score = s
+            best_card = card
+    if best_card is not None and best_score >= threshold:
+        logger.info(
+            "Similar card found: score=%.2f card_id=%s task_type=%s",
+            best_score,
+            best_card.card_id,
+            best_card.task_type,
+        )
+        return best_card
+    return None
 
 
 def _merge_deduplicate(

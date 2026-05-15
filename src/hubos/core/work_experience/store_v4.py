@@ -80,6 +80,15 @@ class CardStore:
             return None
         return self.get(card_id)
 
+    def get_by_topic_key(self, topic_key: str) -> Optional[WorkflowCard]:
+        """Get card by topic_key (normalised merge key)."""
+        if not topic_key:
+            return None
+        for card in self.list_all():
+            if card.topic_key == topic_key:
+                return card
+        return None
+
     def list_all(self) -> list[WorkflowCard]:
         """List all cards."""
         results = []
