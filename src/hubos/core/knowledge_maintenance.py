@@ -57,7 +57,9 @@ def write_pending_candidates(
     written: list[Path] = []
     for raw in candidates:
         candidate = sanitize_candidate(
-            raw, session_id=session_id, agent_id=agent_id
+            raw,
+            session_id=session_id,
+            agent_id=agent_id,
         )
         if candidate is None:
             continue
@@ -109,7 +111,8 @@ def sanitize_candidate(
         confidence=confidence,
         evidence=_clean_list(data.get("evidence", []), limit=6),
         use_when=_clean_list(
-            data.get("use_when", data.get("use when", [])), limit=6
+            data.get("use_when", data.get("use when", [])),
+            limit=6,
         ),
         details=_clean_list(data.get("details", []), limit=8),
         source_session_id=session_id
@@ -144,15 +147,15 @@ def format_candidate(candidate: KnowledgeCandidate) -> str:
     ]
     if candidate.evidence:
         lines.extend(
-            ["Evidence:", *[f"- {item}" for item in candidate.evidence], ""]
+            ["Evidence:", *[f"- {item}" for item in candidate.evidence], ""],
         )
     if candidate.use_when:
         lines.extend(
-            ["Use when:", *[f"- {item}" for item in candidate.use_when], ""]
+            ["Use when:", *[f"- {item}" for item in candidate.use_when], ""],
         )
     if candidate.details:
         lines.extend(
-            ["Details:", *[f"- {item}" for item in candidate.details], ""]
+            ["Details:", *[f"- {item}" for item in candidate.details], ""],
         )
     return "\n".join(lines).rstrip() + "\n"
 

@@ -403,7 +403,8 @@ def _score_hit(
             else:
                 # Partial match via sub-segments
                 segs = re.findall(
-                    r"[a-zA-Z]{2,}|[\u4e00-\u9fff]{1,}", entity_lower
+                    r"[a-zA-Z]{2,}|[\u4e00-\u9fff]{1,}",
+                    entity_lower,
                 )
                 if any(s in msg_lower for s in segs if len(s) >= 2):
                     matched += 0.5

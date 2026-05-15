@@ -391,7 +391,7 @@ class TestWorkExperienceV4Interceptor:
                 )
 
         pending = list(
-            (tmp_path / "memory" / "knowledge_pending").glob("*.md")
+            (tmp_path / "memory" / "knowledge_pending").glob("*.md"),
         )
         assert len(pending) == 1
         assert "FNDE 使用 SIGARP" in pending[0].read_text(encoding="utf-8")
@@ -482,7 +482,7 @@ class TestWorkExperienceV4Interceptor:
         assert result is None
         assert store.list_all() == []
         pending = list(
-            (tmp_path / "memory" / "knowledge_pending").glob("*.md")
+            (tmp_path / "memory" / "knowledge_pending").glob("*.md"),
         )
         assert len(pending) == 1
         assert "Electron 修改需要重新打包" in pending[0].read_text(
@@ -582,7 +582,8 @@ class TestWorkExperienceV4Traceability:
     """Tests for session/agent traceability fields on WorkflowCard."""
 
     def test_new_card_writes_ref_session_and_agent(
-        self, tmp_path: Path
+        self,
+        tmp_path: Path,
     ) -> None:
         """New card created via post_chat_turn includes ref_session_id and ref_agent_id."""
         store = CardStore(root=tmp_path / "we_trace")
@@ -700,7 +701,7 @@ class TestWorkExperienceV4Traceability:
                 "status": "approved",
                 "experience_level": "mature",
                 "disabled": False,
-            }
+            },
         )
         card = WorkflowCard.from_json(old_json)
         assert card.task_type == "遗留任务"

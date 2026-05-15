@@ -71,7 +71,8 @@ def test_normalize_runner_input_keeps_message_list():
 async def test_cron_executor_wraps_legacy_string_before_stream_query():
     runner = FakeRunner()
     executor = CronExecutor(
-        runner=runner, channel_manager=FakeChannelManager()
+        runner=runner,
+        channel_manager=FakeChannelManager(),
     )
 
     await executor.execute(_job("legacy prompt"))

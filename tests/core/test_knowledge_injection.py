@@ -96,7 +96,7 @@ class TestKnowledgeFileMatch:
             Use when:
             - 巴西政府采购
             - 供应商开发
-        """
+        """,
         )
         _write_knowledge_file(tmp_path, content)
 
@@ -128,7 +128,7 @@ class TestIrrelevantKnowledge:
 
             Use when:
             - 日本税务
-        """
+        """,
         )
         _write_knowledge_file(tmp_path, content)
 
@@ -161,7 +161,7 @@ class TestMaxItems:
 
                 Use when:
                 - React开发
-            """
+            """,
             )
             _write_knowledge_file(tmp_path, content, name=f"k{i}.md")
 
@@ -312,7 +312,7 @@ class TestScoring:
 
             Summary:
             Second summary content.
-        """
+        """,
         )
         kdir = tmp_path / "memory" / "knowledge"
         kdir.mkdir(parents=True, exist_ok=True)
@@ -353,7 +353,7 @@ class TestScoring:
 
             Use when:
             - search API fails
-        """
+        """,
         )
         kdir = tmp_path / "memory" / "knowledge"
         kdir.mkdir(parents=True, exist_ok=True)
@@ -407,7 +407,7 @@ class TestMetadata:
 
             Use when:
             - 供应商开发
-        """
+        """,
         )
         _write_knowledge_file(tmp_path, content)
         card = _make_card()

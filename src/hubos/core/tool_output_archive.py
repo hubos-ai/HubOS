@@ -347,7 +347,9 @@ def cleanup_refs(
                 except Exception as exc:
                     result.errors.append(f"{sid}: {exc}")
                     logger.warning(
-                        "refs cleanup: failed to remove %s: %s", spath, exc
+                        "refs cleanup: failed to remove %s: %s",
+                        spath,
+                        exc,
                     )
                     # Deletion failed — keep in remaining so it's tracked
                     remaining.append(item)

@@ -92,7 +92,7 @@ class CronExecutor:
         _model_token = None
         if job.request.model_override:
             _model_token = set_current_model_override(
-                job.request.model_override
+                job.request.model_override,
             )
 
         async def _run() -> None:
