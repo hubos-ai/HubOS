@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import pytest
 
 from hubos.app.crons.executor import CronExecutor, _normalize_runner_input
@@ -26,7 +27,11 @@ def _job(input_value):
     return CronJobSpec(
         id="job-1",
         name="legacy input job",
-        schedule={"type": "cron", "cron": "0 23 * * *", "timezone": "Asia/Shanghai"},
+        schedule={
+            "type": "cron",
+            "cron": "0 23 * * *",
+            "timezone": "Asia/Shanghai",
+        },
         task_type="agent",
         request={"input": input_value, "session_id": "old", "user_id": "old"},
         dispatch={
@@ -65,7 +70,9 @@ def test_normalize_runner_input_keeps_message_list():
 @pytest.mark.asyncio
 async def test_cron_executor_wraps_legacy_string_before_stream_query():
     runner = FakeRunner()
-    executor = CronExecutor(runner=runner, channel_manager=FakeChannelManager())
+    executor = CronExecutor(
+        runner=runner, channel_manager=FakeChannelManager()
+    )
 
     await executor.execute(_job("legacy prompt"))
 

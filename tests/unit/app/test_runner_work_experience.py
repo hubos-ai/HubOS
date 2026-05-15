@@ -17,13 +17,24 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-_RUNNER_PATH = Path(__file__).resolve().parents[3] / "src" / "hubos" / "app" / "runner" / "runner.py"
+_RUNNER_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "src"
+    / "hubos"
+    / "app"
+    / "runner"
+    / "runner.py"
+)
 _SOURCE = _RUNNER_PATH.read_text(encoding="utf-8")
 _TREE = ast.parse(_SOURCE)
 
 
 def _string_literals() -> set[str]:
-    return {node.value for node in ast.walk(_TREE) if isinstance(node, ast.Constant) and isinstance(node.value, str)}
+    return {
+        node.value
+        for node in ast.walk(_TREE)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
 
 
 def test_pre_agent_status_names_are_present() -> None:
@@ -82,7 +93,10 @@ def test_internal_status_messages_are_filtered_from_model_memory() -> None:
 def test_hallucinated_internal_status_calls_are_stripped() -> None:
     """Model-emitted fake calls to internal phases should be dropped."""
     assert "_strip_hallucinated_internal_status_blocks(msg)" in _SOURCE
-    assert "_strip_hallucinated_internal_status_from_memory(agent.memory)" in _SOURCE
+    assert (
+        "_strip_hallucinated_internal_status_from_memory(agent.memory)"
+        in _SOURCE
+    )
     assert "Dropped hallucinated internal status block" in _SOURCE
 
 

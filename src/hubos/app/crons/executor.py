@@ -88,9 +88,12 @@ class CronExecutor:
 
         # Set model override if configured (e.g. DeepSeek V4 Flash for cron)
         from ...config.context import set_current_model_override
+
         _model_token = None
         if job.request.model_override:
-            _model_token = set_current_model_override(job.request.model_override)
+            _model_token = set_current_model_override(
+                job.request.model_override
+            )
 
         async def _run() -> None:
             async for event in self._runner.stream_query(req):
@@ -121,4 +124,5 @@ class CronExecutor:
             # Clear model override ContextVar
             if _model_token is not None:
                 from ...config.context import current_model_override
+
                 current_model_override.reset(_model_token)

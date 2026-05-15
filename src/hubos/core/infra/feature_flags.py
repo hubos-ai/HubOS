@@ -135,7 +135,6 @@ class FeatureFlags:
         True  # 启用经验注入prompt (v4 active)
     )
 
-
     @classmethod
     def from_env(cls) -> "FeatureFlags":
         """Load feature flags from environment variables."""
@@ -666,7 +665,6 @@ class FeatureFlags:
         if self.enable_work_experience_prompt_injection:
             return "TARGETED"
         return "OBSERVE"
-
 
 
 # Global feature flags instance

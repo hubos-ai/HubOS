@@ -995,6 +995,7 @@ def create_model_and_formatter(
 
     # Check for runtime model override (e.g. from cron jobs)
     from ..config.context import get_current_model_override
+
     _override = get_current_model_override()
 
     if agent_id:
@@ -1018,7 +1019,11 @@ def create_model_and_formatter(
             pass
 
     # Model override takes highest priority (e.g. cron wants DeepSeek)
-    if _override is not None and getattr(_override, "provider_id", None) and getattr(_override, "model", None):
+    if (
+        _override is not None
+        and getattr(_override, "provider_id", None)
+        and getattr(_override, "model", None)
+    ):
         model_slot = _override
 
     # Create chat model from agent-specific or global config

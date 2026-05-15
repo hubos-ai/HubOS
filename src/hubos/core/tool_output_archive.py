@@ -164,7 +164,9 @@ def _extract_key_error(text: str) -> str:
 def _extract_key_files(text: str) -> list[str]:
     """Extract file paths mentioned in tool output."""
     # Match common file path patterns
-    file_pattern = r'(?:^|[\s:])(/[\w/.-]+\.\w+|[~][\w/.-]+\.\w+|\w+://[\w/.-]+\.\w+)'
+    file_pattern = (
+        r"(?:^|[\s:])(/[\w/.-]+\.\w+|[~][\w/.-]+\.\w+|\w+://[\w/.-]+\.\w+)"
+    )
     matches = re.findall(file_pattern, text)
     # Deduplicate while preserving order
     seen: set[str] = set()
@@ -305,7 +307,9 @@ def cleanup_refs(
     max_total_bytes = int(max_total_mb * 1024 * 1024)
 
     # Collect session dirs with metadata
-    sessions: list[tuple[str, Path, float, int]] = []  # (id, path, mtime, size)
+    sessions: list[
+        tuple[str, Path, float, int]
+    ] = []  # (id, path, mtime, size)
     for entry in sorted(refs_root.iterdir()):
         if not entry.is_dir():
             continue
@@ -342,7 +346,9 @@ def cleanup_refs(
                     result.expired_deleted_sessions.append(sid)
                 except Exception as exc:
                     result.errors.append(f"{sid}: {exc}")
-                    logger.warning("refs cleanup: failed to remove %s: %s", spath, exc)
+                    logger.warning(
+                        "refs cleanup: failed to remove %s: %s", spath, exc
+                    )
                     # Deletion failed — keep in remaining so it's tracked
                     remaining.append(item)
         else:
@@ -350,9 +356,9 @@ def cleanup_refs(
 
     # ── Rule 3: capacity eviction ─────────────────────────────────────
     # Re-measure remaining total (retention may have freed enough)
-    current_total = sum(
-        s for _, _, _, s in protected
-    ) + sum(s for _, _, _, s in remaining)
+    current_total = sum(s for _, _, _, s in protected) + sum(
+        s for _, _, _, s in remaining
+    )
     if current_total > max_total_bytes:
         # Sort remaining by mtime ascending (oldest first)
         remaining.sort(key=lambda x: x[2])
@@ -379,7 +385,11 @@ def cleanup_refs(
                     )
 
     # Sessions that survived all rules
-    surviving = [item[0] for item in remaining if item[0] not in result.capacity_deleted_sessions]
+    surviving = [
+        item[0]
+        for item in remaining
+        if item[0] not in result.capacity_deleted_sessions
+    ]
     result.skipped_sessions = surviving + result.protected_sessions
     result.remaining_bytes = current_total
 

@@ -295,7 +295,11 @@ export const createColumns = (
       width: 240,
     },
     {
-      title: <div className={styles.actionHeader}>{handlers.t("cronJobs.action")}</div>,
+      title: (
+        <div className={styles.actionHeader}>
+          {handlers.t("cronJobs.action")}
+        </div>
+      ),
       key: "action",
       width: 276,
       align: "center",

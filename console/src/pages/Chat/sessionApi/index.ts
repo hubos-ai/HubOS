@@ -288,7 +288,9 @@ function resolveMessageType(rawType: unknown, role: string): string {
 const toOutputMessage = (msg: Message): OutputMessage => {
   const role = resolveMessageRole(msg);
   const statusData = getHubOSStatusData(msg.content);
-  const type = statusData ? TYPE_PLUGIN_CALL : resolveMessageType(msg.type, role);
+  const type = statusData
+    ? TYPE_PLUGIN_CALL
+    : resolveMessageType(msg.type, role);
   const content = statusData
     ? [
         {

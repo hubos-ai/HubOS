@@ -130,7 +130,11 @@ class TestRunnerRunPolicyIntegration:
 
         runner_path = (
             Path(__file__).resolve().parents[3]
-            / "src" / "hubos" / "app" / "runner" / "runner.py"
+            / "src"
+            / "hubos"
+            / "app"
+            / "runner"
+            / "runner.py"
         )
         source = runner_path.read_text(encoding="utf-8")
         assert "classify_run_depth" in source
@@ -144,7 +148,11 @@ class TestRunnerRunPolicyIntegration:
 
         runner_path = (
             Path(__file__).resolve().parents[3]
-            / "src" / "hubos" / "app" / "runner" / "runner.py"
+            / "src"
+            / "hubos"
+            / "app"
+            / "runner"
+            / "runner.py"
         )
         source = runner_path.read_text(encoding="utf-8")
         assert "depth=" in source

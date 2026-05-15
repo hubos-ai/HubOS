@@ -390,7 +390,9 @@ class TestWorkExperienceV4Interceptor:
                     assistant_response="已完成，测试通过。",
                 )
 
-        pending = list((tmp_path / "memory" / "knowledge_pending").glob("*.md"))
+        pending = list(
+            (tmp_path / "memory" / "knowledge_pending").glob("*.md")
+        )
         assert len(pending) == 1
         assert "FNDE 使用 SIGARP" in pending[0].read_text(encoding="utf-8")
         assert result is not None
@@ -479,7 +481,9 @@ class TestWorkExperienceV4Interceptor:
 
         assert result is None
         assert store.list_all() == []
-        pending = list((tmp_path / "memory" / "knowledge_pending").glob("*.md"))
+        pending = list(
+            (tmp_path / "memory" / "knowledge_pending").glob("*.md")
+        )
         assert len(pending) == 1
         assert "Electron 修改需要重新打包" in pending[0].read_text(
             encoding="utf-8",
@@ -577,7 +581,9 @@ class TestWorkExperienceV4Interceptor:
 class TestWorkExperienceV4Traceability:
     """Tests for session/agent traceability fields on WorkflowCard."""
 
-    def test_new_card_writes_ref_session_and_agent(self, tmp_path: Path) -> None:
+    def test_new_card_writes_ref_session_and_agent(
+        self, tmp_path: Path
+    ) -> None:
         """New card created via post_chat_turn includes ref_session_id and ref_agent_id."""
         store = CardStore(root=tmp_path / "we_trace")
         interceptor = V4WorkExperienceInterceptor(store=store)
@@ -675,25 +681,27 @@ class TestWorkExperienceV4Traceability:
         """Cards serialized without traceability fields deserialize safely."""
         import json
 
-        old_json = json.dumps({
-            "card_id": "legacy-card",
-            "task_type": "遗留任务",
-            "description": "没有追溯字段",
-            "workflow": [],
-            "tools": {},
-            "pitfalls": [],
-            "success_patterns": [],
-            "experience_type": "general",
-            "entities": [],
-            "executions": 5,
-            "last_executed_at": "",
-            "created_at": "2024-01-01T00:00:00+00:00",
-            "updated_at": "2024-01-01T00:00:00+00:00",
-            "source_sessions": ["old-s1"],
-            "status": "approved",
-            "experience_level": "mature",
-            "disabled": False,
-        })
+        old_json = json.dumps(
+            {
+                "card_id": "legacy-card",
+                "task_type": "遗留任务",
+                "description": "没有追溯字段",
+                "workflow": [],
+                "tools": {},
+                "pitfalls": [],
+                "success_patterns": [],
+                "experience_type": "general",
+                "entities": [],
+                "executions": 5,
+                "last_executed_at": "",
+                "created_at": "2024-01-01T00:00:00+00:00",
+                "updated_at": "2024-01-01T00:00:00+00:00",
+                "source_sessions": ["old-s1"],
+                "status": "approved",
+                "experience_level": "mature",
+                "disabled": False,
+            }
+        )
         card = WorkflowCard.from_json(old_json)
         assert card.task_type == "遗留任务"
         assert card.ref_session_id == ""

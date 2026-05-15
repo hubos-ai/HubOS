@@ -16,7 +16,9 @@ def refs_tmp(tmp_path: Path):
     refs_root.mkdir()
 
     # We'll write test dirs under refs_root
-    def _write_session(session_id: str, files: dict[str, str], mtime_offset: float = 0):
+    def _write_session(
+        session_id: str, files: dict[str, str], mtime_offset: float = 0
+    ):
         """Create a session dir with files. mtime_offset < 0 sets mtime to the past."""
         sdir = refs_root / session_id
         sdir.mkdir(parents=True, exist_ok=True)
@@ -27,7 +29,9 @@ def refs_tmp(tmp_path: Path):
                 os.utime(f, (f.stat().st_mtime + mtime_offset,) * 2)
         return sdir
 
-    with patch("hubos.core.tool_output_archive.get_refs_root", return_value=refs_root):
+    with patch(
+        "hubos.core.tool_output_archive.get_refs_root", return_value=refs_root
+    ):
         yield refs_root, _write_session
 
 
@@ -153,7 +157,9 @@ class TestCleanupRefs:
             mtime_offset=-2 * 86400,  # 2 days ago
         )
 
-        result = cleanup_refs(retention_days=7, max_total_mb=500, protect_hours=0)
+        result = cleanup_refs(
+            retention_days=7, max_total_mb=500, protect_hours=0
+        )
         assert result.total_deleted == 0
         assert "fresh-sess" in result.skipped_sessions
         assert (refs_root / "fresh-sess").exists()
@@ -180,7 +186,9 @@ class TestCleanupRefs:
             mtime_offset=-2 * 86400,
         )
 
-        result = cleanup_refs(retention_days=7, max_total_mb=500, protect_hours=4)
+        result = cleanup_refs(
+            retention_days=7, max_total_mb=500, protect_hours=4
+        )
         assert "active" in result.protected_sessions
         assert "stale" in result.expired_deleted_sessions
         assert "recent" in result.skipped_sessions

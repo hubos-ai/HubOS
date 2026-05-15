@@ -301,7 +301,7 @@ def _mark_internal_status_messages(memory: Any) -> None:
 
     # Prune oldest status messages if exceeding the cap
     if len(status_indices) > _MAX_STATUS_MESSAGES:
-        to_remove = set(status_indices[: -_MAX_STATUS_MESSAGES])
+        to_remove = set(status_indices[:-_MAX_STATUS_MESSAGES])
         # Remove from end to preserve earlier indices
         for idx in sorted(to_remove, reverse=True):
             content.pop(idx)
@@ -320,7 +320,11 @@ def _install_internal_status_memory_filter(memory: Any) -> Any:
         # If no mark/exclude_mark specified via keyword args, add our filter.
         # We intentionally only inspect kwargs to avoid fragile positional-arg
         # guessing that could conflict with positional None values.
-        if "mark" not in kwargs and "exclude_mark" not in kwargs and len(args) < 2:
+        if (
+            "mark" not in kwargs
+            and "exclude_mark" not in kwargs
+            and len(args) < 2
+        ):
             kwargs["exclude_mark"] = _INTERNAL_STATUS_MEMORY_MARK
         return await original_get_memory(*args, **kwargs)
 
@@ -1064,9 +1068,10 @@ class AgentRunner(Runner):
                     agents=[agent],
                     coroutine_task=agent(msgs),
                 ):
-                    clean_msg, stripped = (
-                        _strip_hallucinated_internal_status_blocks(msg)
-                    )
+                    (
+                        clean_msg,
+                        stripped,
+                    ) = _strip_hallucinated_internal_status_blocks(msg)
                     if stripped:
                         logger.warning(
                             "Dropped hallucinated internal status block "
@@ -1077,7 +1082,10 @@ class AgentRunner(Runner):
                     if clean_msg is None:
                         continue
 
-                    if last and getattr(clean_msg, "role", None) == "assistant":
+                    if (
+                        last
+                        and getattr(clean_msg, "role", None) == "assistant"
+                    ):
                         text = ""
                         try:
                             text = clean_msg.get_text_content() or ""
@@ -1191,6 +1199,7 @@ class AgentRunner(Runner):
             # Clear session_id ContextVar to prevent leakage across tasks
             try:
                 from ...config.context import set_current_session_id
+
                 set_current_session_id(None)
             except Exception:
                 pass

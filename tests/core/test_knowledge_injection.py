@@ -82,7 +82,8 @@ class TestExperienceCardGuidance:
 
 class TestKnowledgeFileMatch:
     def test_type_entities_match(self, tmp_path):
-        content = textwrap.dedent("""\
+        content = textwrap.dedent(
+            """\
             ## 巴西政府采购
 
             type: customer_development
@@ -95,7 +96,8 @@ class TestKnowledgeFileMatch:
             Use when:
             - 巴西政府采购
             - 供应商开发
-        """)
+        """
+        )
         _write_knowledge_file(tmp_path, content)
 
         text, meta = build_relevant_guidance(
@@ -113,7 +115,8 @@ class TestKnowledgeFileMatch:
 
 class TestIrrelevantKnowledge:
     def test_irrelevant_not_injected(self, tmp_path):
-        content = textwrap.dedent("""\
+        content = textwrap.dedent(
+            """\
             ## 日本税务申报
 
             type: system_debug
@@ -125,7 +128,8 @@ class TestIrrelevantKnowledge:
 
             Use when:
             - 日本税务
-        """)
+        """
+        )
         _write_knowledge_file(tmp_path, content)
 
         text, meta = build_relevant_guidance(
@@ -144,7 +148,8 @@ class TestIrrelevantKnowledge:
 class TestMaxItems:
     def test_max_items_enforced(self, tmp_path):
         for i in range(5):
-            content = textwrap.dedent(f"""\
+            content = textwrap.dedent(
+                f"""\
                 ## 测试知识{i}
 
                 type: general
@@ -156,7 +161,8 @@ class TestMaxItems:
 
                 Use when:
                 - React开发
-            """)
+            """
+            )
             _write_knowledge_file(tmp_path, content, name=f"k{i}.md")
 
         config = KnowledgeInjectionConfig(max_items=3, min_score=0.0)
@@ -278,7 +284,8 @@ class TestScoring:
         assert score < 0.2
 
     def test_parse_knowledge_file(self, tmp_path):
-        content = textwrap.dedent("""\
+        content = textwrap.dedent(
+            """\
             ## First Entry
 
             type: general
@@ -305,7 +312,8 @@ class TestScoring:
 
             Summary:
             Second summary content.
-        """)
+        """
+        )
         kdir = tmp_path / "memory" / "knowledge"
         kdir.mkdir(parents=True, exist_ok=True)
         fpath = kdir / "test.md"
@@ -326,7 +334,8 @@ class TestScoring:
         assert entries[1].type == "code_fix"
 
     def test_parse_obsidian_frontmatter(self, tmp_path):
-        content = textwrap.dedent("""\
+        content = textwrap.dedent(
+            """\
             ## Obsidian Entry
 
             ---
@@ -344,7 +353,8 @@ class TestScoring:
 
             Use when:
             - search API fails
-        """)
+        """
+        )
         kdir = tmp_path / "memory" / "knowledge"
         kdir.mkdir(parents=True, exist_ok=True)
         fpath = kdir / "obsidian.md"
@@ -384,7 +394,8 @@ class TestMetadata:
         assert "scores" in meta
 
     def test_metadata_sources_breakdown(self, tmp_path):
-        content = textwrap.dedent("""\
+        content = textwrap.dedent(
+            """\
             ## 测试知识
 
             type: general
@@ -396,7 +407,8 @@ class TestMetadata:
 
             Use when:
             - 供应商开发
-        """)
+        """
+        )
         _write_knowledge_file(tmp_path, content)
         card = _make_card()
         text, meta = build_relevant_guidance(

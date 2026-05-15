@@ -100,12 +100,21 @@ def build_relevant_guidance(
     if workspace_dir is not None:
         ws = Path(workspace_dir)
         knowledge_hits = _scan_knowledge_files(
-            ws, user_message, task_type_hint,
+            ws,
+            user_message,
+            task_type_hint,
         )
         hits.extend(knowledge_hits)
 
     if not hits:
-        return "", {"item_count": 0, "estimated_tokens": 0, "budget_tokens": 0, "sources": {}, "titles": [], "scores": []}
+        return "", {
+            "item_count": 0,
+            "estimated_tokens": 0,
+            "budget_tokens": 0,
+            "sources": {},
+            "titles": [],
+            "scores": [],
+        }
 
     # 3. Score, sort, filter
     hits.sort(key=lambda h: h.score, reverse=True)
@@ -113,7 +122,14 @@ def build_relevant_guidance(
     hits = hits[: config.max_items]
 
     if not hits:
-        return "", {"item_count": 0, "estimated_tokens": 0, "budget_tokens": 0, "sources": {}, "titles": [], "scores": []}
+        return "", {
+            "item_count": 0,
+            "estimated_tokens": 0,
+            "budget_tokens": 0,
+            "sources": {},
+            "titles": [],
+            "scores": [],
+        }
 
     # 4. Token budget: explicit(1000) > complex(600) > default(300)
     if _EXPLICIT_REQUEST_PATTERNS.search(user_message):
@@ -252,7 +268,9 @@ def _parse_knowledge_file(path: Path) -> list[KnowledgeHit]:
             if stripped == "---":
                 in_frontmatter = not in_frontmatter
                 continue
-            if in_frontmatter or any(stripped.startswith(k) for k in _KNOWN_KEYS):
+            if in_frontmatter or any(
+                stripped.startswith(k) for k in _KNOWN_KEYS
+            ):
                 if stripped.startswith("type:"):
                     entry_type = stripped.split(":", 1)[1].strip()
                 elif stripped.startswith("domain:"):
@@ -294,7 +312,9 @@ def _parse_knowledge_file(path: Path) -> list[KnowledgeHit]:
 
         combined = summary
         if use_when:
-            combined = f"{combined}\nUse when: {use_when}" if combined else use_when
+            combined = (
+                f"{combined}\nUse when: {use_when}" if combined else use_when
+            )
 
         evidence = ""
         evidence_match = re.search(
@@ -382,7 +402,9 @@ def _score_hit(
                 matched += 1
             else:
                 # Partial match via sub-segments
-                segs = re.findall(r"[a-zA-Z]{2,}|[\u4e00-\u9fff]{1,}", entity_lower)
+                segs = re.findall(
+                    r"[a-zA-Z]{2,}|[\u4e00-\u9fff]{1,}", entity_lower
+                )
                 if any(s in msg_lower for s in segs if len(s) >= 2):
                     matched += 0.5
         if matched >= 1:

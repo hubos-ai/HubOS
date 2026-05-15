@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import pytest
 from agentscope.message import Msg
 
@@ -171,7 +172,7 @@ def test_reasoning_by_tool_call_id_mapping():
                     "input": {},
                 },
             ],
-        )
+        ),
     ]
 
     assert _map_reasoning_by_tool_call_id(msgs) == {

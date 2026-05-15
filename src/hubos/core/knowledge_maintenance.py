@@ -39,7 +39,7 @@ class KnowledgeCandidate:
 _ALLOWED_DOMAINS = {"business", "tools", "dev", "ui", "system", "general"}
 _ALLOWED_CONFIDENCE = {"high", "medium", "low"}
 _SENSITIVE_PATTERNS = re.compile(
-    r"(?i)(api[_-]?key|secret|token|password|passwd|cookie|authorization|bearer|sk-[a-z0-9]|AKIA[0-9A-Z]{16})"
+    r"(?i)(api[_-]?key|secret|token|password|passwd|cookie|authorization|bearer|sk-[a-z0-9]|AKIA[0-9A-Z]{16})",
 )
 
 
@@ -56,7 +56,9 @@ def write_pending_candidates(
     """
     written: list[Path] = []
     for raw in candidates:
-        candidate = sanitize_candidate(raw, session_id=session_id, agent_id=agent_id)
+        candidate = sanitize_candidate(
+            raw, session_id=session_id, agent_id=agent_id
+        )
         if candidate is None:
             continue
         pending_dir = Path(workspace_dir) / "memory" / "knowledge_pending"
@@ -75,7 +77,11 @@ def sanitize_candidate(
     agent_id: str = "default",
 ) -> KnowledgeCandidate | None:
     """Validate, normalize and redact a candidate."""
-    data = raw.__dict__ if isinstance(raw, KnowledgeCandidate) else dict(raw or {})
+    data = (
+        raw.__dict__
+        if isinstance(raw, KnowledgeCandidate)
+        else dict(raw or {})
+    )
     title = _clean_str(data.get("title", ""))[:80]
     summary = _clean_str(data.get("summary", ""))[:600]
     if not title or not summary:
@@ -102,10 +108,14 @@ def sanitize_candidate(
         links=_clean_list(data.get("links", []), limit=8),
         confidence=confidence,
         evidence=_clean_list(data.get("evidence", []), limit=6),
-        use_when=_clean_list(data.get("use_when", data.get("use when", [])), limit=6),
+        use_when=_clean_list(
+            data.get("use_when", data.get("use when", [])), limit=6
+        ),
         details=_clean_list(data.get("details", []), limit=8),
-        source_session_id=session_id or _clean_str(data.get("source_session_id", "")),
-        source_agent_id=agent_id or _clean_str(data.get("source_agent_id", "")),
+        source_session_id=session_id
+        or _clean_str(data.get("source_session_id", "")),
+        source_agent_id=agent_id
+        or _clean_str(data.get("source_agent_id", "")),
         created_at=datetime.now(timezone.utc).isoformat(),
     )
 
@@ -133,11 +143,17 @@ def format_candidate(candidate: KnowledgeCandidate) -> str:
         "",
     ]
     if candidate.evidence:
-        lines.extend(["Evidence:", *[f"- {item}" for item in candidate.evidence], ""])
+        lines.extend(
+            ["Evidence:", *[f"- {item}" for item in candidate.evidence], ""]
+        )
     if candidate.use_when:
-        lines.extend(["Use when:", *[f"- {item}" for item in candidate.use_when], ""])
+        lines.extend(
+            ["Use when:", *[f"- {item}" for item in candidate.use_when], ""]
+        )
     if candidate.details:
-        lines.extend(["Details:", *[f"- {item}" for item in candidate.details], ""])
+        lines.extend(
+            ["Details:", *[f"- {item}" for item in candidate.details], ""]
+        )
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -154,7 +170,11 @@ def _clean_list(value: Any, *, limit: int) -> list[str]:
         items = []
     result: list[str] = []
     for item in items:
-        if item and item not in result and not _SENSITIVE_PATTERNS.search(item):
+        if (
+            item
+            and item not in result
+            and not _SENSITIVE_PATTERNS.search(item)
+        ):
             result.append(item[:160])
     return result[:limit]
 

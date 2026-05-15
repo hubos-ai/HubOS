@@ -37,7 +37,9 @@ def _load_utils_module():
         "hubos.config",
         "hubos.app.runner.utils",
     ]
-    previous_modules = {name: sys.modules.get(name) for name in injected_modules}
+    previous_modules = {
+        name: sys.modules.get(name) for name in injected_modules
+    }
 
     # Register parent packages so relative imports resolve.
     try:
