@@ -75,6 +75,20 @@ def _fmt_code_block(preview: str, style: RenderStyle) -> str:
     return f"\n{preview}"
 
 
+def _fmt_status_block(
+    name: str,
+    output: str,
+    style: RenderStyle,
+) -> str:
+    """Format an internal HubOS status block as user-visible text."""
+    label = name or "Status"
+    if style.supports_markdown:
+        label = f"**{label}**"
+    if not output:
+        return label
+    return f"{label}\n{output}"
+
+
 class MessageRenderer:
     """
     Converts a Message (object=='message') into sendable parts.
@@ -127,6 +141,25 @@ class MessageRenderer:
                 btype = b.get("type")
                 if btype == "text" and b.get("text"):
                     result.append(TextContent(text=b["text"]))
+                    continue
+                if btype == "hubos_status":
+                    raw_output = b.get(
+                        "output",
+                        b.get("result", b.get("content")),
+                    )
+                    if isinstance(raw_output, (dict, list)):
+                        output = json.dumps(raw_output, ensure_ascii=False)
+                    else:
+                        output = str(raw_output or "").strip()
+                    result.append(
+                        TextContent(
+                            text=_fmt_status_block(
+                                b.get("name") or "Status",
+                                output,
+                                s,
+                            ),
+                        ),
+                    )
                     continue
                 if btype in ("image", "audio", "video", "file"):
                     src = b.get("source") or {}
@@ -296,7 +329,12 @@ class MessageRenderer:
             return parts
 
         result: List[_OutgoingPart] = []
+        saw_dict_block = False
         for c in content:
+            if isinstance(c, dict):
+                saw_dict_block = True
+                result.extend(_blocks_to_parts([c]))
+                continue
             ctype = getattr(c, "type", None)
             if ctype == ContentType.TEXT and getattr(c, "text", None):
                 result.append(TextContent(text=c.text))
@@ -323,6 +361,25 @@ class MessageRenderer:
             elif ctype == ContentType.DATA and getattr(c, "data", None):
                 data = c.data
                 if isinstance(data, dict):
+                    if data.get("kind") == "hubos_status":
+                        raw_output = data.get(
+                            "output",
+                            data.get("result", data.get("content")),
+                        )
+                        if isinstance(raw_output, (dict, list)):
+                            output = json.dumps(raw_output, ensure_ascii=False)
+                        else:
+                            output = str(raw_output or "").strip()
+                        result.append(
+                            TextContent(
+                                text=_fmt_status_block(
+                                    data.get("name") or "Status",
+                                    output,
+                                    s,
+                                ),
+                            ),
+                        )
+                        continue
                     name = data.get("name")
                     output = data.get("output")
                     args = data.get("arguments")
@@ -345,7 +402,12 @@ class MessageRenderer:
                                 + _fmt_code_block(preview, s),
                             ),
                         )
-        if not result and msg_type:
+        if (
+            not result
+            and msg_type
+            and msg_type != MessageType.MESSAGE
+            and not saw_dict_block
+        ):
             result = [TextContent(text=f"[Message type: {msg_type}]")]
         return result
 

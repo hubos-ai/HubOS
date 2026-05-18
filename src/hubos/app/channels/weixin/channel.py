@@ -992,6 +992,10 @@ class WeixinChannel(BaseChannel):
         if not body:
             if stop_typing:
                 stop_typing()
+                with self._typing_stop_lock:
+                    current = self._typing_stop_funcs.get(to_user_id)
+                    if current is stop_typing:
+                        self._typing_stop_funcs.pop(to_user_id, None)
             return
 
         for chunk in split_text(body):
@@ -1000,6 +1004,10 @@ class WeixinChannel(BaseChannel):
         # Stop typing indicator after sending all messages
         if stop_typing:
             stop_typing()
+            with self._typing_stop_lock:
+                current = self._typing_stop_funcs.get(to_user_id)
+                if current is stop_typing:
+                    self._typing_stop_funcs.pop(to_user_id, None)
 
     async def send(
         self,
@@ -1025,6 +1033,50 @@ class WeixinChannel(BaseChannel):
             return
         for chunk in split_text(body):
             await self._send_text_direct(to_user_id, chunk, context_token)
+
+    # ------------------------------------------------------------------
+    # Process lifecycle hooks
+
+    async def _on_process_completed(
+        self,
+        request: "AgentRequest",
+        to_handle: str,
+        send_meta: Dict[str, Any],
+    ) -> None:
+        """Stop typing indicator after process completes (safety net)."""
+        to_user_id = self._parse_user_id_from_handle(to_handle)
+        if to_user_id:
+            with self._typing_stop_lock:
+                stop_fn = self._typing_stop_funcs.pop(to_user_id, None)
+            if stop_fn:
+                stop_fn()
+
+    async def _on_consume_cancelled(
+        self,
+        request: "AgentRequest",
+        to_handle: str,
+    ) -> None:
+        """Stop typing indicator when a task is cancelled mid-stream."""
+        to_user_id = self._parse_user_id_from_handle(to_handle)
+        if to_user_id:
+            with self._typing_stop_lock:
+                stop_fn = self._typing_stop_funcs.pop(to_user_id, None)
+            if stop_fn:
+                stop_fn()
+
+    async def _on_consume_error(
+        self,
+        request: Any,
+        to_handle: str,
+        err_text: str,
+    ) -> None:
+        """Stop typing indicator on error."""
+        to_user_id = self._parse_user_id_from_handle(to_handle)
+        if to_user_id:
+            with self._typing_stop_lock:
+                stop_fn = self._typing_stop_funcs.pop(to_user_id, None)
+            if stop_fn:
+                stop_fn()
 
     # ------------------------------------------------------------------
     # Typing Indicator

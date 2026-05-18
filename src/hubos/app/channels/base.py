@@ -619,6 +619,7 @@ class BaseChannel(ABC):
                 f"channel task cancelled: "
                 f"session={getattr(request, 'session_id', '')[:30]}",
             )
+            await self._on_consume_cancelled(request, to_handle)
             if process_iterator is not None:
                 await process_iterator.aclose()
             raise
@@ -637,6 +638,7 @@ class BaseChannel(ABC):
                     isinstance(e, AgentException)
                     and "cancelled" in str(e).lower()
                 ):
+                    await self._on_consume_cancelled(request, to_handle)
                     if process_iterator is not None:
                         await process_iterator.aclose()
                     logger.info(
@@ -1036,6 +1038,30 @@ class BaseChannel(ABC):
         to e.g. save receive_id for send path (Feishu).
         """
 
+    @staticmethod
+    def _is_hubos_status_event(event: Any) -> bool:
+        """Return True for internal hubos_status Message events.
+
+        These are pre-agent status cards (Context understanding,
+        Experience matching, Knowledge injection) that must NOT be
+        forwarded to external channels (Feishu, WeChat, etc.).
+        """
+        content = getattr(event, "content", None)
+        if not content:
+            return False
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "hubos_status":
+                return True
+            # DataContent with kind=hubos_status
+            if getattr(item, "type", None) == "data":
+                data = getattr(item, "data", None)
+                if (
+                    isinstance(data, dict)
+                    and data.get("kind") == "hubos_status"
+                ):
+                    return True
+        return False
+
     async def on_event_message_completed(
         self,
         request: "AgentRequest",
@@ -1047,6 +1073,8 @@ class BaseChannel(ABC):
         Hook: one message event completed. Default: send_message_content.
         Override for batch/debounce (e.g. DingTalk merge then send).
         """
+        if self._is_hubos_status_event(event):
+            return
         await self.send_message_content(to_handle, event, send_meta)
 
     async def on_event_response(
@@ -1066,6 +1094,13 @@ class BaseChannel(ABC):
 
         Override for post-processing (e.g. Feishu DONE reaction).
         """
+
+    async def _on_consume_cancelled(
+        self,
+        request: "AgentRequest",
+        to_handle: str,
+    ) -> None:
+        """Hook called when processing is cancelled."""
 
     async def _on_consume_error(
         self,
@@ -1122,6 +1157,13 @@ class BaseChannel(ABC):
         Subclasses may override send_content_parts for channel-specific
         multi-part sending.
         """
+        if self._is_hubos_status_event(message):
+            logger.debug(
+                "channel send_message_content: skip internal hubos_status "
+                "for to_handle=%s",
+                to_handle,
+            )
+            return
         parts = self._message_to_content_parts(message)
         if not parts:
             logger.debug(
