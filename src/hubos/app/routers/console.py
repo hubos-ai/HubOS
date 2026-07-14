@@ -157,16 +157,22 @@ async def post_console_chat(
             biz_params = native_payload.get("biz_params")
             if not isinstance(biz_params, dict):
                 biz_params = {}
-            register_chat_cancel_handler(tracker.request_stop)
             chat_run_id = await get_run_control_store().register(
                 RunEntry(
                     run_id="",
                     run_type=RunType.CHAT,
                     session_id=session_id,
                     chat_id=chat.id,
+                    workspace_id=workspace.agent_id,
                     guided_from_run_id=biz_params.get("guided_from_run_id"),
                     guidance_text=biz_params.get("guidance_text"),
                 ),
+            )
+            register_chat_cancel_handler(
+                tracker.request_stop,
+                workspace_id=workspace.agent_id,
+                chat_id=chat.id,
+                run_id=chat_run_id,
             )
             # The producer task is created inside attach_or_start, so set the
             # context before calling it.  Child tool runs inherit this run id.

@@ -202,6 +202,16 @@ class MCPConfigWatcher:
         new_hash = self._mcp_hash(new_mcp)
 
         try:
+            if self._mcp_manager.is_lazy_idle():
+                self._mcp_manager.schedule_init_from_config(new_mcp)
+                self._last_mcp = new_mcp.model_copy(deep=True)
+                self._last_mcp_hash = new_hash
+                logger.debug(
+                    "MCPConfigWatcher: lazy config updated without "
+                    "starting clients",
+                )
+                return
+
             await self._reload_changed_clients(new_mcp)
             # Success: update snapshot
             self._last_mcp = new_mcp.model_copy(deep=True)

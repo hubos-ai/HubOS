@@ -13,13 +13,14 @@ import json
 import logging
 import os
 import re
+import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-from .retriever_v4 import CardRetriever, MatchResult
-from .schemas_v4 import WorkflowCard, _slugify, _utcnow
+from .retriever_v4 import CardRetriever, MatchResult  # noqa: F401
+from .schemas_v4 import WorkflowCard, _utcnow
 from .store_v4 import CardStore
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ _TASK_COMPLETE_PATTERNS = re.compile(
 
 # Max turns to keep in buffer
 _MAX_BUFFER_SIZE = 50
+_MAX_SESSION_STATES = 2_048
 
 # ── Quality filter ──────────────────────────────────────────────────────────
 # Generic task_type patterns that indicate low-information tasks.
@@ -72,6 +74,95 @@ _MIN_METHODOLOGY_ITEMS = (
 # Similarity threshold for merge-before-create
 _SIMILARITY_MERGE_THRESHOLD = 0.35
 
+_SHARED_CARD_FIELDS = frozenset(
+    {
+        "task_type",
+        "description",
+        "workflow",
+        "tools",
+        "pitfalls",
+        "success_patterns",
+        "has_lessons",
+        "experience_type",
+        "entities",
+    },
+)
+_PRIVATE_TEXT_PATTERNS = (
+    (re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I), "[email]"),
+    (re.compile(r"(?<!\d)(?:\+?86[- ]?)?1[3-9]\d{9}(?!\d)"), "[phone]"),
+    (
+        re.compile(r"\b(?:ou|oc|om|on|cli)_[A-Za-z0-9_-]{12,}\b"),
+        "[private-id]",
+    ),
+    (
+        re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{12,}\b", re.I),
+        "Bearer [secret]",
+    ),
+    (
+        re.compile(
+            r"\b(api[_-]?key|token|password|passwd|cookie|secret)\b\s*[:=]\s*[^\s,;]+",
+            re.I,
+        ),
+        r"\1=[secret]",
+    ),
+    (re.compile(r"/(?:Users|home)/[^\s'\"`]+"), "<user-path>"),
+    (re.compile(r"[A-Za-z]:\\Users\\[^\s'\"`]+", re.I), "<user-path>"),
+)
+
+
+def _sanitize_shared_text(value: str) -> str:
+    clean = value
+    for pattern, replacement in _PRIVATE_TEXT_PATTERNS:
+        clean = pattern.sub(replacement, clean)
+    return clean.strip()
+
+
+def _sanitize_shared_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return _sanitize_shared_text(value)
+    if isinstance(value, list):
+        return [_sanitize_shared_value(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            _sanitize_shared_text(str(key)): _sanitize_shared_value(item)
+            for key, item in value.items()
+        }
+    return value
+
+
+def _sanitize_shared_reflection(reflection: dict[str, Any]) -> dict[str, Any]:
+    """Keep globally shared cards methodological and remove private facts."""
+    return {
+        key: _sanitize_shared_value(value)
+        for key, value in reflection.items()
+        if key in _SHARED_CARD_FIELDS
+    }
+
+
+def _sanitize_card_for_sharing(card: WorkflowCard) -> WorkflowCard:
+    """Return a safe copy for cross-user injection and reflection."""
+    safe = WorkflowCard.from_dict(card.to_dict())
+    safe.task_type = _sanitize_shared_text(safe.task_type)
+    safe.description = _sanitize_shared_text(safe.description)
+    safe.workflow = _sanitize_shared_value(safe.workflow)
+    safe.tools = _sanitize_shared_value(safe.tools)
+    safe.pitfalls = _sanitize_shared_value(safe.pitfalls)
+    safe.success_patterns = _sanitize_shared_value(safe.success_patterns)
+    safe.entities = _sanitize_shared_value(safe.entities)
+    return safe
+
+
+def _sanitize_card_in_place(card: WorkflowCard) -> WorkflowCard:
+    safe = _sanitize_card_for_sharing(card)
+    card.task_type = safe.task_type
+    card.description = safe.description
+    card.workflow = safe.workflow
+    card.tools = safe.tools
+    card.pitfalls = safe.pitfalls
+    card.success_patterns = safe.success_patterns
+    card.entities = safe.entities
+    return card
+
 
 @dataclass
 class PreExecuteResult:
@@ -81,6 +172,20 @@ class PreExecuteResult:
     status: str = ""  # matched / no_match / model_unavailable / model_call_failed / invalid_output
     task_type: str = ""
     elapsed_ms: int = 0
+
+
+@dataclass
+class _SessionExperienceState:
+    """Request-local state; reusable cards remain global in ``CardStore``."""
+
+    card_id: Optional[str] = None
+    task_type: Optional[str] = None
+    turns: list[dict[str, str]] | None = None
+    updated_at: float = field(default_factory=time.monotonic)
+
+    def __post_init__(self) -> None:
+        if self.turns is None:
+            self.turns = []
 
 
 class WorkExperienceInterceptor:
@@ -95,11 +200,59 @@ class WorkExperienceInterceptor:
     def __init__(self, store: Optional[CardStore] = None) -> None:
         self._store = store or CardStore()
         self._retriever = CardRetriever(self._store)
-        self._turn_buffer: list[dict[str, str]] = []
-        # Session state: track matched card for current session
-        self._session_card_id: Optional[str] = None
-        self._session_task_type: Optional[str] = None
+        self._session_states: dict[str, _SessionExperienceState] = {}
+        self._state_lock = threading.RLock()
+        self._store_lock = threading.RLock()
         self._last_promote_time: float = 0
+
+    @staticmethod
+    def _session_key(session_id: str) -> str:
+        return session_id or "__default__"
+
+    def _state(self, session_id: str = "") -> _SessionExperienceState:
+        key = self._session_key(session_id)
+        with self._state_lock:
+            state = self._session_states.get(key)
+            if state is None:
+                if len(self._session_states) >= _MAX_SESSION_STATES:
+                    evictable = [
+                        (candidate.updated_at, candidate_key)
+                        for candidate_key, candidate in self._session_states.items()
+                        if candidate_key != "__default__"
+                        and not candidate.turns
+                    ]
+                    if evictable:
+                        _, oldest_key = min(evictable)
+                        self._session_states.pop(oldest_key, None)
+                state = _SessionExperienceState()
+                self._session_states[key] = state
+            state.updated_at = time.monotonic()
+            return state
+
+    # Backward-compatible test/debug access maps to the default state only.
+    @property
+    def _session_card_id(self) -> Optional[str]:
+        return self._state().card_id
+
+    @_session_card_id.setter
+    def _session_card_id(self, value: Optional[str]) -> None:
+        self._state().card_id = value
+
+    @property
+    def _session_task_type(self) -> Optional[str]:
+        return self._state().task_type
+
+    @_session_task_type.setter
+    def _session_task_type(self, value: Optional[str]) -> None:
+        self._state().task_type = value
+
+    @property
+    def _turn_buffer(self) -> list[dict[str, str]]:
+        return self._state().turns or []
+
+    @_turn_buffer.setter
+    def _turn_buffer(self, value: list[dict[str, str]]) -> None:
+        self._state().turns = value
 
     @classmethod
     def get_instance(cls) -> WorkExperienceInterceptor:
@@ -127,10 +280,13 @@ class WorkExperienceInterceptor:
         """
         try:
             result = self._retriever.get_or_suggest(user_message)
+            state = self._state(session_id)
 
             if result.card:
-                self._session_card_id = result.card.card_id
-                self._session_task_type = result.card.task_type
+                shared_card = _sanitize_card_for_sharing(result.card)
+                with self._state_lock:
+                    state.card_id = result.card.card_id
+                    state.task_type = result.card.task_type
                 logger.info(
                     "WorkExperience v4: matched card",
                     extra={
@@ -141,7 +297,7 @@ class WorkExperienceInterceptor:
                     },
                 )
                 return PreExecuteResult(
-                    card=result.card,
+                    card=shared_card,
                     status=result.status,
                     task_type=result.task_type,
                     elapsed_ms=result.elapsed_ms,
@@ -149,15 +305,16 @@ class WorkExperienceInterceptor:
 
             # No match — store suggestion for later card creation
             if result.suggestion:
-                self._session_task_type = result.suggestion.get("new_type", "")
-                self._session_card_id = None
+                with self._state_lock:
+                    state.task_type = result.suggestion.get("new_type", "")
+                    state.card_id = None
                 logger.info(
                     "WorkExperience v4: no match, new type suggested",
-                    extra={"new_type": self._session_task_type},
+                    extra={"new_type": state.task_type},
                 )
             return PreExecuteResult(
                 status=result.status,
-                task_type=result.task_type or self._session_task_type,
+                task_type=result.task_type or state.task_type or "",
                 elapsed_ms=result.elapsed_ms,
             )
 
@@ -178,6 +335,10 @@ class WorkExperienceInterceptor:
         channel: str = "console",
         agent_id: str = "default",
         execution_time_ms: int = 0,
+        workspace_dir: str = "",
+        matched_card_id: str = "",
+        matched_task_type: str = "",
+        match_is_explicit: bool = False,
     ) -> Optional[dict[str, Any]]:
         """
         Buffer chat turn. On task completion, reflect and update card.
@@ -187,24 +348,42 @@ class WorkExperienceInterceptor:
         if not query or not response:
             return None
 
-        # Buffer this turn
-        self._turn_buffer.append(
-            {
-                "user_input": query,
-                "assistant_response": response[:1000],
-                "channel": channel,
-                "agent_id": agent_id,
-            },
-        )
-        if len(self._turn_buffer) > _MAX_BUFFER_SIZE:
-            self._turn_buffer = self._turn_buffer[-_MAX_BUFFER_SIZE:]
+        state = self._state(session_id)
+        with self._state_lock:
+            legacy_state = self._state()
+            assert state.turns is not None
+            state.turns.append(
+                {
+                    "user_input": query,
+                    "assistant_response": response[:1000],
+                    "channel": channel,
+                    "agent_id": agent_id,
+                },
+            )
+            if len(state.turns) > _MAX_BUFFER_SIZE:
+                state.turns = state.turns[-_MAX_BUFFER_SIZE:]
 
         # Check if task just completed
         result = None
         if self._detect_completion(response):
+            with self._state_lock:
+                turns = list(state.turns or [])
+                state.turns = []
+                # Compatibility for callers/tests that still set the old
+                # private fields directly before supplying a session_id.
+                if match_is_explicit:
+                    turn_card_id = matched_card_id or None
+                    turn_task_type = matched_task_type or None
+                else:
+                    turn_card_id = state.card_id or legacy_state.card_id
+                    turn_task_type = state.task_type or legacy_state.task_type
             result = self._flush_and_update(
                 session_id=session_id,
                 agent_id=agent_id,
+                workspace_dir=workspace_dir,
+                turns=turns,
+                matched_card_id=turn_card_id,
+                task_type=turn_task_type,
             )
 
         return result
@@ -226,26 +405,36 @@ class WorkExperienceInterceptor:
         self,
         session_id: str = "",
         agent_id: str = "default",
+        workspace_dir: str = "",
+        turns: Optional[list[dict[str, str]]] = None,
+        matched_card_id: Optional[str] = None,
+        task_type: Optional[str] = None,
     ) -> Optional[dict[str, Any]]:
         """
         Task completed. LLM reflects on the buffered conversation,
         then updates (or creates) the matching card.
         """
-        if not self._turn_buffer:
+        if turns is None:
+            state = self._state(session_id)
+            with self._state_lock:
+                turns = list(state.turns or [])
+                state.turns = []
+                matched_card_id = matched_card_id or state.card_id
+                task_type = task_type or state.task_type
+        if not turns:
             return None
-
-        buf_count = len(self._turn_buffer)
-        turns = self._turn_buffer[:]
-        self._turn_buffer = []
+        buf_count = len(turns)
 
         # Find existing card or prepare to create new one
         existing_card: Optional[WorkflowCard] = None
-        if self._session_card_id:
-            existing_card = self._store.get(self._session_card_id)
-        elif self._session_task_type:
+        if matched_card_id:
+            existing_card = self._store.get(matched_card_id)
+        elif task_type:
             existing_card = self._store.get_by_task_type(
-                self._session_task_type,
+                task_type,
             )
+        if existing_card:
+            existing_card = _sanitize_card_for_sharing(existing_card)
 
         # LLM reflection
         reflection = self._reflect_with_llm(turns, existing_card)
@@ -261,7 +450,9 @@ class WorkExperienceInterceptor:
             reflection,
             session_id=session_id,
             agent_id=agent_id,
+            workspace_dir=workspace_dir,
         )
+        reflection = _sanitize_shared_reflection(reflection)
 
         # ── Quality gate ──────────────────────────────────────────────
         should_create, reason = _should_create_card(reflection)
@@ -304,14 +495,16 @@ class WorkExperienceInterceptor:
 
         # ── Update or create ──────────────────────────────────────────
         if existing_card:
-            card = self._merge_reflection_into_card(
-                existing_card,
-                reflection,
-                session_id=session_id,
-                agent_id=agent_id,
-                turn_count=buf_count,
-            )
-            self._store.save(card)
+            with self._store_lock:
+                latest_card = self._store.get(existing_card.card_id)
+                card = self._merge_reflection_into_card(
+                    _sanitize_card_in_place(latest_card or existing_card),
+                    reflection,
+                    session_id=session_id,
+                    agent_id=agent_id,
+                    turn_count=buf_count,
+                )
+                self._store.save(card)
             logger.info(
                 "WorkExperience v4: card updated via %s",
                 match_method,
@@ -338,9 +531,12 @@ class WorkExperienceInterceptor:
                 turn_count=buf_count,
             )
             if card:
-                self._store.save(card)
-                self._session_card_id = card.card_id
-                self._session_task_type = card.task_type
+                with self._store_lock:
+                    self._store.save(card)
+                state = self._state(session_id)
+                with self._state_lock:
+                    state.card_id = card.card_id
+                    state.task_type = card.task_type
                 logger.info(
                     "WorkExperience v4: new card created",
                     extra={
@@ -364,6 +560,7 @@ class WorkExperienceInterceptor:
         *,
         session_id: str = "",
         agent_id: str = "default",
+        workspace_dir: str = "",
     ) -> int:
         """Write factual knowledge candidates to memory/knowledge_pending."""
         candidates = reflection.get("knowledge_candidates", [])
@@ -374,14 +571,17 @@ class WorkExperienceInterceptor:
                 write_pending_candidates,
             )
 
-            workspace_dir = os.environ.get("HUBOS_WORKING_DIR")
-            if not workspace_dir:
-                workspace_dir = str(
+            target_workspace = workspace_dir or os.environ.get(
+                "HUBOS_WORKING_DIR",
+                "",
+            )
+            if not target_workspace:
+                target_workspace = str(
                     Path.home() / ".hubos" / "workspaces" / "default",
                 )
             written = write_pending_candidates(
                 candidates,
-                workspace_dir=workspace_dir,
+                workspace_dir=target_workspace,
                 session_id=session_id,
                 agent_id=agent_id,
             )
@@ -486,6 +686,8 @@ class WorkExperienceInterceptor:
             "## 关键规则\n"
             "- 已有卡片：保留仍然有效的内容，只补充新的或修正错误的\n"
             "- 达不到质量标准的内容不要写。宁可少写也不要写废话\n"
+            "- 经验卡片会被所有用户共享：只写通用方法论，不得写用户姓名、邮箱、电话、飞书ID、客户隐私、令牌或用户绝对目录\n"
+            "- 路径只保留项目相对路径或通用占位形式，不要输出 /Users/姓名、/home/姓名 等私有路径\n"
             "- 闲聊/简单问答/纯查信息：has_lessons: false，其他字段留空\n"
             "- knowledge_candidates 只放事实，不放流程经验；包含 token/api_key/password/cookie 等敏感信息时不要输出\n"
             "- 所有数组的元素必须是纯字符串，禁止嵌套对象或模板格式\n\n"
@@ -733,7 +935,6 @@ def _should_create_card(reflection: dict) -> tuple[bool, str]:
     reflection is still valid — knowledge_candidates will still be written.
     """
     task_type = (reflection.get("task_type") or "").strip()
-    description = (reflection.get("description") or "").strip()
     entities = reflection.get("entities") or []
     workflow = reflection.get("workflow") or []
     pitfalls = reflection.get("pitfalls") or []

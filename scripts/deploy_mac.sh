@@ -13,6 +13,37 @@ PORT="${HUBOS_PORT:-8088}"
 
 mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR" "$WORK_DIR" "$SECRET_DIR"
 
+list_port_listeners() {
+  lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null || true
+}
+
+terminate_port_listeners() {
+  local pids
+  pids="$(list_port_listeners)"
+  [ -n "$pids" ] || return 0
+
+  echo "[HubOS] Replacing existing HubOS listener(s) on port $PORT: ${pids//$'\n'/, }"
+  while IFS= read -r pid; do
+    [ -n "$pid" ] || continue
+    kill -TERM "$pid" >/dev/null 2>&1 || true
+  done <<< "$pids"
+
+  local waited=0
+  while [ "$waited" -lt 15 ]; do
+    [ -z "$(list_port_listeners)" ] && return 0
+    sleep 1
+    waited=$((waited + 1))
+  done
+
+  pids="$(list_port_listeners)"
+  [ -n "$pids" ] || return 0
+  echo "[HubOS] Force-stopping stale listener(s): ${pids//$'\n'/, }"
+  while IFS= read -r pid; do
+    [ -n "$pid" ] || continue
+    kill -KILL "$pid" >/dev/null 2>&1 || true
+  done <<< "$pids"
+}
+
 find_python() {
   local candidates=(
     "${PYTHON_BIN:-}"
@@ -134,6 +165,7 @@ cat > "$PLIST_PATH" <<PLIST
 PLIST
 
 launchctl bootout "gui/$(id -u)" "$PLIST_PATH" >/dev/null 2>&1 || true
+terminate_port_listeners
 launchctl bootstrap "gui/$(id -u)" "$PLIST_PATH"
 launchctl kickstart -k "gui/$(id -u)/${PLIST_ID}" || true
 

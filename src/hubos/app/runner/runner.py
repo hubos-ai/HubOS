@@ -31,7 +31,11 @@ from .command_dispatch import (
     run_command_path,
 )
 from .query_error_dump import write_query_error_dump
-from .session import SafeJSONSession, prune_stale_session_messages
+from .session import (
+    SafeJSONSession,
+    compact_stale_session_messages_locally,
+    prune_empty_assistant_messages,
+)
 from .utils import build_env_context
 from ..channels.schema import DEFAULT_CHANNEL
 from ...agents.react_agent import HubOSAgent
@@ -67,6 +71,9 @@ _INTERNAL_STATUS_TOOL_NAMES = frozenset(
 # Maximum internal-status messages retained in memory.
 # Each turn produces 3 status cards; keep the last 5 turns = 15 messages.
 _MAX_STATUS_MESSAGES = 15
+_EMPTY_RESPONSE_FALLBACK_TEXT = (
+    "我在。刚才模型返回了空内容，HubOS 已经自动做了恢复处理。" "请把刚才的任务再发一次，我会继续处理。"
+)
 
 
 def _make_internal_status_msg(
@@ -93,6 +100,20 @@ def _make_internal_status_msg(
         block["content"] = output
         block["result"] = output
     return Msg(name="assistant", role="assistant", content=[block])
+
+
+def _make_empty_response_fallback_msg() -> Msg:
+    """Create a user-visible fallback when the LLM returns no text."""
+    return Msg(
+        name="Friday",
+        role="assistant",
+        content=[
+            TextBlock(
+                type="text",
+                text=_EMPTY_RESPONSE_FALLBACK_TEXT,
+            ),
+        ],
+    )
 
 
 def _hubos_status_stream_converter(
@@ -725,6 +746,9 @@ class AgentRunner(Runner):
         chat_turn_started_at = time.time()
         final_response_text = ""
         pre_agent_status_msgs: list[Msg] = []
+        experience_match_card_id = ""
+        experience_match_task_type = ""
+        experience_match_explicit = False
         try:
             session_id = request.session_id
             user_id = request.user_id
@@ -737,6 +761,9 @@ class AgentRunner(Runner):
             from ...config.context import set_current_session_id
 
             set_current_session_id(session_id)
+            workspace_path = (
+                self.workspace_dir if self.workspace_dir else WORKING_DIR
+            )
             skip_session_state = bool(
                 getattr(request, "skip_session_state", False),
             )
@@ -835,6 +862,11 @@ class AgentRunner(Runner):
                         session_id=session_id,
                     )
                     matched_card = exp_result.card
+                    experience_match_card_id = (
+                        exp_result.card.card_id if exp_result.card else ""
+                    )
+                    experience_match_task_type = exp_result.task_type or ""
+                    experience_match_explicit = True
 
                     # Build status summary from real result
                     exp_status = exp_result.status
@@ -946,11 +978,22 @@ class AgentRunner(Runner):
             # Load agent-specific configuration
             agent_config = load_agent_config(self.agent_id)
 
+            parent_session_id = getattr(
+                request,
+                "parent_session_id",
+                "",
+            )
+            parent_workspace_dir = getattr(
+                request,
+                "parent_workspace_dir",
+                "",
+            )
             request_context = {
                 "session_id": session_id,
                 "user_id": user_id,
                 "channel": channel,
                 "agent_id": self.agent_id,
+                "workspace_dir": str(workspace_path),
                 **(
                     {
                         "forced_tool_call_json": json.dumps(
@@ -962,6 +1005,11 @@ class AgentRunner(Runner):
                     else {}
                 ),
             }
+            if parent_session_id:
+                request_context["parent_session_id"] = parent_session_id
+                request_context["parent_workspace_dir"] = str(
+                    parent_workspace_dir or workspace_path,
+                )
 
             agent = await self._get_or_create_agent(
                 agent_config=agent_config,
@@ -969,6 +1017,34 @@ class AgentRunner(Runner):
                 mcp_clients=mcp_clients,
                 request_context=request_context,
             )
+
+            # Register recall_parent_context tool for sub-agents that
+            # have a parent session to query.
+            if parent_session_id:
+                from ...core.parent_context import (
+                    create_parent_context_tool,
+                )
+
+                ws_dir = parent_workspace_dir or workspace_path
+                parent_ctx_tool = create_parent_context_tool(
+                    parent_session_id=parent_session_id,
+                    workspace_dir=str(ws_dir),
+                )
+                try:
+                    agent.toolkit.register_tool_function(
+                        parent_ctx_tool,
+                        namesake_strategy="replace",
+                    )
+                    logger.info(
+                        "Registered recall_parent_context for "
+                        "parent_session=%s",
+                        parent_session_id,
+                    )
+                except Exception:
+                    logger.warning(
+                        "Failed to register recall_parent_context tool",
+                        exc_info=True,
+                    )
 
             logger.debug(
                 f"Agent Query msgs {msgs}",
@@ -1035,14 +1111,68 @@ class AgentRunner(Runner):
                     )
                 session_state_loaded = True
 
-            # Phase-2 token optimization: drop messages older than 2 hours.
-            # Always keeps system messages + last 10 non-system messages.
+            # Archive raw history before reducing the active model context.
             if hasattr(agent, "memory") and agent.memory is not None:
-                prune_stale_session_messages(
-                    agent.memory,
-                    max_age_hours=2.0,
-                    min_keep=10,
-                )
+                if session_state_loaded:
+                    try:
+                        from ...core.memory.workspace_ledger import (
+                            persist_memory_to_ledger,
+                        )
+
+                        await asyncio.to_thread(
+                            persist_memory_to_ledger,
+                            memory=agent.memory,
+                            workspace_dir=workspace_path,
+                            session_id=session_id,
+                            user_id=user_id,
+                            channel=channel,
+                            agent_id=self.agent_id,
+                            title=query or "",
+                        )
+                    except Exception:
+                        logger.warning(
+                            "Failed to persist pre-compaction memory ledger",
+                            exc_info=True,
+                        )
+                    try:
+                        from ...core.tool_output_archive import (
+                            compact_completed_tool_inputs,
+                        )
+
+                        loaded_messages = await agent.memory.get_memory(
+                            prepend_summary=False,
+                        )
+                        tool_compact = agent_config.running.tool_result_compact
+                        if tool_compact.enabled:
+                            try:
+                                await self.memory_manager.compact_tool_result(
+                                    messages=loaded_messages,
+                                    recent_n=tool_compact.recent_n,
+                                    old_max_bytes=tool_compact.old_max_bytes,
+                                    recent_max_bytes=tool_compact.recent_max_bytes,
+                                    retention_days=tool_compact.retention_days,
+                                )
+                            except Exception:
+                                logger.warning(
+                                    "Failed to archive loaded tool results",
+                                    exc_info=True,
+                                )
+                        compact_completed_tool_inputs(
+                            loaded_messages,
+                            recent_n=max(6, tool_compact.recent_n * 3),
+                            threshold=max(2_000, tool_compact.old_max_bytes),
+                        )
+                    except Exception:
+                        logger.warning(
+                            "Failed to archive loaded tool payloads",
+                            exc_info=True,
+                        )
+                    await compact_stale_session_messages_locally(
+                        agent.memory,
+                        max_age_hours=2.0,
+                        min_keep=10,
+                    )
+                prune_empty_assistant_messages(agent.memory)
                 _mark_internal_status_messages(agent.memory)
 
             # Rebuild system prompt so it always reflects the latest
@@ -1105,6 +1235,17 @@ class AgentRunner(Runner):
                     session_id[:20],
                     channel,
                 )
+                fallback_msg = _make_empty_response_fallback_msg()
+                final_response_text = _EMPTY_RESPONSE_FALLBACK_TEXT
+                if hasattr(agent, "memory") and agent.memory is not None:
+                    try:
+                        await agent.memory.add(fallback_msg)
+                    except Exception:
+                        logger.warning(
+                            "Failed to persist empty-response fallback",
+                            exc_info=True,
+                        )
+                yield fallback_msg, True
 
         except asyncio.CancelledError as exc:
             logger.info(f"query_handler: {session_id} cancelled!")
@@ -1152,6 +1293,10 @@ class AgentRunner(Runner):
                         _wx_session_id = session_id
                         _wx_channel = channel
                         _wx_agent_id = self.agent_id
+                        _wx_workspace_dir = str(workspace_path)
+                        _wx_match_card_id = experience_match_card_id
+                        _wx_match_task_type = experience_match_task_type
+                        _wx_match_explicit = experience_match_explicit
                         _wx_exec_ms = int(
                             (time.time() - chat_turn_started_at) * 1000,
                         )
@@ -1165,6 +1310,10 @@ class AgentRunner(Runner):
                                     channel=_wx_channel,
                                     agent_id=_wx_agent_id,
                                     execution_time_ms=_wx_exec_ms,
+                                    workspace_dir=_wx_workspace_dir,
+                                    matched_card_id=_wx_match_card_id,
+                                    matched_task_type=_wx_match_task_type,
+                                    match_is_explicit=_wx_match_explicit,
                                 )
                             except Exception:
                                 logger.warning(
@@ -1183,6 +1332,26 @@ class AgentRunner(Runner):
             if agent is not None and session_state_loaded:
                 _strip_hallucinated_internal_status_from_memory(agent.memory)
                 _mark_internal_status_messages(agent.memory)
+                try:
+                    from ...core.memory.workspace_ledger import (
+                        persist_memory_to_ledger,
+                    )
+
+                    await asyncio.to_thread(
+                        persist_memory_to_ledger,
+                        memory=agent.memory,
+                        workspace_dir=workspace_path,
+                        session_id=session_id,
+                        user_id=user_id,
+                        channel=channel,
+                        agent_id=self.agent_id,
+                        title=query or "",
+                    )
+                except Exception:
+                    logger.warning(
+                        "Failed to persist final memory ledger",
+                        exc_info=True,
+                    )
                 await self.session.save_session_state(
                     session_id=session_id,
                     user_id=user_id,

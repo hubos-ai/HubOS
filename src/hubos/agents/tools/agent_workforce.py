@@ -21,10 +21,13 @@ structured error if not wired (does NOT raise — keeps LLM error path clean).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import time
+from collections import Counter, deque
 from typing import Any
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from agentscope.message import TextBlock
@@ -49,6 +52,10 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT = 120
 _MAX_CONCURRENCY = 8
+_PARENT_RUN_HEARTBEAT_SECONDS = 30.0
+_USER_PROGRESS_INITIAL_SECONDS = 30.0
+_USER_PROGRESS_INTERVAL_SECONDS = 120.0
+_PROGRESS_CHANNELS = {"feishu", "weixin", "wecom"}
 
 
 def _get_task_modes_config() -> Any:
@@ -68,6 +75,370 @@ def _err(text: str) -> ToolResponse:
 
 def _ok(text: str) -> ToolResponse:
     return ToolResponse(content=[TextBlock(type="text", text=text)])
+
+
+def _nested_dispatch_allowed(ctx: dict[str, Any]) -> bool:
+    value = ctx.get("allow_nested_delegate")
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return False
+
+
+def _reject_nested_orchestration(tool_name: str) -> ToolResponse | None:
+    """Block delegated sub-agents from recursively orchestrating siblings."""
+    ctx = _current_runtime_ctx()
+    if not ctx.get("parent_session_id"):
+        return None
+    if _nested_dispatch_allowed(ctx):
+        return None
+    agent_id = str(ctx.get("agent_id") or "sub-agent")
+    return _err(
+        f"{tool_name}: nested orchestration is disabled for delegated "
+        f"sub-agents (current agent={agent_id}). Execute directly or return "
+        "a concise reroute suggestion to the parent agent.",
+    )
+
+
+def _format_elapsed(seconds: float) -> str:
+    total = max(0, int(seconds))
+    minutes, sec = divmod(total, 60)
+    if minutes <= 0:
+        return f"{sec} 秒"
+    return f"{minutes} 分 {sec} 秒"
+
+
+def _shorten(value: Any, limit: int = 120) -> str:
+    text = " ".join(str(value or "").split())
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 1)].rstrip() + "…"
+
+
+def _domain_from_url(value: str) -> str:
+    try:
+        parsed = urlparse(value)
+        return parsed.netloc or value
+    except Exception:  # noqa: BLE001
+        return value
+
+
+def _summarize_assignments(
+    cleaned: list[tuple[str, str, str]],
+    child_tasks: list[asyncio.Task[dict[str, Any]]],
+) -> tuple[list[str], list[str]]:
+    running: list[str] = []
+    done: list[str] = []
+    for idx, (agent_id, _prompt, label) in enumerate(cleaned):
+        name = f"{label}/{agent_id}" if label else agent_id
+        if idx < len(child_tasks) and child_tasks[idx].done():
+            done.append(name)
+        else:
+            running.append(name)
+    return running, done
+
+
+def _completed_result_summaries(
+    cleaned: list[tuple[str, str, str]],
+    child_tasks: list[asyncio.Task[dict[str, Any]]],
+) -> list[str]:
+    summaries: list[str] = []
+    for idx, (agent_id, _prompt, label) in enumerate(cleaned):
+        if idx >= len(child_tasks):
+            continue
+        task = child_tasks[idx]
+        if not task.done() or task.cancelled():
+            continue
+        try:
+            result = task.result()
+        except Exception:  # noqa: BLE001
+            continue
+        if not result.get("success"):
+            continue
+        content = _shorten(result.get("content"), limit=140)
+        if content:
+            name = f"{label}/{agent_id}" if label else agent_id
+            summaries.append(f"{name}：{content}")
+    return summaries[:2]
+
+
+def _extract_tool_work_hint(tool_input: Any) -> str:
+    if not isinstance(tool_input, dict):
+        return ""
+
+    for key in ("search_query", "query", "q", "keyword", "keywords"):
+        value = tool_input.get(key)
+        if isinstance(value, str) and value.strip():
+            return f"检索“{_shorten(value, 70)}”"
+        if isinstance(value, list) and value:
+            first = value[0]
+            if isinstance(first, str) and first.strip():
+                return f"检索“{_shorten(first, 70)}”"
+
+    urls = tool_input.get("urls") or tool_input.get("url")
+    if isinstance(urls, str) and urls.strip():
+        return f"读取 {_shorten(_domain_from_url(urls), 70)}"
+    if isinstance(urls, list) and urls:
+        domains = [
+            _domain_from_url(str(url))
+            for url in urls[:3]
+            if str(url or "").strip()
+        ]
+        if domains:
+            return f"读取 {', '.join(domains)}"
+
+    path = tool_input.get("path") or tool_input.get("file_path")
+    if isinstance(path, str) and path.strip():
+        return f"查看文件 {_shorten(path, 70)}"
+
+    return ""
+
+
+def _classify_tool_work(tool_name: str, tool_input: Any) -> str:
+    name = (tool_name or "").lower()
+    if any(
+        token in name
+        for token in ("search", "google", "bing", "glm", "minimax")
+    ):
+        return "search"
+    if any(
+        token in name for token in ("extract", "browser", "crawl", "read_url")
+    ):
+        return "read_web"
+    if any(token in name for token in ("file", "read", "view_text")):
+        return "read_file"
+    if any(token in name for token in ("write", "edit", "save")):
+        return "write"
+    if isinstance(tool_input, dict):
+        if tool_input.get("urls") or tool_input.get("url"):
+            return "read_web"
+        if tool_input.get("path") or tool_input.get("file_path"):
+            return "read_file"
+        if any(
+            tool_input.get(key)
+            for key in ("search_query", "query", "q", "keyword", "keywords")
+        ):
+            return "search"
+    return "work"
+
+
+def _format_work_counts(counts: Counter) -> str:
+    labels = {
+        "search": "相关搜索",
+        "read_web": "网页/资料阅读",
+        "read_file": "文件查看",
+        "write": "整理写入",
+        "work": "分析处理",
+    }
+    ordered_keys = ("search", "read_web", "read_file", "write", "work")
+    parts = [
+        f"{labels[key]} {counts[key]} 次"
+        for key in ordered_keys
+        if counts.get(key, 0) > 0
+    ]
+    return "，".join(parts)
+
+
+def _read_subagent_audit_records(
+    parent_session: str,
+    max_lines: int = 240,
+) -> list[dict[str, Any]]:
+    if not parent_session:
+        return []
+    try:
+        from hubos.integrations.host_agent_runner import _audit_log_path
+
+        path = _audit_log_path(parent_session)
+        if not path.is_file():
+            return []
+        lines: deque[str] = deque(maxlen=max_lines)
+        with open(path, encoding="utf-8") as file:
+            for line in file:
+                lines.append(line)
+        records: list[dict[str, Any]] = []
+        for line in lines:
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(record, dict):
+                records.append(record)
+        return records
+    except Exception:  # noqa: BLE001
+        logger.debug("sub-agent audit read failed", exc_info=True)
+        return []
+
+
+def _audit_work_summary(parent_session: str) -> str:
+    records = _read_subagent_audit_records(parent_session)
+    if not records:
+        return ""
+
+    per_agent: dict[str, dict[str, Any]] = {}
+    for record in records:
+        agent_id = str(record.get("agent_id") or "").strip()
+        if not agent_id:
+            continue
+        info = per_agent.setdefault(
+            agent_id,
+            {
+                "work_counts": Counter(),
+                "hints": [],
+                "finished": False,
+                "error": "",
+            },
+        )
+        event = record.get("event")
+        if event == "subagent_tool_use":
+            tool_name = str(record.get("name") or "tool")
+            tool_input = record.get("input")
+            work_type = _classify_tool_work(tool_name, tool_input)
+            info["work_counts"][work_type] += 1
+            hint = _extract_tool_work_hint(tool_input)
+            if hint and hint not in info["hints"]:
+                info["hints"].append(hint)
+        elif event == "subagent_finished":
+            info["finished"] = True
+            info["error"] = str(record.get("error") or "")
+
+    phrases: list[str] = []
+    for agent_id, info in per_agent.items():
+        work_counts: Counter = info["work_counts"]
+        total_work = sum(work_counts.values())
+        if total_work <= 0:
+            continue
+        work_count_text = _format_work_counts(work_counts)
+        hints = info["hints"][:2]
+        phrase = f"{agent_id} 已完成 {work_count_text or f'{total_work} 步处理'}"
+        if hints:
+            phrase += "，" + "；".join(hints)
+        phrases.append(_shorten(phrase, limit=180))
+
+    if not phrases:
+        return ""
+    return "已执行：" + "；".join(phrases[:2]) + "。"
+
+
+def _build_work_progress_summary(
+    *,
+    parent_session: str,
+    cleaned: list[tuple[str, str, str]],
+    child_tasks: list[asyncio.Task[dict[str, Any]]],
+) -> str:
+    lines: list[str] = []
+    completed = _completed_result_summaries(cleaned, child_tasks)
+    if completed:
+        lines.append("已完成结果：" + "；".join(completed) + "。")
+    audit_summary = _audit_work_summary(parent_session)
+    if audit_summary:
+        lines.append(audit_summary)
+    return "\n".join(lines)
+
+
+async def _touch_parent_run(reason: str) -> bool:
+    """Best-effort heartbeat for the outer channel TaskTracker run."""
+    try:
+        from hubos.app.channels.delivery_context import (
+            get_current_delivery_context,
+        )
+
+        delivery_ctx = get_current_delivery_context()
+        if (
+            delivery_ctx is None
+            or delivery_ctx.task_tracker is None
+            or not delivery_ctx.run_key
+        ):
+            return False
+        touch = getattr(delivery_ctx.task_tracker, "touch", None)
+        if touch is None:
+            return False
+        return bool(await touch(delivery_ctx.run_key, reason=reason))
+    except Exception:  # noqa: BLE001
+        logger.debug("parent run heartbeat failed", exc_info=True)
+        return False
+
+
+async def _send_user_progress_summary(text: str) -> bool:
+    """Send a short progress message to external IM channels, if available."""
+    try:
+        from agentscope_runtime.engine.schemas.agent_schemas import (
+            ContentType,
+            TextContent,
+        )
+        from hubos.app.channels.delivery_context import (
+            get_current_delivery_context,
+        )
+
+        delivery_ctx = get_current_delivery_context()
+        if delivery_ctx is None:
+            return False
+        channel = (delivery_ctx.channel or "").lower()
+        if channel not in _PROGRESS_CHANNELS:
+            return False
+        await delivery_ctx.send_progress_parts(
+            [TextContent(type=ContentType.TEXT, text=text)],
+            min_interval_seconds=_USER_PROGRESS_INTERVAL_SECONDS,
+        )
+        return True
+    except Exception:  # noqa: BLE001
+        logger.debug("user progress summary send failed", exc_info=True)
+        return False
+
+
+async def _spawn_progress_loop(
+    *,
+    parent_session: str,
+    cleaned: list[tuple[str, str, str]],
+    child_tasks: list[asyncio.Task[dict[str, Any]]],
+    started_at: float,
+) -> None:
+    """Keep the parent run alive while sub-agents work, with sparse IM updates."""
+    first_user_notice_sent = False
+    last_user_notice_at = started_at
+
+    while True:
+        pending = [task for task in child_tasks if not task.done()]
+        if not pending:
+            return
+
+        await _touch_parent_run("spawn_subagents waiting for child agents")
+
+        now = time.time()
+        elapsed = now - started_at
+        should_send_initial = (
+            not first_user_notice_sent
+            and elapsed >= _USER_PROGRESS_INITIAL_SECONDS
+        )
+        should_send_followup = (
+            first_user_notice_sent
+            and now - last_user_notice_at >= _USER_PROGRESS_INTERVAL_SECONDS
+        )
+
+        if should_send_initial or should_send_followup:
+            running, done = _summarize_assignments(cleaned, child_tasks)
+            running_preview = "、".join(running[:3]) or "子任务"
+            if len(running) > 3:
+                running_preview += f" 等 {len(running)} 个子任务"
+            done_part = f"，已完成 {len(done)} 个" if done else ""
+            text = (
+                "我还在处理这项任务。"
+                f"已运行 {_format_elapsed(elapsed)}，"
+                f"当前等待 {len(running)}/{len(cleaned)} 个子任务："
+                f"{running_preview}{done_part}。"
+            )
+            work_summary = _build_work_progress_summary(
+                parent_session=parent_session,
+                cleaned=cleaned,
+                child_tasks=child_tasks,
+            )
+            if work_summary:
+                text += "\n" + work_summary
+            if await _send_user_progress_summary(text):
+                first_user_notice_sent = True
+                last_user_notice_at = now
+
+        await asyncio.sleep(_PARENT_RUN_HEARTBEAT_SECONDS)
 
 
 async def spawn_subagents(
@@ -90,8 +461,11 @@ async def spawn_subagents(
 
     Args:
         assignments: list of ``{"agent_id": str, "prompt": str,
-            "label": Optional[str]}``. ``label`` is a free-form key the GM
-            can use to identify each sub-result in its summary.
+            "label": Optional[str], "context": Optional[str],
+            "constraints": Optional[list[str]],
+            "artifacts": Optional[list[str]]}``. ``context`` carries facts
+            already known by the parent; constraints and artifacts make the
+            handoff explicit instead of forcing the child to rediscover them.
         timeout_seconds: per-subagent timeout. Default 120.
         max_concurrency: cap on simultaneous sub-agent runs. Default 8.
 
@@ -110,6 +484,10 @@ async def spawn_subagents(
               ]
             }
     """
+    nested_error = _reject_nested_orchestration("spawn_subagents")
+    if nested_error is not None:
+        return nested_error
+
     if not isinstance(assignments, list) or not assignments:
         return _err("spawn_subagents: 'assignments' must be a non-empty list")
 
@@ -134,6 +512,7 @@ async def spawn_subagents(
                 )
 
     cleaned: list[tuple[str, str, str]] = []
+    handoffs: list[dict[str, Any]] = []
     for i, a in enumerate(assignments):
         if not isinstance(a, dict):
             return _err(f"spawn_subagents: assignment[{i}] must be an object")
@@ -145,6 +524,22 @@ async def spawn_subagents(
             )
         label = str(a.get("label") or f"sub_{i}")
         cleaned.append((agent_id, prompt, label))
+        handoffs.append(
+            {
+                "objective": prompt,
+                "known_context": str(a.get("context") or "").strip(),
+                "constraints": [
+                    str(item)
+                    for item in (a.get("constraints") or [])
+                    if str(item).strip()
+                ][:12],
+                "artifacts": [
+                    str(item)
+                    for item in (a.get("artifacts") or [])
+                    if str(item).strip()
+                ][:12],
+            },
+        )
 
     runner = get_host_agent_runner()
     if runner is None:
@@ -158,6 +553,7 @@ async def spawn_subagents(
     ctx = _current_runtime_ctx()
     parent_session = ctx.get("session_id") or ""
     parent_user = ctx.get("user_id") or ""
+    parent_workspace_dir = ctx.get("workspace_dir") or ""
 
     # -- TaskMonitor: create monitoring task --------------------------------
     _agent_labels = [c[2] for c in cleaned]
@@ -207,6 +603,7 @@ async def spawn_subagents(
         agent_id: str,
         prompt: str,
         label: str,
+        handoff: dict[str, Any],
     ) -> dict[str, Any]:
         worker = HostAgentWorker(agent_id=agent_id, runner=runner)
         unit_id = uuid4()
@@ -219,6 +616,8 @@ async def spawn_subagents(
             "user_id": parent_user,
             "channel": ctx.get("channel") or "hubos_core_subagent",
             "parent_session_id": parent_session,
+            "parent_workspace_dir": parent_workspace_dir,
+            "handoff": handoff,
             "label": label,
         }
         step_start = time.time()
@@ -308,17 +707,28 @@ async def spawn_subagents(
 
     child_tasks = [
         asyncio.create_task(
-            _run_one(aid, pr, lab),
+            _run_one(aid, pr, lab, handoff),
             name=f"hubos.spawn-subagent-{lab}",
         )
-        for aid, pr, lab in cleaned
+        for (aid, pr, lab), handoff in zip(cleaned, handoffs)
     ]
+    progress_task = asyncio.create_task(
+        _spawn_progress_loop(
+            parent_session=parent_session,
+            cleaned=cleaned,
+            child_tasks=child_tasks,
+            started_at=start,
+        ),
+        name="hubos.spawn-subagents-progress",
+    )
+    was_cancelled = False
     try:
         results = await asyncio.gather(
             *child_tasks,
             return_exceptions=False,
         )
     except asyncio.CancelledError:
+        was_cancelled = True
         if not cancel_event.is_set():
             await safe_update_task(
                 _monitor_task_id,
@@ -400,13 +810,25 @@ async def spawn_subagents(
                     "spawn: RunControl status update failed for %s",
                     _spawn_run_id,
                 )
+    finally:
+        if progress_task:
+            if not progress_task.done():
+                progress_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await progress_task
+            else:
+                with contextlib.suppress(Exception):
+                    progress_task.result()
     elapsed_ms = int((time.time() - start) * 1000)
 
     succeeded = sum(1 for r in results if r["success"])
     failed = len(results) - succeeded
 
     # -- TaskMonitor: finalize ----------------------------------------------
-    _final_status = TaskStatus.DONE if failed == 0 else TaskStatus.FAILED
+    if was_cancelled:
+        _final_status = TaskStatus.CANCELLED
+    else:
+        _final_status = TaskStatus.DONE if failed == 0 else TaskStatus.FAILED
     _summary = (
         f"succeeded={succeeded}, failed={failed}, elapsed={elapsed_ms}ms"
     )
@@ -437,6 +859,8 @@ async def spawn_subagents(
         "elapsed_ms": elapsed_ms,
         "results": results,
     }
+    if was_cancelled:
+        payload["cancelled"] = True
     return _ok(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
@@ -471,6 +895,9 @@ class _WorkflowStep:
     agent_id: str
     prompt: str
     depends_on: list[str] = field(default_factory=list)
+    known_context: str = ""
+    constraints: list[str] = field(default_factory=list)
+    artifacts: list[str] = field(default_factory=list)
     status: str = "pending"
     started_at: float | None = None
     finished_at: float | None = None
@@ -484,6 +911,7 @@ class _WorkflowExecution:
     workflow_id: str
     session_id: str
     user_id: str
+    workspace_dir: str
     title: str
     created_at: float
     started_at: float | None
@@ -605,6 +1033,17 @@ def _validate_plan(
             agent_id=agent_id,
             prompt=prompt,
             depends_on=list(deps),
+            known_context=str(raw.get("context") or "").strip(),
+            constraints=[
+                str(item)
+                for item in (raw.get("constraints") or [])
+                if str(item).strip()
+            ][:12],
+            artifacts=[
+                str(item)
+                for item in (raw.get("artifacts") or [])
+                if str(item).strip()
+            ][:12],
         )
 
     # All deps resolvable
@@ -671,6 +1110,14 @@ async def _run_step(
         "channel": "hubos_core_workflow",
         "workflow_id": exec_.workflow_id,
         "step_id": step.id,
+        "parent_session_id": exec_.session_id,
+        "parent_workspace_dir": exec_.workspace_dir,
+        "handoff": {
+            "objective": expanded_prompt,
+            "known_context": step.known_context,
+            "constraints": list(step.constraints),
+            "artifacts": list(step.artifacts),
+        },
     }
 
     step.started_at = _now()
@@ -841,7 +1288,9 @@ async def coordinate_workflow(
 
     Args:
         steps: list of ``{"id": str, "agent_id": str, "prompt": str,
-            "depends_on": Optional[list[str]]}``. Max 25 steps.
+            "depends_on": Optional[list[str]], "context": Optional[str],
+            "constraints": Optional[list[str]],
+            "artifacts": Optional[list[str]]}``. Max 25 steps.
         title: free-form label shown in track_workflow output.
         summary_step_id: if set and the workflow ends ``done``, this step's
             ``result`` becomes ``final_response`` in ``track_workflow``.
@@ -855,6 +1304,10 @@ async def coordinate_workflow(
         ``workflow_id`` (prefix ``wf-``) for subsequent track_workflow /
         cancel_workflow calls.
     """
+    nested_error = _reject_nested_orchestration("coordinate_workflow")
+    if nested_error is not None:
+        return nested_error
+
     runner = get_host_agent_runner()
     if runner is None:
         return _err(
@@ -896,6 +1349,7 @@ async def coordinate_workflow(
         workflow_id=wf_id,
         session_id=ctx.get("session_id") or "",
         user_id=ctx.get("user_id") or "",
+        workspace_dir=ctx.get("workspace_dir") or "",
         title=title or "(untitled workflow)",
         created_at=_now(),
         started_at=None,

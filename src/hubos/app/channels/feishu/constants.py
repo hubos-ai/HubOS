@@ -7,6 +7,13 @@ FEISHU_TOKEN_REFRESH_BEFORE_SECONDS = 60
 # Max size for Feishu file upload (30MB)
 FEISHU_FILE_MAX_BYTES = 30 * 1024 * 1024
 
+# Feishu rich-text/card messages are limited to 30KB.  HubOS renders normal
+# replies as post/rich-text, so use a safety margin for JSON/markdown overhead.
+FEISHU_RICH_TEXT_SAFE_BYTES = 24 * 1024
+
+# Keep generated long-reply files comfortably below Feishu's 30MB upload limit.
+FEISHU_LONG_REPLY_FILE_CHUNK_BYTES = 25 * 1024 * 1024
+
 # Dedup cache max size
 FEISHU_PROCESSED_IDS_MAX = 1000
 

@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import json
 import logging
-import shutil
+import threading
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from .schemas_v4 import WorkflowCard
 
@@ -26,6 +26,7 @@ class CardStore:
         self._root = root or _DEFAULT_ROOT
         self._cards_dir = self._root / "cards"
         self._index_path = self._root / "index.json"
+        self._write_lock = threading.RLock()
         self._cards_dir.mkdir(parents=True, exist_ok=True)
 
     # ---- Index management ----
@@ -41,21 +42,25 @@ class CardStore:
             return {}
 
     def _save_index(self, index: dict[str, str]) -> None:
-        self._index_path.write_text(
+        temp_path = self._index_path.with_suffix(".json.tmp")
+        temp_path.write_text(
             json.dumps(index, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        temp_path.replace(self._index_path)
 
     # ---- CRUD ----
 
     def save(self, card: WorkflowCard) -> None:
         """Save or update a card. Updates index."""
-        path = self._cards_dir / f"{card.card_id}.json"
-        path.write_text(card.to_json(), encoding="utf-8")
-        # Update index
-        index = self._load_index()
-        index[card.task_type] = card.card_id
-        self._save_index(index)
+        with self._write_lock:
+            path = self._cards_dir / f"{card.card_id}.json"
+            temp_path = path.with_suffix(".json.tmp")
+            temp_path.write_text(card.to_json(), encoding="utf-8")
+            temp_path.replace(path)
+            index = self._load_index()
+            index[card.task_type] = card.card_id
+            self._save_index(index)
 
     def get(self, card_id: str) -> Optional[WorkflowCard]:
         """Get card by card_id (slug)."""
@@ -104,7 +109,7 @@ class CardStore:
                 continue
         return results
 
-    def list_index(self) -> list[dict[str, str]]:
+    def list_index(self) -> list[dict[str, Any]]:
         """Lightweight listing: [{task_type, card_id, description}]."""
         cards = self.list_all()
         return [
@@ -112,6 +117,8 @@ class CardStore:
                 "task_type": c.task_type,
                 "card_id": c.card_id,
                 "description": c.description,
+                "entities": list(c.entities),
+                "executions": c.executions,
             }
             for c in cards
         ]

@@ -26,6 +26,7 @@ import gzip
 import json
 import os
 import shutil
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -64,6 +65,8 @@ class LocalMemoryStore:
         self.daily_dir = self.root / "daily"
         self.index_dir = self.root / "index"
         self.schemas_dir = self.root / "schemas"
+        self._write_lock = threading.RLock()
+        self._message_id_cache: dict[str, set[str]] = {}
         self._ensure_dirs()
 
     def _ensure_dirs(self) -> None:
@@ -88,8 +91,89 @@ class LocalMemoryStore:
         (session_dir / "messages.jsonl").write_text("", encoding="utf-8")
         (session_dir / "tools").mkdir(exist_ok=True)
         (session_dir / "attachments").mkdir(exist_ok=True)
+        self._message_id_cache[session_id] = set()
         self._update_sessions_index(session_id, metadata)
         return session_id
+
+    def ensure_session(self, session_id: str, metadata: Dict[str, Any]) -> str:
+        """Create a session once, or merge metadata without truncating messages."""
+        with self._write_lock:
+            session_dir = self.sessions_dir / session_id
+            if not session_dir.exists():
+                return self.create_session(session_id, metadata)
+
+            meta_path = session_dir / "metadata.json"
+            current: Dict[str, Any] = {}
+            try:
+                current = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (FileNotFoundError, json.JSONDecodeError):
+                pass
+            original_started_at = current.get("started_at")
+            current.update(
+                {k: v for k, v in metadata.items() if v is not None},
+            )
+            if original_started_at:
+                current["started_at"] = original_started_at
+            meta_path.write_text(
+                json.dumps(current, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            (session_dir / "messages.jsonl").touch(exist_ok=True)
+            (session_dir / "tools").mkdir(exist_ok=True)
+            (session_dir / "attachments").mkdir(exist_ok=True)
+            return session_id
+
+    def append_messages_unique(
+        self,
+        session_id: str,
+        messages: List[Dict[str, Any]],
+    ) -> int:
+        """Append records not already present, keyed by ``_ledger_id``/``id``."""
+        if not messages:
+            return 0
+        with self._write_lock:
+            session_dir = self.sessions_dir / session_id
+            if not session_dir.exists():
+                raise FileNotFoundError(f"Session {session_id} not found")
+
+            messages_path = session_dir / "messages.jsonl"
+            existing_ids = self._message_id_cache.get(session_id)
+            if existing_ids is None:
+                existing_ids = set()
+                try:
+                    with messages_path.open(encoding="utf-8") as source:
+                        for line in source:
+                            if not line.strip():
+                                continue
+                            try:
+                                record = json.loads(line)
+                            except json.JSONDecodeError:
+                                continue
+                            record_id = record.get("_ledger_id") or record.get(
+                                "id",
+                            )
+                            if record_id:
+                                existing_ids.add(str(record_id))
+                except FileNotFoundError:
+                    pass
+                self._message_id_cache[session_id] = existing_ids
+
+            appended = 0
+            with messages_path.open("a", encoding="utf-8") as target:
+                for message in messages:
+                    record_id = message.get("_ledger_id") or message.get("id")
+                    if record_id and str(record_id) in existing_ids:
+                        continue
+                    target.write(
+                        json.dumps(message, ensure_ascii=False) + "\n",
+                    )
+                    appended += 1
+                    if record_id:
+                        existing_ids.add(str(record_id))
+
+            if appended:
+                self._refresh_message_count(session_id)
+            return appended
 
     def append_message(self, session_id: str, message: Dict[str, Any]) -> None:
         session_dir = self.sessions_dir / session_id
@@ -109,7 +193,10 @@ class LocalMemoryStore:
         session_dir = self.sessions_dir / session_id
         if not session_dir.exists():
             raise FileNotFoundError(f"Session {session_id} not found")
-        (session_dir / "tools" / f"{message_id}.json").write_text(
+        path = session_dir / "tools" / f"{message_id}.json"
+        if path.exists():
+            return
+        path.write_text(
             json.dumps(tool_call, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
@@ -193,6 +280,7 @@ class LocalMemoryStore:
                     f.write(stripped)
             f.write("]}")
         shutil.rmtree(session_dir)
+        self._message_id_cache.pop(session_id, None)
 
     def auto_archive(self) -> List[str]:
         archived: List[str] = []
@@ -235,7 +323,7 @@ class LocalMemoryStore:
             agent_id = metadata.get("agent_id") or metadata.get("agent", "")
             user_id = metadata.get("user_id") or metadata.get("user", "")
             index_record = {
-                "session_id": session_id,
+                "session_id": metadata.get("session_id") or session_id,
                 "channel": metadata.get("channel", ""),
                 # Keep legacy 'agent' key for back-compat, add 'agent_id'.
                 "agent": agent_id,
@@ -400,7 +488,9 @@ class LocalMemoryStore:
                             continue
                         msg = json.loads(line)
                         if q_lower in str(msg.get("content", "")).lower():
-                            msg["_session_id"] = session_dir.name
+                            msg["_session_id"] = (
+                                msg.get("_session_id") or session_dir.name
+                            )
                             results.append(msg)
             except (FileNotFoundError, json.JSONDecodeError):
                 continue

@@ -296,6 +296,76 @@ async def test_spawn_subagents_creates_task_and_stage_events(
 
 
 @pytest.mark.asyncio
+async def test_spawn_subagents_passes_explicit_handoff_and_parent_workspace(
+    store: TaskMonitorStore,
+):
+    _mod = _import_tool_module("hubos.agents.tools.agent_workforce")
+    runtime_delegate = _import_tool_module(
+        "hubos.agents.tools.runtime_delegate",
+    )
+    captured = {}
+
+    async def _capture(self, **kwargs):
+        captured.update(kwargs["input_data"]["context"])
+        return _FakeWorkerResult("ok", 5)
+
+    runtime_delegate.set_runtime_request_context(
+        {
+            "session_id": "parent-1",
+            "user_id": "user-1",
+            "workspace_dir": "/tmp/parent-workspace",
+        },
+    )
+    try:
+        with patch.object(
+            _mod,
+            "get_host_agent_runner",
+            return_value=_make_mock_runner(),
+        ), _patch_worker(_mod, _capture):
+            await _mod.spawn_subagents(
+                assignments=[
+                    {
+                        "agent_id": "research",
+                        "prompt": "调查超时",
+                        "context": "请求体很大",
+                        "constraints": ["不要中断任务"],
+                        "artifacts": ["logs/model.log"],
+                    },
+                ],
+            )
+    finally:
+        runtime_delegate.set_runtime_request_context(None)
+
+    assert captured["parent_session_id"] == "parent-1"
+    assert captured["parent_workspace_dir"] == "/tmp/parent-workspace"
+    assert captured["handoff"]["known_context"] == "请求体很大"
+    assert captured["handoff"]["constraints"] == ["不要中断任务"]
+
+
+@pytest.mark.asyncio
+async def test_spawn_subagents_blocks_nested_orchestration():
+    _mod = _import_tool_module("hubos.agents.tools.agent_workforce")
+    runtime_delegate = _import_tool_module(
+        "hubos.agents.tools.runtime_delegate",
+    )
+    runtime_delegate.set_runtime_request_context(
+        {
+            "agent_id": "research",
+            "channel": "feishu",
+            "parent_session_id": "parent-1",
+        },
+    )
+    try:
+        result = await _mod.spawn_subagents(
+            assignments=[{"agent_id": "rd", "prompt": "帮我处理"}],
+        )
+    finally:
+        runtime_delegate.set_runtime_request_context(None)
+
+    assert "nested orchestration is disabled" in result.content[0].text
+
+
+@pytest.mark.asyncio
 async def test_spawn_subagents_partial_failure(store: TaskMonitorStore):
     """When some sub-agents fail, monitor should record error events and FAILED status."""
     _mod = _import_tool_module("hubos.agents.tools.agent_workforce")
@@ -331,6 +401,40 @@ async def test_spawn_subagents_partial_failure(store: TaskMonitorStore):
     assert task.status == TaskStatus.FAILED
     event_types = [e.event_type for e in task.events]
     assert TaskEventType.ERROR in event_types
+
+
+def test_spawn_progress_summary_uses_audit_tool_hints():
+    """Progress summaries should describe work without exposing tool names."""
+    _mod = _import_tool_module("hubos.agents.tools.agent_workforce")
+    records = [
+        {
+            "event": "subagent_tool_use",
+            "agent_id": "research",
+            "name": "web_search_prime",
+            "input": {
+                "search_query": "Brazil medical teaching model market prospects",
+            },
+        },
+        {
+            "event": "subagent_tool_use",
+            "agent_id": "research",
+            "name": "tavily_extract",
+            "input": {"urls": ["https://example.com/report"]},
+        },
+    ]
+
+    with patch.object(
+        _mod,
+        "_read_subagent_audit_records",
+        return_value=records,
+    ):
+        summary = _mod._audit_work_summary("session-1")
+
+    assert "research 已完成 相关搜索 1 次，网页/资料阅读 1 次" in summary
+    assert "web_search_prime" not in summary
+    assert "tavily_extract" not in summary
+    assert "检索“Brazil medical teaching model market prospects”" in summary
+    assert "读取 example.com" in summary
 
 
 # ---------------------------------------------------------------------------
@@ -400,6 +504,31 @@ async def test_coordinate_workflow_step_failure(store: TaskMonitorStore):
     event_types = [e.event_type for e in task.events]
     assert TaskEventType.STAGE_STARTED in event_types
     assert TaskEventType.ERROR in event_types
+
+
+@pytest.mark.asyncio
+async def test_coordinate_workflow_blocks_nested_orchestration():
+    _mod = _import_tool_module("hubos.agents.tools.agent_workforce")
+    runtime_delegate = _import_tool_module(
+        "hubos.agents.tools.runtime_delegate",
+    )
+    runtime_delegate.set_runtime_request_context(
+        {
+            "agent_id": "rd",
+            "channel": "feishu",
+            "parent_session_id": "parent-2",
+        },
+    )
+    try:
+        result = await _mod.coordinate_workflow(
+            steps=[
+                {"id": "step1", "agent_id": "research", "prompt": "继续处理"},
+            ],
+        )
+    finally:
+        runtime_delegate.set_runtime_request_context(None)
+
+    assert "nested orchestration is disabled" in result.content[0].text
 
 
 # ---------------------------------------------------------------------------

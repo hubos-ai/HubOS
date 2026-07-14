@@ -12,8 +12,16 @@ from agentscope.message import (
     AudioBlock,
     VideoBlock,
 )
+from agentscope_runtime.engine.schemas.agent_schemas import (
+    AudioContent,
+    ContentType,
+    FileContent,
+    ImageContent,
+    VideoContent,
+)
 
 from ..schema import FileBlock
+from ...app.channels.delivery_context import get_current_delivery_context
 
 
 def _auto_as_type(mt: str) -> str:
@@ -77,6 +85,46 @@ async def send_file_to_user(
         absolute_path = os.path.abspath(file_path)
         file_url = f"file://{absolute_path}"
         source = {"type": "url", "url": file_url}
+        delivery_ctx = get_current_delivery_context()
+
+        if delivery_ctx is not None:
+            outgoing_part = None
+            if as_type == "image":
+                outgoing_part = ImageContent(
+                    type=ContentType.IMAGE,
+                    image_url=file_url,
+                    filename=os.path.basename(file_path),
+                )
+            elif as_type == "audio":
+                outgoing_part = AudioContent(
+                    type=ContentType.AUDIO,
+                    data=file_url,
+                    format=mime_type,
+                    filename=os.path.basename(file_path),
+                )
+            elif as_type == "video":
+                outgoing_part = VideoContent(
+                    type=ContentType.VIDEO,
+                    video_url=file_url,
+                    filename=os.path.basename(file_path),
+                )
+            else:
+                outgoing_part = FileContent(
+                    type=ContentType.FILE,
+                    file_url=file_url,
+                    filename=os.path.basename(file_path),
+                )
+
+            await delivery_ctx.send_parts(
+                delivery_ctx.to_handle,
+                [outgoing_part],
+                delivery_ctx.meta,
+            )
+            return ToolResponse(
+                content=[
+                    TextBlock(type="text", text="File sent successfully."),
+                ],
+            )
 
         if as_type == "image":
             return ToolResponse(

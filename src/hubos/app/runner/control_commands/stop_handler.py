@@ -69,19 +69,33 @@ class StopCommandHandler(BaseControlCommandHandler):
 
         stopped = await workspace.task_tracker.request_stop(chat_id)
 
-        cleared = await workspace.channel_manager.clear_queue(
-            channel_id,
-            target_session_id,
-            20,
+        channel_manager = workspace.channel_manager or getattr(
+            context.channel,
+            "_channel_manager",
+            None,
         )
+        if channel_manager is not None:
+            cleared = await channel_manager.clear_queue(
+                channel_id,
+                target_session_id,
+                20,
+            )
+        else:
+            cleared = 0
 
         # RunControl: cancel all background runs (sub-agents, workflows, plans)
         bg_cancelled = 0
         try:
             from ...run_control import get_run_control_store
 
+            workspace_id = getattr(workspace, "agent_id", None) or getattr(
+                workspace,
+                "workspace_id",
+                None,
+            )
             _cancelled_ids = await get_run_control_store().cancel_all(
                 target_session_id,
+                workspace_id=workspace_id,
             )
             bg_cancelled = len(_cancelled_ids)
         except Exception:  # noqa: BLE001

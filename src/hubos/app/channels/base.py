@@ -7,7 +7,9 @@ Base Channel: bound to AgentRequest/AgentResponse, unified by process.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+import time
 from abc import ABC
 from typing import (
     Optional,
@@ -35,6 +37,11 @@ from agentscope_runtime.engine.schemas.agent_schemas import (
 
 from .renderer import MessageRenderer, RenderStyle
 from .schema import ChannelType
+from .delivery_context import (
+    DeliveryContext,
+    reset_current_delivery_context,
+    set_current_delivery_context,
+)
 from ...config.utils import load_config
 
 # Optional callback to enqueue payload (set by manager)
@@ -76,6 +83,13 @@ class BaseChannel(ABC):
 
     # If True, manager creates a queue and consumer loop for this channel.
     uses_manager_queue: bool = True
+
+    # Long external-IM runs need both user-visible progress and TaskTracker
+    # heartbeats while the model/tool loop is active but emits no SSE events.
+    _PROGRESS_CHANNELS = frozenset({"feishu", "weixin", "wecom"})
+    _PROGRESS_HEARTBEAT_SECONDS = 30.0
+    _PROGRESS_INITIAL_SECONDS = 30.0
+    _PROGRESS_INTERVAL_SECONDS = 120.0
 
     def __init__(
         self,
@@ -371,6 +385,39 @@ class BaseChannel(ABC):
             )
             return "New Chat"
 
+    async def _resolve_owner_workspace(
+        self,
+        request: "AgentRequest",
+        payload: Any,
+    ):
+        """Resolve the workspace that owns this request.
+
+        For single-user / console scenarios, returns self._workspace unchanged.
+        For Feishu multi-user, the gateway installs a resolver callback
+        on the channel so the correct per-user workspace is used.
+
+        Returns the workspace to use, or self._workspace as fallback.
+        """
+        # Check if a gateway has installed a workspace resolver
+        resolver = getattr(self, "_owner_workspace_resolver", None)
+        if resolver is not None:
+            try:
+                ws = await resolver(request, payload)
+                if ws is not None:
+                    return ws
+            except Exception:  # noqa: BLE001
+                logger.debug("owner workspace resolver failed, using default")
+
+        # Check if request carries an explicit workspace_id
+        ws_id = getattr(request, "_hubos_workspace_id", None)
+        if ws_id is not None:
+            manager = getattr(self._workspace, "_manager", None)
+            if manager is not None:
+                ws = manager.agents.get(ws_id)
+                if ws is not None:
+                    return ws
+        return self._workspace
+
     async def _consume_with_tracker(
         self,
         request: "AgentRequest",
@@ -386,20 +433,30 @@ class BaseChannel(ABC):
             request: AgentRequest
             payload: Original payload
         """
+        # Resolve the owner workspace for this request.
+        # Multi-user channels (Feishu) may route to a per-user workspace.
+        owner_ws = await self._resolve_owner_workspace(request, payload)
+
         session_id = getattr(request, "session_id", "") or ""
         user_id = getattr(request, "user_id", "") or ""
         channel_id = getattr(request, "channel", self.channel)
 
-        chat = await self._workspace.chat_manager.get_or_create_chat(
+        chat = await owner_ws.chat_manager.get_or_create_chat(
             session_id,
             user_id,
             channel_id,
             name=self._extract_chat_name(payload),
         )
 
+        ws_id = getattr(owner_ws, "agent_id", None) or getattr(
+            owner_ws,
+            "workspace_id",
+            None,
+        )
+
         logger.info(
             f"_consume_with_tracker: chat_id={chat.id} "
-            f"session={session_id[:30]}",
+            f"session={session_id[:30]} ws={ws_id}",
         )
 
         # RunControl: generate run_id and set ContextVar BEFORE attach_or_start
@@ -422,17 +479,23 @@ class BaseChannel(ABC):
                 register_chat_cancel_handler,
             )
 
-            _tracker = self._workspace.task_tracker
-            register_chat_cancel_handler(_tracker.request_stop)
+            _tracker = owner_ws.task_tracker
             _chat_run_id = await get_run_control_store().register(
                 RunEntry(
                     run_id="",
                     run_type=RunType.CHAT,
                     session_id=session_id,
                     chat_id=chat.id,
+                    workspace_id=ws_id,
                     guided_from_run_id=_guided_from,
                     guidance_text=_guidance_text,
                 ),
+            )
+            register_chat_cancel_handler(
+                _tracker.request_stop,
+                workspace_id=ws_id,
+                chat_id=chat.id,
+                run_id=_chat_run_id,
             )
             set_current_run_id(_chat_run_id)
         except Exception:  # noqa: BLE001
@@ -441,14 +504,26 @@ class BaseChannel(ABC):
                 session_id[:30],
             )
 
-        queue, is_new = await self._workspace.task_tracker.attach_or_start(
+        async def _stream_for_tracked_run(
+            tracked_payload: Any,
+        ) -> AsyncGenerator[str, None]:
+            async for sse in self._stream_with_tracker(
+                tracked_payload,
+                task_tracker=owner_ws.task_tracker,
+                run_key=chat.id,
+                workspace_id=ws_id,
+            ):
+                yield sse
+
+        queue, is_new = await owner_ws.task_tracker.attach_or_start(
             chat.id,
             payload,
-            self._stream_with_tracker,
+            _stream_for_tracked_run,
         )
 
-        # If attach_or_start returned is_new=False (reconnect), the run_id we
-        # just registered is stale — clean it up.
+        # If attach_or_start returned is_new=False (existing run), the run_id we
+        # just registered is stale — clean it up.  We still drain the attached
+        # queue below so the producer can complete cleanly.
         if not is_new and _chat_run_id:
             try:
                 from ..run_control import (
@@ -464,64 +539,104 @@ class BaseChannel(ABC):
                     "RunControl unregister failed for session=%s",
                     session_id[:30],
                 )
-            try:
-                async for _ in self._workspace.task_tracker.stream_from_queue(
+        if not is_new:
+            logger.warning(
+                f"Attached to existing task: "
+                f"chat_id={chat.id} session={session_id[:30]}. "
+                f"This should be rare with UnifiedQueueManager.",
+            )
+        try:
+            # Consume stream with timeout to prevent blocking forever
+            # if the producer task is hung.
+            # This is a hard safety cap, not an activity watchdog.  Long
+            # delegated jobs can be quiet while sub-agents work; short idle
+            # detection is handled by TaskTracker.watchdog + tool heartbeats.
+            _CONSUMER_TIMEOUT = 6 * 60 * 60.0  # 6 hours
+
+            async def _drain_stream() -> None:
+                async for _ in owner_ws.task_tracker.stream_from_queue(
                     queue,
                     chat.id,
                 ):
                     pass
-                # RunControl: mark chat run as done
-                if _chat_run_id:
-                    try:
-                        from ..run_control import (
-                            get_run_control_store,
-                            set_current_run_id,
-                        )
 
-                        await get_run_control_store().update_status(
-                            _chat_run_id,
-                            "done",
-                        )
-                        set_current_run_id(None)
-                    except Exception:  # noqa: BLE001
-                        logger.warning(
-                            "RunControl status update (done) failed for session=%s",
-                            session_id[:30],
-                        )
-            except asyncio.CancelledError:
-                # RunControl: mark chat run as cancelled
-                if _chat_run_id:
-                    try:
-                        from ..run_control import (
-                            get_run_control_store,
-                            set_current_run_id,
-                        )
+            await asyncio.wait_for(_drain_stream(), timeout=_CONSUMER_TIMEOUT)
+            # RunControl: mark chat run as done
+            if _chat_run_id:
+                try:
+                    from ..run_control import (
+                        get_run_control_store,
+                        set_current_run_id,
+                    )
 
-                        await get_run_control_store().update_status(
-                            _chat_run_id,
-                            "cancelled",
-                        )
-                        set_current_run_id(None)
-                    except Exception:  # noqa: BLE001
-                        logger.warning(
-                            "RunControl status update (cancelled) failed for session=%s",
-                            session_id[:30],
-                        )
-                logger.info(
-                    f"Task cancelled: chat_id={chat.id} "
-                    f"session={session_id[:30]}",
-                )
-                raise
-        else:
-            logger.warning(
-                f"Message ignored (task already running): "
-                f"chat_id={chat.id} session={session_id[:30]}. "
-                f"This should not happen with UnifiedQueueManager.",
+                    await get_run_control_store().update_status(
+                        _chat_run_id,
+                        "done",
+                    )
+                    set_current_run_id(None)
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "RunControl status update (done) failed for session=%s",
+                        session_id[:30],
+                    )
+        except asyncio.CancelledError:
+            # RunControl: mark chat run as cancelled
+            if _chat_run_id:
+                try:
+                    from ..run_control import (
+                        get_run_control_store,
+                        set_current_run_id,
+                    )
+
+                    await get_run_control_store().update_status(
+                        _chat_run_id,
+                        "cancelled",
+                    )
+                    set_current_run_id(None)
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "RunControl status update (cancelled) failed for session=%s",
+                        session_id[:30],
+                    )
+            logger.info(
+                f"Task cancelled: chat_id={chat.id} "
+                f"session={session_id[:30]}",
             )
+            raise
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Consumer timed out waiting for stream (chat_id=%s session=%s). "
+                "The producer task is likely stuck. Cancelling it.",
+                chat.id,
+                session_id[:30],
+            )
+            # Try to cancel the stuck task via TaskTracker
+            await owner_ws.task_tracker.request_stop(chat.id)
+            if _chat_run_id:
+                try:
+                    from ..run_control import (
+                        get_run_control_store,
+                        set_current_run_id,
+                    )
+
+                    await get_run_control_store().update_status(
+                        _chat_run_id,
+                        "cancelled",
+                    )
+                    set_current_run_id(None)
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "RunControl status update (timeout) failed for session=%s",
+                        session_id[:30],
+                    )
 
     async def _stream_with_tracker(
         self,
         payload: Any,
+        *,
+        task_tracker: Any | None = None,
+        run_key: str | None = None,
+        workspace_id: str | None = None,
     ) -> AsyncGenerator[str, None]:
         """Stream events through TaskTracker for task tracking.
 
@@ -559,6 +674,23 @@ class BaseChannel(ABC):
 
         last_response = None
         process_iterator = None
+        delivery_ctx = DeliveryContext(
+            channel=str(self.channel),
+            to_handle=to_handle,
+            meta=send_meta,
+            send_parts=self.send_content_parts,
+            task_tracker=task_tracker,
+            run_key=run_key,
+            workspace_id=workspace_id,
+            session_id=getattr(request, "session_id", None),
+        )
+        delivery_token = set_current_delivery_context(delivery_ctx)
+        progress_task: asyncio.Task | None = None
+        if self._long_task_progress_enabled(delivery_ctx):
+            progress_task = asyncio.create_task(
+                self._long_task_progress_loop(delivery_ctx),
+                name=f"hubos.{delivery_ctx.channel}-task-progress",
+            )
         try:
             process_iterator = self._process(request)
             async for event in process_iterator:
@@ -660,6 +792,64 @@ class BaseChannel(ABC):
                 "Internal error",
             )
             raise
+        finally:
+            if progress_task is not None and not progress_task.done():
+                progress_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await progress_task
+            reset_current_delivery_context(delivery_token)
+
+    def _long_task_progress_enabled(self, ctx: DeliveryContext) -> bool:
+        """Return whether this request should receive generic progress."""
+        channel = getattr(self.channel, "value", self.channel)
+        return (
+            str(channel).lower() in self._PROGRESS_CHANNELS
+            and ctx.task_tracker is not None
+            and bool(ctx.run_key)
+        )
+
+    @staticmethod
+    def _format_progress_elapsed(seconds: float) -> str:
+        total = max(0, int(seconds))
+        minutes, sec = divmod(total, 60)
+        if minutes <= 0:
+            return f"{sec} 秒"
+        return f"{minutes} 分 {sec} 秒"
+
+    async def _long_task_progress_loop(
+        self,
+        ctx: DeliveryContext,
+    ) -> None:
+        """Keep a quiet main-agent run alive and report sparse progress."""
+        started_at = time.monotonic()
+        try:
+            while True:
+                await asyncio.sleep(self._PROGRESS_HEARTBEAT_SECONDS)
+
+                await ctx.task_tracker.touch(
+                    ctx.run_key,
+                    reason="external channel main task still running",
+                )
+
+                now = time.monotonic()
+                elapsed = now - started_at
+                if elapsed < self._PROGRESS_INITIAL_SECONDS:
+                    continue
+
+                text = (
+                    "我还在处理这项任务。"
+                    f"已运行 {self._format_progress_elapsed(elapsed)}，"
+                    "当前仍在分析或调用工具，请稍候。"
+                )
+                await ctx.send_progress_parts(
+                    [TextContent(type=ContentType.TEXT, text=text)],
+                    min_interval_seconds=self._PROGRESS_INTERVAL_SECONDS,
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            # A progress failure must never fail the user's actual task.
+            logger.debug("long-task progress loop failed", exc_info=True)
 
     @classmethod
     def from_env(
@@ -911,7 +1101,79 @@ class BaseChannel(ABC):
             logger.debug(
                 f"base _consume_one_request: is_control={is_control}",
             )
-            if not is_control:
+            if is_control:
+                try:
+                    from ..runner.control_commands import (
+                        ControlContext,
+                        handle_control_command,
+                        is_control_command as is_runtime_control_command,
+                    )
+                except Exception:  # noqa: BLE001
+                    is_runtime_control_command = None
+
+                if (
+                    is_runtime_control_command is not None
+                    and is_runtime_control_command(query_text)
+                ):
+                    request = self._payload_to_request(payload)
+                    if isinstance(payload, dict):
+                        meta_from_payload = dict(payload.get("meta") or {})
+                        if payload.get("session_webhook"):
+                            meta_from_payload["session_webhook"] = payload[
+                                "session_webhook"
+                            ]
+                        setattr(request, "channel_meta", meta_from_payload)
+                    owner_ws = await self._resolve_owner_workspace(
+                        request,
+                        payload,
+                    )
+                    if isinstance(payload, dict):
+                        send_meta = dict(payload.get("meta") or {})
+                        if payload.get("session_webhook"):
+                            send_meta["session_webhook"] = payload[
+                                "session_webhook"
+                            ]
+                    else:
+                        send_meta = (
+                            getattr(request, "channel_meta", None) or {}
+                        )
+                    bot_prefix = getattr(self, "bot_prefix", None) or getattr(
+                        self,
+                        "_bot_prefix",
+                        "",
+                    )
+                    if bot_prefix and "bot_prefix" not in send_meta:
+                        send_meta = {**send_meta, "bot_prefix": bot_prefix}
+
+                    to_handle = self.get_to_handle_from_request(request)
+                    await self._before_consume_process(request)
+                    response_text = await handle_control_command(
+                        query_text,
+                        ControlContext(
+                            workspace=owner_ws,
+                            payload=payload,
+                            channel=self,
+                            session_id=getattr(request, "session_id", "")
+                            or "",
+                            user_id=getattr(request, "user_id", "") or "",
+                            args={},
+                        ),
+                    )
+                    await self.send_content_parts(
+                        to_handle,
+                        [
+                            TextContent(
+                                type=ContentType.TEXT,
+                                text=response_text,
+                            ),
+                        ],
+                        send_meta,
+                    )
+                    if self._on_reply_sent:
+                        args = self.get_on_reply_sent_args(request, to_handle)
+                        self._on_reply_sent(self.channel, *args)
+                    return
+            else:
                 request = self._payload_to_request(payload)
                 await self._consume_with_tracker(request, payload)
                 return
@@ -961,55 +1223,71 @@ class BaseChannel(ABC):
         Run _process and send events. Override to use channel-specific
         loop (e.g. DingTalk _process_one_request with webhook sends).
         """
+        delivery_token = set_current_delivery_context(
+            DeliveryContext(
+                channel=str(self.channel),
+                to_handle=to_handle,
+                meta=send_meta,
+                send_parts=self.send_content_parts,
+            ),
+        )
         last_response = None
         try:
-            async for event in self._process(request):
-                obj = getattr(event, "object", None)
-                status = getattr(event, "status", None)
-                if obj == "message" and status == RunStatus.Completed:
-                    await self.on_event_message_completed(
+            try:
+                async for event in self._process(request):
+                    obj = getattr(event, "object", None)
+                    status = getattr(event, "status", None)
+                    if obj == "message" and status == RunStatus.Completed:
+                        await self.on_event_message_completed(
+                            request,
+                            to_handle,
+                            event,
+                            send_meta,
+                        )
+                    elif obj == "response":
+                        last_response = event
+                        await self.on_event_response(request, event)
+                err_msg = self._get_response_error_message(last_response)
+                if err_msg:
+                    # User-initiated cancel/guidance should not show as error.
+                    if (
+                        "cancelled" in err_msg.lower()
+                        or "canceled" in err_msg.lower()
+                    ):
+                        await self.send_content_parts(
+                            to_handle,
+                            [
+                                TextContent(
+                                    type=ContentType.TEXT,
+                                    text="⏹️ 任务已终止",
+                                ),
+                            ],
+                            getattr(request, "channel_meta", None) or {},
+                        )
+                    else:
+                        await self._on_consume_error(
+                            request,
+                            to_handle,
+                            f"Error: {err_msg}",
+                        )
+                else:
+                    await self._on_process_completed(
                         request,
                         to_handle,
-                        event,
                         send_meta,
                     )
-                elif obj == "response":
-                    last_response = event
-                    await self.on_event_response(request, event)
-            err_msg = self._get_response_error_message(last_response)
-            if err_msg:
-                # User-initiated cancel/guidance should not show as error.
-                if (
-                    "cancelled" in err_msg.lower()
-                    or "canceled" in err_msg.lower()
-                ):
-                    await self.send_content_parts(
-                        to_handle,
-                        [TextContent(type=ContentType.TEXT, text="⏹️ 任务已终止")],
-                        getattr(request, "channel_meta", None) or {},
-                    )
-                else:
-                    await self._on_consume_error(
-                        request,
-                        to_handle,
-                        f"Error: {err_msg}",
-                    )
-            else:
-                await self._on_process_completed(
+                if self._on_reply_sent:
+                    args = self.get_on_reply_sent_args(request, to_handle)
+                    self._on_reply_sent(self.channel, *args)
+            except Exception:
+                logger.exception("channel consume_one failed")
+                await self._on_consume_error(
                     request,
                     to_handle,
-                    send_meta,
+                    "An error occurred while processing your request.",
                 )
-            if self._on_reply_sent:
-                args = self.get_on_reply_sent_args(request, to_handle)
-                self._on_reply_sent(self.channel, *args)
-        except Exception:
-            logger.exception("channel consume_one failed")
-            await self._on_consume_error(
-                request,
-                to_handle,
-                "An error occurred while processing your request.",
-            )
+        finally:
+            reset_current_delivery_context(delivery_token)
 
     def _get_response_error_message(self, last_response: Any) -> Optional[str]:
         """

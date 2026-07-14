@@ -328,6 +328,15 @@ class ContextCompactConfig(BaseModel):
         ),
     )
 
+    output_reserve_tokens: int = Field(
+        default=16 * 1024,
+        ge=0,
+        description=(
+            "Output tokens reserved when deciding whether context "
+            "compaction is required"
+        ),
+    )
+
     compact_with_thinking_block: bool = Field(
         default=True,
         description="Whether to include thinking blocks when compacting",
@@ -1268,11 +1277,18 @@ def load_agent_config(agent_id: str) -> AgentProfileConfig:
 
     config = load_config()
 
-    if agent_id not in config.agents.profiles:
-        raise ValueError(f"Agent '{agent_id}' not found in config")
+    workspace_dir: Path
+    if agent_id in config.agents.profiles:
+        agent_ref = config.agents.profiles[agent_id]
+        workspace_dir = Path(agent_ref.workspace_dir).expanduser()
+    else:
+        # Support workspace-scoped agents that are materialized on disk
+        # (for example per-user Feishu workspaces) without requiring every
+        # runtime workspace to be registered in the root config.json.
+        workspace_dir = Path(WORKING_DIR) / "workspaces" / agent_id
+        if not workspace_dir.exists():
+            raise ValueError(f"Agent '{agent_id}' not found in config")
 
-    agent_ref = config.agents.profiles[agent_id]
-    workspace_dir = Path(agent_ref.workspace_dir).expanduser()
     agent_config_path = workspace_dir / "agent.json"
 
     if not agent_config_path.exists():
@@ -1356,11 +1372,14 @@ def save_agent_config(
 
     config = load_config()
 
-    if agent_id not in config.agents.profiles:
-        raise ValueError(f"Agent '{agent_id}' not found in config")
+    if agent_id in config.agents.profiles:
+        agent_ref = config.agents.profiles[agent_id]
+        workspace_dir = Path(agent_ref.workspace_dir).expanduser()
+    else:
+        workspace_dir = Path(WORKING_DIR) / "workspaces" / agent_id
+        if not workspace_dir.exists():
+            raise ValueError(f"Agent '{agent_id}' not found in config")
 
-    agent_ref = config.agents.profiles[agent_id]
-    workspace_dir = Path(agent_ref.workspace_dir).expanduser()
     workspace_dir.mkdir(parents=True, exist_ok=True)
 
     agent_config_path = workspace_dir / "agent.json"

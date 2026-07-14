@@ -27,6 +27,17 @@ from hubos.core.memory.local_store import (
     LocalMemoryStore,
     get_memory_root,
 )
+from hubos.core.memory.session_migration import (
+    build_extractive_summary,
+    compact_memory_state_locally,
+    migrate_all_sessions,
+)
+from hubos.core.memory.workspace_ledger import (
+    get_workspace_memory_store,
+    ledger_session_key,
+    persist_memory_to_ledger,
+    workspace_memory_root,
+)
 
 __all__ = [
     "MemoryStore",
@@ -35,4 +46,11 @@ __all__ = [
     "LocalMemoryStore",
     "DailySummaryGenerator",
     "get_memory_root",
+    "build_extractive_summary",
+    "compact_memory_state_locally",
+    "migrate_all_sessions",
+    "get_workspace_memory_store",
+    "ledger_session_key",
+    "persist_memory_to_ledger",
+    "workspace_memory_root",
 ]

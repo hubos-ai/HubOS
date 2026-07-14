@@ -64,6 +64,10 @@ class ILinkClient:
         """Create the underlying httpx client."""
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(_GETUPDATES_TIMEOUT),
+            # Weixin long-polling should not silently inherit desktop/VPN
+            # proxy env vars. Proxy traversal here has been a recurrent source
+            # of poll failures and message drops.
+            trust_env=False,
         )
 
     async def stop(self) -> None:

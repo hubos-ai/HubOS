@@ -540,6 +540,10 @@ class ChannelManager:
         self._workspace = workspace
         for ch in self.channels:
             ch.set_workspace(workspace, self._command_registry)
+            # Some owner-routed channels (Feishu multi-user) use a per-user
+            # workspace with no ChannelManager of its own, but still need the
+            # shared channel queue for /stop queue cleanup.
+            ch._channel_manager = self  # pylint: disable=protected-access
         logger.info(
             f"Injected workspace into {len(self.channels)} channels",
         )

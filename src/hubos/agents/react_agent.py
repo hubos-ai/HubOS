@@ -27,6 +27,11 @@ from .prompt import (
     build_system_prompt_from_working_dir,
     get_active_model_supports_multimodal,
 )
+from .dispatcher_policy import (
+    DISPATCHER_POLICY_PROMPT,
+    build_subagent_execution_policy,
+    should_inject_dispatcher_policy,
+)
 from .skills_manager import (
     apply_skill_config_env_overrides,
     ensure_skills_initialized,
@@ -407,6 +412,20 @@ class HubOSAgent(ToolGuardMixin, ReActAgent):
         multimodal_hint = build_multimodal_hint()
         if multimodal_hint:
             sys_prompt = sys_prompt + "\n\n" + multimodal_hint
+
+        if should_inject_dispatcher_policy(
+            agent_id=agent_id,
+            workspace_dir=self._workspace_dir,
+            request_context=self._request_context,
+        ):
+            sys_prompt = sys_prompt + "\n\n" + DISPATCHER_POLICY_PROMPT
+
+        subagent_policy = build_subagent_execution_policy(
+            agent_id=agent_id,
+            request_context=self._request_context,
+        )
+        if subagent_policy:
+            sys_prompt = sys_prompt + "\n\n" + subagent_policy
 
         if self._env_context is not None:
             sys_prompt = sys_prompt + "\n\n" + self._env_context

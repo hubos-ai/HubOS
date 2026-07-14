@@ -26,6 +26,10 @@ from agentscope.message import TextBlock
 from agentscope.tool import ToolResponse
 
 from hubos.core.memory import LocalMemoryStore
+from hubos.core.memory.workspace_ledger import (
+    get_workspace_memory_store,
+    ledger_session_key,
+)
 
 from .runtime_delegate import _current_runtime_ctx
 
@@ -47,12 +51,26 @@ def _ok(text: str) -> ToolResponse:
 
 
 _store_singleton: LocalMemoryStore | None = None
+_workspace_stores: dict[str, LocalMemoryStore] = {}
 
 
 def _get_store() -> LocalMemoryStore:
-    """Lazy singleton; respects ``HUBOS_MEMORY_ROOT`` env var via the store
-    constructor."""
+    """Resolve a hard-isolated workspace/user store, with legacy fallback."""
     global _store_singleton
+    ctx = _current_runtime_ctx()
+    workspace_dir = ctx.get("workspace_dir") or ""
+    user_id = ctx.get("user_id") or ""
+    if workspace_dir:
+        key = f"{workspace_dir}\0{user_id}"
+        store = _workspace_stores.get(key)
+        if store is None:
+            store = get_workspace_memory_store(workspace_dir, user_id)
+            _workspace_stores[key] = store
+            logger.info(
+                "memory_recall: workspace LocalMemoryStore initialized at %s",
+                store.root,
+            )
+        return store
     if _store_singleton is None:
         _store_singleton = LocalMemoryStore()
         logger.info(
@@ -238,7 +256,10 @@ async def recall_session(
         )
 
     try:
-        loaded = store.load_session(session_id.strip())
+        raw_session_id = session_id.strip()
+        loaded = store.load_session(ledger_session_key(raw_session_id))
+        if loaded is None:
+            loaded = store.load_session(raw_session_id)
     except Exception as e:  # noqa: BLE001
         logger.exception("recall_session: load_session failed")
         return _err(

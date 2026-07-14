@@ -8,14 +8,77 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from .schemas_v4 import WorkflowCard
 from .store_v4 import CardStore
 
 logger = logging.getLogger(__name__)
+
+_MAX_CLASSIFIER_CANDIDATES = 24
+_CLASSIFIER_PRIVATE_PATTERNS = (
+    re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I),
+    re.compile(r"\b(?:ou|oc|om|on|cli)_[A-Za-z0-9_-]{12,}\b"),
+    re.compile(
+        r"\b(?:api[_-]?key|token|password|passwd|cookie|secret)\b\s*[:=]\s*[^\s,;]+",
+        re.I,
+    ),
+    re.compile(r"/(?:Users|home)/[^\s'\"`]+"),
+)
+
+
+def _redact_classifier_text(value: str) -> str:
+    clean = value
+    for pattern in _CLASSIFIER_PRIVATE_PATTERNS:
+        clean = pattern.sub("[private]", clean)
+    return clean
+
+
+def _search_terms(value: str) -> set[str]:
+    normalized = value.lower()
+    terms = set(re.findall(r"[a-z0-9_.+-]{2,}", normalized))
+    cjk_runs = re.findall(r"[\u3400-\u9fff]+", normalized)
+    for run in cjk_runs:
+        if len(run) <= 2:
+            terms.add(run)
+        else:
+            terms.update(run[i : i + 2] for i in range(len(run) - 1))
+    return terms
+
+
+def _shortlist_cards(
+    cards: list[dict],
+    user_message: str,
+    limit: int = _MAX_CLASSIFIER_CANDIDATES,
+) -> list[dict]:
+    """Cheap local prefilter so the classifier never receives the full store."""
+    if len(cards) <= limit:
+        return cards
+    query_terms = _search_terms(user_message)
+    ranked: list[tuple[float, int, dict]] = []
+    for index, card in enumerate(cards):
+        haystack = " ".join(
+            [
+                str(card.get("task_type") or ""),
+                str(card.get("description") or ""),
+                " ".join(str(v) for v in card.get("entities") or []),
+            ],
+        )
+        card_terms = _search_terms(haystack)
+        overlap = len(query_terms & card_terms)
+        direct_bonus = 0.0
+        task_type = str(card.get("task_type") or "").lower()
+        if task_type and task_type in user_message.lower():
+            direct_bonus = 8.0
+        popularity = min(int(card.get("executions") or 0), 100) / 1000
+        ranked.append(
+            (overlap * 2.0 + direct_bonus + popularity, -index, card),
+        )
+    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return [item[2] for item in ranked[:limit]]
 
 
 @dataclass
@@ -44,14 +107,18 @@ class CardRetriever:
 
         Returns MatchResult with card, status, task_type, elapsed_ms.
         """
-        cards_index = self._store.list_index()
+        cards_index = _shortlist_cards(
+            self._store.list_index(),
+            user_message,
+        )
 
         if not cards_index:
             return MatchResult(status="no_match")
 
         # Build the classification prompt
         card_list = "\n".join(
-            f"  {i + 1}. [{c['task_type']}] {c['description']}"
+            f"  {i + 1}. [{_redact_classifier_text(str(c['task_type']))}] "
+            f"{_redact_classifier_text(str(c['description']))}"
             for i, c in enumerate(cards_index)
         )
 

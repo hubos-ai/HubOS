@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 import uuid
 import weakref
 from dataclasses import dataclass, field
@@ -27,6 +28,9 @@ class _RunState:
     queues: list[asyncio.Queue] = field(default_factory=list)
     buffer: list[str] = field(default_factory=list)
     stream_id: str = ""
+    watchdog: asyncio.Task | None = None
+    started_at: float = 0.0
+    last_activity_at: float = 0.0
 
 
 class TaskTracker:
@@ -36,6 +40,11 @@ class TaskTracker:
     Subscribers use unbounded per-connection queues; disconnect removes them
     via :meth:`detach_subscriber`.
     """
+
+    # Maximum idle time for a single run before forced cancellation.
+    # Active long-running streams should not be killed just because they
+    # have been running for a long time.
+    _MAX_RUN_SECONDS: float = 600.0  # 10 minutes of inactivity
 
     def __init__(self) -> None:
         self._lock = asyncio.Lock()
@@ -141,6 +150,26 @@ class TaskTracker:
             state.task.cancel()
             return True
 
+    async def touch(self, run_key: str, reason: str = "") -> bool:
+        """Mark an active run as alive without emitting a user-visible event.
+
+        Long-running tools may be doing useful work while the outer chat stream
+        is silent.  Refreshing ``last_activity_at`` lets the watchdog keep
+        protecting truly stuck runs without cancelling active delegated work.
+        """
+        async with self._lock:
+            state = self._runs.get(run_key)
+            if state is None or state.task.done():
+                return False
+            state.last_activity_at = time.monotonic()
+        if reason:
+            logger.debug(
+                "TaskTracker touch: run_key=%s reason=%s",
+                run_key,
+                reason,
+            )
+        return True
+
     async def attach_or_start(
         self,
         run_key: str,
@@ -216,6 +245,7 @@ class TaskTracker:
                     if tracker is not None:
                         async with tracker.lock:
                             run.buffer.append(start_evt)
+                            run.last_activity_at = time.monotonic()
                             for q in run.queues:
                                 q.put_nowait(start_evt)
 
@@ -225,6 +255,7 @@ class TaskTracker:
                             return
                         async with tracker.lock:
                             run.buffer.append(sse)
+                            run.last_activity_at = time.monotonic()
                             # Cap buffer to bound memory for long streams.
                             if len(run.buffer) > 200:
                                 run.buffer = run.buffer[-200:]
@@ -260,8 +291,41 @@ class TaskTracker:
                                     run_key,
                                     None,
                                 )
+                        # Cancel the watchdog since producer finished normally
+                        if run.watchdog and not run.watchdog.done():
+                            run.watchdog.cancel()
 
             run.task = asyncio.create_task(_producer())
+            run.started_at = time.monotonic()
+            run.last_activity_at = run.started_at
+
+            # ── Watchdog: cancel the producer if it goes idle too long ──
+            async def _watchdog() -> None:
+                try:
+                    while True:
+                        await asyncio.sleep(min(5.0, self._MAX_RUN_SECONDS))
+                        if run.task.done():
+                            return
+                        idle_for = time.monotonic() - max(
+                            run.last_activity_at,
+                            run.started_at,
+                        )
+                        if idle_for <= self._MAX_RUN_SECONDS:
+                            continue
+                        logger.warning(
+                            "TaskTracker watchdog: run_key=%s idle for %.0fs "
+                            "(threshold %.0fs), cancelling",
+                            run_key,
+                            idle_for,
+                            self._MAX_RUN_SECONDS,
+                        )
+                        run.task.cancel()
+                        return
+                except asyncio.CancelledError:
+                    return  # producer finished normally
+
+            run.watchdog = asyncio.create_task(_watchdog())
+
             return my_queue, True
 
     async def stream_from_queue(
@@ -285,3 +349,57 @@ class TaskTracker:
                     break
         finally:
             await self.detach_subscriber(run_key, queue)
+
+    # ── Stale task management ──────────────────────────────────────
+
+    async def cancel_stale_tasks(
+        self,
+        max_age_seconds: float | None = None,
+    ) -> list[str]:
+        """Cancel runs that have been running longer than *max_age_seconds*.
+
+        Returns list of cancelled run_keys.
+        """
+        threshold = max_age_seconds or self._MAX_RUN_SECONDS
+        now = time.monotonic()
+        cancelled: list[str] = []
+
+        async with self._lock:
+            stale_keys = [
+                k
+                for k, s in self._runs.items()
+                if not s.task.done()
+                and s.started_at > 0
+                and (now - s.started_at) > threshold
+            ]
+
+        for key in stale_keys:
+            logger.warning(
+                "TaskTracker.cancel_stale_tasks: cancelling stale run_key=%s "
+                "(age=%.0fs > threshold=%.0fs)",
+                key,
+                now - self._runs.get(key, _RunState(task=None)).started_at,  # type: ignore[union-attr]
+                threshold,
+            )
+            cancelled.append(key)
+            await self.request_stop(key)
+
+        return cancelled
+
+    async def get_active_task_info(self) -> list[dict[str, Any]]:
+        """Return info about all active (non-done) tasks for diagnostics."""
+        now = time.monotonic()
+        async with self._lock:
+            return [
+                {
+                    "run_key": k,
+                    "done": s.task.done(),
+                    "age_seconds": round(now - s.started_at, 1)
+                    if s.started_at
+                    else -1,
+                    "stream_id": s.stream_id,
+                    "queue_count": len(s.queues),
+                }
+                for k, s in self._runs.items()
+                if not s.task.done()
+            ]

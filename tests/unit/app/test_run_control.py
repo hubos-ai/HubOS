@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import asyncio
 import time
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from hubos.app.feishu_gateway import FeishuGateway
 from hubos.app.run_control import (
     RunControlStore,
     RunEntry,
@@ -18,7 +20,9 @@ from hubos.app.run_control import (
     get_current_run_id,
     get_run_control_store,
     register_chat_cancel_handler,
+    unregister_chat_cancel,
     set_current_run_id,
+    _CHAT_CANCEL_REGISTRY,
 )
 
 
@@ -34,6 +38,7 @@ def _reset_store_and_ctx():
     old = _mod._store
     _mod._store = None
     _mod._CHAT_CANCEL_HANDLER = None
+    _mod._CHAT_CANCEL_REGISTRY.clear()
     _current_run_id_var.set(None)
     yield
     _mod._store = old
@@ -981,3 +986,437 @@ async def test_find_controllable_includes_mixed_statuses():
     assert target is not None
     # Most recent root — the pending one was created after running
     assert target.run_id == pending_rid
+
+
+# ---------------------------------------------------------------------------
+# Multi-user workspace isolation tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_per_chat_cancel_registry_routes_correctly():
+    """Two chat runs from different workspaces register separate handlers.
+    Cancelling one calls the correct handler only."""
+    store = RunControlStore()
+
+    ws1_handler = AsyncMock(return_value=True)
+    ws2_handler = AsyncMock(return_value=True)
+
+    # Register two chat runs with different workspace ownership
+    register_chat_cancel_handler(
+        ws1_handler,
+        workspace_id="ws-1",
+        chat_id="chat-A",
+    )
+    rid_a = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="chat-A",
+            session_id="s-feishu-A",
+            workspace_id="ws-1",
+        ),
+    )
+
+    register_chat_cancel_handler(
+        ws2_handler,
+        workspace_id="ws-2",
+        chat_id="chat-B",
+    )
+    rid_b = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="chat-B",
+            session_id="s-feishu-B",
+            workspace_id="ws-2",
+        ),
+    )
+
+    # Cancel only chat-A
+    assert await store.cancel_run(rid_a) is True
+    ws1_handler.assert_called_once_with("chat-A")
+    ws2_handler.assert_not_called()
+
+    # Verify statuses
+    assert (await store.get_run(rid_a)).status == "cancelled"
+    assert (await store.get_run(rid_b)).status == "running"
+
+
+@pytest.mark.asyncio
+async def test_concurrent_cancel_no_crosstalk():
+    """Two Feishu users cancelling simultaneously don't interfere."""
+    store = RunControlStore()
+
+    handler_a = AsyncMock(return_value=True)
+    handler_b = AsyncMock(return_value=True)
+
+    register_chat_cancel_handler(handler_a, workspace_id="ws-A", chat_id="cA")
+    rid_a = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="cA",
+            session_id="sA",
+            workspace_id="ws-A",
+        ),
+    )
+    register_chat_cancel_handler(handler_b, workspace_id="ws-B", chat_id="cB")
+    rid_b = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="cB",
+            session_id="sB",
+            workspace_id="ws-B",
+        ),
+    )
+
+    # Cancel both concurrently
+    results = await asyncio.gather(
+        store.cancel_run(rid_a),
+        store.cancel_run(rid_b),
+    )
+    assert all(results)
+
+    handler_a.assert_called_once_with("cA")
+    handler_b.assert_called_once_with("cB")
+
+
+@pytest.mark.asyncio
+async def test_cancel_all_can_be_scoped_by_workspace():
+    """Same session id in two workspaces should not cross-cancel."""
+    store = RunControlStore()
+    handler_a = AsyncMock(return_value=True)
+    handler_b = AsyncMock(return_value=True)
+
+    register_chat_cancel_handler(
+        handler_a,
+        workspace_id="ws-A",
+        chat_id="same-session-chat-A",
+    )
+    rid_a = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="same-session-chat-A",
+            session_id="shared-session",
+            workspace_id="ws-A",
+        ),
+    )
+    register_chat_cancel_handler(
+        handler_b,
+        workspace_id="ws-B",
+        chat_id="same-session-chat-B",
+    )
+    rid_b = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="same-session-chat-B",
+            session_id="shared-session",
+            workspace_id="ws-B",
+        ),
+    )
+
+    cancelled = await store.cancel_all("shared-session", workspace_id="ws-A")
+
+    assert cancelled == [rid_a]
+    handler_a.assert_called_once_with("same-session-chat-A")
+    handler_b.assert_not_called()
+    assert (await store.get_run(rid_a)).status == "cancelled"
+    assert (await store.get_run(rid_b)).status == "running"
+
+
+@pytest.mark.asyncio
+async def test_unregister_chat_cancel_cleans_up():
+    """unregister_chat_cancel removes the per-chat entry."""
+    handler = AsyncMock(return_value=True)
+    register_chat_cancel_handler(
+        handler,
+        workspace_id="ws-1",
+        chat_id="chat-X",
+        run_id="run-X",
+    )
+
+    assert "chat-X" in _CHAT_CANCEL_REGISTRY
+    unregister_chat_cancel("chat-X", "run-X")
+    assert "chat-X" not in _CHAT_CANCEL_REGISTRY
+
+
+@pytest.mark.asyncio
+async def test_legacy_handler_fallback():
+    """Without per-chat registry, the global handler is still used."""
+    store = RunControlStore()
+    global_handler = AsyncMock(return_value=True)
+    register_chat_cancel_handler(global_handler)
+
+    rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="legacy-chat",
+            session_id="s-console",
+        ),
+    )
+
+    assert await store.cancel_run(rid) is True
+    global_handler.assert_called_once_with("legacy-chat")
+
+
+@pytest.mark.asyncio
+async def test_run_entry_workspace_id_serialised():
+    """workspace_id is preserved in serialisation."""
+    entry = RunEntry(
+        run_id="r1",
+        run_type=RunType.CHAT,
+        session_id="s1",
+        chat_id="c1",
+        workspace_id="feishu_abc123",
+    )
+    data = _serialise_entry(entry)
+    assert data["workspace_id"] == "feishu_abc123"
+
+
+@pytest.mark.asyncio
+async def test_run_entry_without_workspace_id():
+    """workspace_id=None is fine for single-user/console."""
+    entry = RunEntry(
+        run_id="r1",
+        run_type=RunType.CHAT,
+        session_id="s1",
+        chat_id="c1",
+        workspace_id=None,
+    )
+    data = _serialise_entry(entry)
+    assert data["workspace_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_cancel_cleans_up_per_chat_registry():
+    """After cancel_run succeeds, the per-chat registry entry is removed."""
+    store = RunControlStore()
+    handler = AsyncMock(return_value=True)
+    rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="chat-Y",
+            session_id="s1",
+            workspace_id="ws-1",
+        ),
+    )
+    register_chat_cancel_handler(
+        handler,
+        workspace_id="ws-1",
+        chat_id="chat-Y",
+        run_id=rid,
+    )
+
+    assert "chat-Y" in _CHAT_CANCEL_REGISTRY
+    await store.cancel_run(rid)
+    assert "chat-Y" not in _CHAT_CANCEL_REGISTRY
+
+
+# ---------------------------------------------------------------------------
+# Fix 1: Feishu resolver uses meta.feishu_sender_id, not display sender
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_resolver_uses_feishu_sender_id_not_display():
+    """Gateway resolver must use meta.feishu_sender_id, not display ids."""
+    gateway = FeishuGateway(SimpleNamespace(agents={}))
+    expected_ws = object()
+    gateway.mam.agents["feishu_ou_real_open_id_12345"] = expected_ws
+
+    payload = {
+        "channel_id": "feishu",
+        "sender_id": "Alice#abc",  # display name, NOT open_id
+        "user_id": "Alice#abc",  # display name, NOT open_id
+        "content_parts": [],
+        "meta": {
+            "feishu_sender_id": "ou_real_open_id_12345",
+        },
+    }
+    request = SimpleNamespace(user_id="wrong-fallback-user")
+
+    resolved = await gateway._resolve_workspace_for_request(request, payload)
+
+    assert resolved is expected_ws
+
+
+# ---------------------------------------------------------------------------
+# Fix 2: Registry cleaned on normal done / failed / unregister
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_registry_cleaned_on_normal_done():
+    """When a chat run completes normally (update_status "done"),
+    the per-chat registry entry is removed."""
+    store = RunControlStore()
+    handler = AsyncMock(return_value=True)
+    rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="chat-done",
+            session_id="s1",
+            workspace_id="ws-1",
+        ),
+    )
+    register_chat_cancel_handler(
+        handler,
+        workspace_id="ws-1",
+        chat_id="chat-done",
+        run_id=rid,
+    )
+
+    assert "chat-done" in _CHAT_CANCEL_REGISTRY
+    await store.update_status(rid, "done")
+    assert "chat-done" not in _CHAT_CANCEL_REGISTRY
+
+
+@pytest.mark.asyncio
+async def test_registry_cleaned_on_failed():
+    """When a chat run fails (update_status "failed"),
+    the per-chat registry entry is removed."""
+    store = RunControlStore()
+    handler = AsyncMock(return_value=True)
+    rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="chat-fail",
+            session_id="s1",
+            workspace_id="ws-1",
+        ),
+    )
+    register_chat_cancel_handler(
+        handler,
+        workspace_id="ws-1",
+        chat_id="chat-fail",
+        run_id=rid,
+    )
+
+    assert "chat-fail" in _CHAT_CANCEL_REGISTRY
+    await store.update_status(rid, "failed")
+    assert "chat-fail" not in _CHAT_CANCEL_REGISTRY
+
+
+@pytest.mark.asyncio
+async def test_registry_cleaned_on_unregister():
+    """When a chat run is unregistered, the per-chat registry entry is removed."""
+    store = RunControlStore()
+    handler = AsyncMock(return_value=True)
+    rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="chat-unreg",
+            session_id="s1",
+            workspace_id="ws-1",
+        ),
+    )
+    register_chat_cancel_handler(
+        handler,
+        workspace_id="ws-1",
+        chat_id="chat-unreg",
+        run_id=rid,
+    )
+
+    assert "chat-unreg" in _CHAT_CANCEL_REGISTRY
+    await store.unregister(rid)
+    assert "chat-unreg" not in _CHAT_CANCEL_REGISTRY
+
+
+# ---------------------------------------------------------------------------
+# Fix 3: Workspace reload — old handler not in registry
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_old_handler_replaced_on_reload():
+    """When a workspace reloads, registering a new handler for the same
+    chat_id replaces the old one in the registry.  Old handler is never
+    called."""
+    store = RunControlStore()
+
+    old_handler = AsyncMock(return_value=True)
+    new_handler = AsyncMock(return_value=True)
+
+    # Simulate first registration (old workspace)
+    rid = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="chat-X",
+            session_id="s1",
+            workspace_id="ws-1",
+        ),
+    )
+    register_chat_cancel_handler(
+        old_handler,
+        workspace_id="ws-1",
+        chat_id="chat-X",
+        run_id=rid,
+    )
+
+    # Simulate workspace reload — old run completes
+    await store.update_status(rid, "done")
+    assert "chat-X" not in _CHAT_CANCEL_REGISTRY
+
+    # New workspace registers a new handler for the same chat_id
+    rid2 = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="chat-X",
+            session_id="s1",
+            workspace_id="ws-1-new",
+        ),
+    )
+    register_chat_cancel_handler(
+        new_handler,
+        workspace_id="ws-1-new",
+        chat_id="chat-X",
+        run_id=rid2,
+    )
+
+    # Cancel should call the NEW handler, never the old
+    await store.cancel_run(rid2)
+    new_handler.assert_called_once_with("chat-X")
+    old_handler.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_old_run_terminal_status_does_not_remove_new_chat_handler():
+    """A stale run entering terminal state must not delete a newer handler."""
+    store = RunControlStore()
+    old_handler = AsyncMock(return_value=True)
+    new_handler = AsyncMock(return_value=True)
+
+    rid_old = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="chat-race",
+            session_id="s1",
+            workspace_id="ws-old",
+        ),
+    )
+    register_chat_cancel_handler(
+        old_handler,
+        workspace_id="ws-old",
+        chat_id="chat-race",
+        run_id=rid_old,
+    )
+
+    rid_new = await store.register(
+        _make_entry(
+            run_type=RunType.CHAT,
+            chat_id="chat-race",
+            session_id="s1",
+            workspace_id="ws-new",
+        ),
+    )
+    register_chat_cancel_handler(
+        new_handler,
+        workspace_id="ws-new",
+        chat_id="chat-race",
+        run_id=rid_new,
+    )
+
+    await store.update_status(rid_old, "done")
+
+    assert "chat-race" in _CHAT_CANCEL_REGISTRY
+    await store.cancel_run(rid_new)
+    new_handler.assert_called_once_with("chat-race")
+    old_handler.assert_not_called()

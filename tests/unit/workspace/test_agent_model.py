@@ -293,3 +293,67 @@ def test_agent_running_config_rejects_backoff_cap_below_base():
             llm_backoff_base=2.0,
             llm_backoff_cap=1.0,
         )
+
+
+def test_load_agent_config_supports_workspace_only_agent(
+    tmp_path,
+    monkeypatch,
+):
+    """Workspace-local agents should load without root profile registration."""
+    import json
+
+    monkeypatch.setattr("hubos.config.utils.WORKING_DIR", tmp_path)
+    monkeypatch.setattr("hubos.config.config.WORKING_DIR", tmp_path)
+
+    workspace_dir = tmp_path / "workspaces" / "feishu_ou_123"
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+    (workspace_dir / "agent.json").write_text(
+        json.dumps(
+            AgentProfileConfig(
+                id="feishu_ou_123",
+                name="Feishu User",
+                description="Workspace-local agent config",
+            ).model_dump(exclude_none=True),
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = load_agent_config("feishu_ou_123")
+
+    assert loaded.id == "feishu_ou_123"
+    assert loaded.name == "Feishu User"
+
+
+def test_save_agent_config_supports_workspace_only_agent(
+    tmp_path,
+    monkeypatch,
+):
+    """Workspace-local agents should save back into their local agent.json."""
+    import json
+
+    monkeypatch.setattr("hubos.config.utils.WORKING_DIR", tmp_path)
+    monkeypatch.setattr("hubos.config.config.WORKING_DIR", tmp_path)
+
+    workspace_dir = tmp_path / "workspaces" / "feishu_ou_456"
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+    agent_json = workspace_dir / "agent.json"
+    agent_json.write_text(
+        json.dumps(
+            AgentProfileConfig(
+                id="feishu_ou_456",
+                name="Feishu User",
+            ).model_dump(exclude_none=True),
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    config = load_agent_config("feishu_ou_456")
+    config.description = "Updated description"
+    save_agent_config("feishu_ou_456", config)
+
+    reloaded = load_agent_config("feishu_ou_456")
+    assert reloaded.description == "Updated description"

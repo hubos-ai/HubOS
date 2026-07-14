@@ -56,6 +56,11 @@ class RunEntry:
     workflow_id: Optional[str] = None
     chat_id: Optional[str] = None
 
+    # Owner workspace for multi-user isolation.
+    # When set, cancel_run routes to this workspace's task_tracker
+    # instead of using the global singleton handler.
+    workspace_id: Optional[str] = None
+
     # Parent-child run tree.
     parent_run_id: Optional[str] = None
     child_run_ids: List[str] = field(default_factory=list)
@@ -93,29 +98,87 @@ def get_current_run_id() -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
-# Chat cancel handler registry
+# Chat cancel handler registry — owner-aware
 # ---------------------------------------------------------------------------
-# RunControlStore doesn't own the TaskTracker, so chat cancel is done via
-# a registered callback.  The /console router registers the handler at
-# startup.
+# Each chat_id maps to (workspace_id, run_id, cancel_fn). When cancel_run is called,
+# we look up the chat_id in the registry to find the correct workspace's
+# TaskTracker.request_stop.  Fallback to legacy global handler for backward
+# compatibility.
 
+_ChatCancelEntry = (
+    tuple  # (workspace_id: Optional[str], run_id: str, handler: Callable)
+)
+
+# Per-chat cancel registry: chat_id → (workspace_id, handler)
+_CHAT_CANCEL_REGISTRY: Dict[str, _ChatCancelEntry] = {}
+
+# Legacy global handler (kept for backward compat with console single-user)
 _CHAT_CANCEL_HANDLER: Optional[Callable[[str], Awaitable[bool]]] = None
 
 
 def register_chat_cancel_handler(
     handler: Callable[[str], Awaitable[bool]],
+    workspace_id: Optional[str] = None,
+    chat_id: Optional[str] = None,
+    run_id: Optional[str] = None,
 ) -> None:
     """Register the async callback used to cancel a chat run.
+
+    In multi-user mode, callers should pass workspace_id and chat_id so
+    cancel_run routes to the correct workspace's TaskTracker.
+
+    In single-user / console mode, omitting workspace_id registers the
+    legacy global handler (backward compatible).
 
     ``handler(chat_id) -> bool`` should call ``TaskTracker.request_stop``
     and return whether it succeeded.
     """
     global _CHAT_CANCEL_HANDLER
-    _CHAT_CANCEL_HANDLER = handler
+
+    if chat_id is not None:
+        _CHAT_CANCEL_REGISTRY[chat_id] = (workspace_id, run_id or "", handler)
+    else:
+        # Legacy path: global handler (single-user / console)
+        _CHAT_CANCEL_HANDLER = handler
+
+
+def unregister_chat_cancel(chat_id: str, run_id: Optional[str] = None) -> None:
+    """Remove a per-chat cancel entry.
+
+    When *run_id* is provided, only remove the entry if it still belongs to
+    that run. This avoids an older run's completion wiping out a newer run's
+    handler for the same chat_id.
+    """
+    entry = _CHAT_CANCEL_REGISTRY.get(chat_id)
+    if entry is None:
+        return
+    if run_id is None:
+        _CHAT_CANCEL_REGISTRY.pop(chat_id, None)
+        return
+    _ws_id, registered_run_id, _handler = entry
+    if registered_run_id == run_id:
+        _CHAT_CANCEL_REGISTRY.pop(chat_id, None)
 
 
 async def _do_chat_cancel(chat_id: str) -> bool:
-    """Invoke the registered chat cancel handler (best-effort)."""
+    """Invoke the registered chat cancel handler (best-effort).
+
+    Checks the per-chat registry first, then falls back to the global handler.
+    """
+    # Per-chat (owner-aware) lookup
+    entry = _CHAT_CANCEL_REGISTRY.get(chat_id)
+    if entry is not None:
+        _ws_id, _run_id, handler = entry
+        try:
+            return await handler(chat_id)
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "run_control: per-chat cancel handler failed for %s",
+                chat_id,
+            )
+            return False
+
+    # Fallback: legacy global handler
     if _CHAT_CANCEL_HANDLER is None:
         logger.debug("run_control: no chat cancel handler registered")
         return False
@@ -157,18 +220,24 @@ class RunControlStore:
         return entry.run_id
 
     async def update_status(self, run_id: str, status: str) -> None:
-        """Update run status."""
+        """Update run status. Cleans up per-chat registry on terminal state."""
         async with self._lock:
             entry = self._runs.get(run_id)
             if entry is not None:
                 entry.status = status
+                # Clean up per-chat registry when entering terminal state.
+                if status in _TERMINAL and entry.chat_id:
+                    unregister_chat_cancel(entry.chat_id, run_id)
 
     async def unregister(self, run_id: str) -> None:
-        """Remove from index (run finished)."""
+        """Remove from index (run finished). Cleans up per-chat registry."""
         async with self._lock:
             entry = self._runs.pop(run_id, None)
             if entry is not None:
                 self._remove_from_session_index(entry)
+                # Clean up per-chat registry.
+                if entry.chat_id:
+                    unregister_chat_cancel(entry.chat_id, run_id)
                 # Unlink from parent.
                 if entry.parent_run_id and entry.parent_run_id in self._runs:
                     parent = self._runs[entry.parent_run_id]
@@ -186,6 +255,7 @@ class RunControlStore:
         self,
         session_id: Optional[str] = None,
         active_only: bool = True,
+        workspace_id: Optional[str] = None,
     ) -> List[RunEntry]:
         """List runs, optionally filtered by session.
 
@@ -204,6 +274,8 @@ class RunControlStore:
                 entries = list(self._runs.values())
         if active_only:
             entries = [e for e in entries if e.status not in _TERMINAL]
+        if workspace_id is not None:
+            entries = [e for e in entries if e.workspace_id == workspace_id]
         return sorted(entries, key=lambda e: e.created_at, reverse=True)
 
     async def get_run_tree(self, run_id: str) -> List[RunEntry]:
@@ -310,11 +382,23 @@ class RunControlStore:
 
         if cancelled:
             entry.status = "cancelled"
+            # Clean up per-chat registry entry (direct status set,
+            # not via update_status, so we must clean up manually).
+            if entry.chat_id:
+                unregister_chat_cancel(entry.chat_id, entry.run_id)
         return cancelled
 
-    async def cancel_all(self, session_id: str) -> List[str]:
+    async def cancel_all(
+        self,
+        session_id: str,
+        workspace_id: Optional[str] = None,
+    ) -> List[str]:
         """Cancel all active runs for a session. Returns list of cancelled run_ids."""
-        runs = await self.list_runs(session_id, active_only=True)
+        runs = await self.list_runs(
+            session_id,
+            active_only=True,
+            workspace_id=workspace_id,
+        )
         cancelled: List[str] = []
         for run in runs:
             ok = await self.cancel_run(run.run_id)
@@ -398,6 +482,7 @@ def _serialise_entry(entry: RunEntry) -> Dict[str, Any]:
         "plan_id": entry.plan_id,
         "workflow_id": entry.workflow_id,
         "chat_id": entry.chat_id,
+        "workspace_id": entry.workspace_id,
         "parent_run_id": entry.parent_run_id,
         "child_run_ids": entry.child_run_ids,
         "guidance_messages": entry.guidance_messages,

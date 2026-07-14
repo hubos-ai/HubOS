@@ -68,6 +68,50 @@ class TestArchiveToolOutput:
         assert len(files) == 1
         assert files[0].read_text() == long_text
 
+    def test_completed_old_tool_input_is_archived(self, refs_tmp):
+        from agentscope.message import Msg
+        from hubos.core.tool_output_archive import (
+            compact_completed_tool_inputs,
+        )
+
+        tool_use = Msg(
+            name="assistant",
+            role="assistant",
+            content=[
+                {
+                    "type": "tool_use",
+                    "id": "call-big",
+                    "name": "write_file",
+                    "input": {"content": "x" * 500},
+                    "raw_input": "x" * 500,
+                },
+            ],
+        )
+        tool_result = Msg(
+            name="system",
+            role="system",
+            content=[
+                {
+                    "type": "tool_result",
+                    "id": "call-big",
+                    "name": "write_file",
+                    "output": [{"type": "text", "text": "ok"}],
+                },
+            ],
+        )
+        recent = Msg(name="user", role="user", content="continue")
+
+        count = compact_completed_tool_inputs(
+            [tool_use, tool_result, recent],
+            recent_n=1,
+            threshold=100,
+        )
+
+        assert count == 1
+        pointer = tool_use.content[0]["input"]
+        assert pointer["_archived_tool_input"] is True
+        assert Path(pointer["ref"]).read_text(encoding="utf-8")
+
 
 class TestCleanupRefs:
     """Tests for cleanup_refs."""

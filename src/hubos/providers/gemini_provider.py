@@ -24,6 +24,32 @@ from hubos.providers.provider import ModelInfo, Provider
 logger = logging.getLogger(__name__)
 
 
+def _sanitize_gemini_tool_schema(value: Any) -> Any:
+    """Recursively drop JSON-schema fields Gemini tool declarations reject.
+
+    The Gemini function-calling endpoint accepts only a subset of JSON Schema.
+    In practice, open-ended object schemas emitted by Pydantic commonly include
+    ``additionalProperties`` (or its snake_case variant after SDK conversion),
+    which Gemini rejects with ``INVALID_ARGUMENT``.
+    """
+    if isinstance(value, list):
+        return [_sanitize_gemini_tool_schema(item) for item in value]
+
+    if not isinstance(value, dict):
+        return value
+
+    banned = {
+        "additionalProperties",
+        "additional_properties",
+    }
+    sanitized: dict[str, Any] = {}
+    for key, item in value.items():
+        if key in banned:
+            continue
+        sanitized[key] = _sanitize_gemini_tool_schema(item)
+    return sanitized
+
+
 class GeminiProvider(Provider):
     """Provider implementation for Google Gemini API."""
 
@@ -129,14 +155,43 @@ class GeminiProvider(Provider):
                 f"Unknown exception when connecting to model '{model_id}'",
             )
 
+    # Models that support Gemini's thinking mode.
+    _THINKING_MODELS = frozenset(
+        {
+            "gemini-3.5-flash",
+            "gemini-3.1-pro-preview",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+        },
+    )
+
     def get_chat_model_instance(self, model_id: str) -> ChatModelBase:
         from agentscope.model import GeminiChatModel
 
-        return GeminiChatModel(
+        class HubOSGeminiChatModel(GeminiChatModel):
+            """GeminiChatModel with HubOS-specific tool schema sanitization."""
+
+            def _format_tools_json_schemas(
+                self,
+                schemas: list[dict[str, Any]],
+            ) -> list[dict[str, Any]]:
+                formatted = super()._format_tools_json_schemas(schemas)
+                return _sanitize_gemini_tool_schema(formatted)
+
+        # Enable thinking for supported models.
+        thinking_config = None
+        if model_id in self._THINKING_MODELS:
+            thinking_config = {
+                "include_thoughts": True,
+                "thinking_budget": 8192,
+            }
+
+        return HubOSGeminiChatModel(
             model_name=model_id,
             stream=True,
             api_key=self.api_key,
             generate_kwargs=self.generate_kwargs,
+            thinking_config=thinking_config,
         )
 
     async def probe_model_multimodal(

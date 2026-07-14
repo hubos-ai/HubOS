@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import math
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any, AsyncGenerator, Type
@@ -16,6 +18,60 @@ from hubos.local_models.tag_parser import (
     parse_tool_calls_from_text,
     text_contains_tool_call_tag,
 )
+
+
+logger = logging.getLogger(__name__)
+
+_GLM_CONTEXT_WINDOWS = {
+    "glm-5.1": 204_800,
+}
+_GLM_OUTPUT_CAP = 16_384
+_CONTEXT_SAFETY_TOKENS = 8_192
+_TOKEN_ESTIMATE_DIVISOR = 4.0
+_MIN_OUTPUT_TOKENS = 1_024
+
+
+def _estimate_openai_request_tokens(
+    messages: list[dict],
+    tools: list[dict] | None,
+) -> int:
+    """Conservatively estimate tokens consumed by messages and tool schemas."""
+    payload: dict[str, Any] = {"messages": messages}
+    if tools:
+        payload["tools"] = tools
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        default=str,
+    ).encode("utf-8")
+    return math.ceil(len(encoded) / _TOKEN_ESTIMATE_DIVISOR)
+
+
+def _safe_glm_max_tokens(
+    model_name: str,
+    messages: list[dict],
+    tools: list[dict] | None,
+    requested_max_tokens: Any,
+) -> int | None:
+    """Keep GLM input, tools, and requested output within its total context."""
+    context_window = _GLM_CONTEXT_WINDOWS.get(model_name.strip().lower())
+    if context_window is None:
+        return None
+    if (
+        isinstance(requested_max_tokens, bool)
+        or not isinstance(requested_max_tokens, int)
+        or requested_max_tokens <= 0
+    ):
+        return None
+
+    estimated_input = _estimate_openai_request_tokens(messages, tools)
+    available_output = max(
+        _MIN_OUTPUT_TOKENS,
+        context_window - estimated_input - _CONTEXT_SAFETY_TOKENS,
+    )
+    available_output = min(available_output, _GLM_OUTPUT_CAP)
+    return min(requested_max_tokens, available_output)
 
 
 def _clone_with_overrides(obj: Any, **overrides: Any) -> Any:
@@ -191,6 +247,47 @@ class _SanitizedStream:
 class OpenAIChatModelCompat(OpenAIChatModel):
     """OpenAIChatModel with robust parsing for malformed tool-call chunks
     and transparent ``extra_content`` (Gemini thought_signature) relay."""
+
+    async def __call__(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        tool_choice: str | None = None,
+        structured_model: Type[BaseModel] | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Apply a total-context budget before calling GLM-compatible APIs."""
+        requested_max_tokens = kwargs.get(
+            "max_tokens",
+            self.generate_kwargs.get("max_tokens"),
+        )
+        safe_max_tokens = _safe_glm_max_tokens(
+            self.model_name,
+            messages,
+            tools,
+            requested_max_tokens,
+        )
+        if (
+            safe_max_tokens is not None
+            and safe_max_tokens != requested_max_tokens
+        ):
+            logger.warning(
+                "Adjusted %s max_tokens from %d to %d to fit the total "
+                "context budget (tools=%d)",
+                self.model_name,
+                requested_max_tokens,
+                safe_max_tokens,
+                len(tools or []),
+            )
+            kwargs["max_tokens"] = safe_max_tokens
+
+        return await super().__call__(
+            messages=messages,
+            tools=tools,
+            tool_choice=tool_choice,
+            structured_model=structured_model,
+            **kwargs,
+        )
 
     # pylint: disable=too-many-branches
     async def _parse_openai_stream_response(

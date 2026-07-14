@@ -1,8 +1,8 @@
 // HubOS Desktop shell
 //
 // Responsibilities:
-//   1. Spawn the local HubOS backend (`hubos app`) when this Electron app
-//      launches, unless something is already listening on the backend port.
+//   1. Use the macOS LaunchAgent-managed HubOS backend when installed, or spawn
+//      the local backend (`hubos app`) as a dev fallback.
 //   2. Poll the backend until it's healthy, THEN open the main window pointed
 //      at http://127.0.0.1:<port>/.
 //   3. Provide a "Refresh Page" + "Restart Service" menu.
@@ -14,7 +14,7 @@
 //     rabbit hole (PyInstaller + code signing for each provider's .so files).
 
 const { app, BrowserWindow, Menu, shell, dialog, nativeImage } = require("electron");
-const { spawn, execSync } = require("child_process");
+const { spawn, execSync, execFileSync } = require("child_process");
 const http = require("http");
 const fs = require("fs");
 const os = require("os");
@@ -37,6 +37,12 @@ try {
   /* ignore */
 }
 
+// Only one desktop shell should manage the backend lifecycle at a time.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+}
+
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
@@ -46,12 +52,24 @@ const BACKEND_PORT = 8088;
 const BACKEND_URL = `http://${BACKEND_HOST}:${BACKEND_PORT}/`;
 const HEALTH_TIMEOUT_MS = 90_000;
 const HEALTH_POLL_INTERVAL_MS = 500;
+const HEALTH_SHUTDOWN_TIMEOUT_MS = 20_000;
 
 const HUBOS_HOME = path.join(os.homedir(), ".hubos");
 const DEFAULT_HUBOS_BIN = path.join(HUBOS_HOME, "venv", "bin", "hubos");
 const LOG_DIR = path.join(HUBOS_HOME, "logs");
 const DESKTOP_LOG = path.join(LOG_DIR, "desktop.log");
 const BACKEND_LOG = path.join(LOG_DIR, "desktop-backend.log");
+const LAUNCH_AGENT_LABEL = process.env.HUBOS_LAUNCH_AGENT_LABEL || "io.hubos.server";
+const LAUNCH_AGENT_PLIST = path.join(
+  os.homedir(),
+  "Library",
+  "LaunchAgents",
+  `${LAUNCH_AGENT_LABEL}.plist`,
+);
+const LAUNCH_AGENT_LOG_DIR = path.join(os.homedir(), "Library", "Logs", "HubOS");
+const LAUNCH_AGENT_ERR_LOG = path.join(LAUNCH_AGENT_LOG_DIR, "hubos.err.log");
+const LOG_MAX_BYTES = Number(process.env.HUBOS_LOG_MAX_BYTES ?? 50 * 1024 * 1024);
+const LOG_BACKUP_COUNT = Number(process.env.HUBOS_LOG_BACKUP_COUNT ?? 3);
 
 const ASSETS_DIR = path.join(__dirname, "assets");
 
@@ -67,6 +85,17 @@ let backendProc = null;
  */
 let spawnedByUs = false;
 let shuttingDown = false;
+
+if (gotSingleInstanceLock) {
+  app.on("second-instance", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+      return;
+    }
+    createWindow();
+  });
+}
 
 function loadBackendUrlIgnoringCache() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -84,6 +113,23 @@ function ensureDir(p) {
     fs.mkdirSync(p, { recursive: true });
   } catch (_) {
     /* ignore */
+  }
+}
+
+function rotateLogIfNeeded(file) {
+  try {
+    if (!fs.existsSync(file)) return;
+    const { size } = fs.statSync(file);
+    if (size <= LOG_MAX_BYTES) return;
+
+    for (let i = LOG_BACKUP_COUNT; i > 1; i -= 1) {
+      const previous = `${file}.${i - 1}`;
+      const next = `${file}.${i}`;
+      if (fs.existsSync(previous)) fs.renameSync(previous, next);
+    }
+    fs.renameSync(file, `${file}.1`);
+  } catch (e) {
+    log("rotateLogIfNeeded failed:", e.message);
   }
 }
 
@@ -126,6 +172,15 @@ async function waitForBackendHealthy(timeoutMs = HEALTH_TIMEOUT_MS) {
   return false;
 }
 
+async function waitForBackendDown(timeoutMs = HEALTH_SHUTDOWN_TIMEOUT_MS) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!(await pingBackend())) return true;
+    await new Promise((r) => setTimeout(r, HEALTH_POLL_INTERVAL_MS));
+  }
+  return false;
+}
+
 function resolveHubosBin() {
   // Allow override via env var so power users can point at a different venv.
   const override = process.env.HUBOS_BIN;
@@ -150,6 +205,88 @@ function buildBackendEnv() {
   };
 }
 
+function launchAgentTarget() {
+  if (process.platform !== "darwin" || typeof process.getuid !== "function") {
+    return null;
+  }
+  return `gui/${process.getuid()}/${LAUNCH_AGENT_LABEL}`;
+}
+
+function launchAgentDomain() {
+  if (process.platform !== "darwin" || typeof process.getuid !== "function") {
+    return null;
+  }
+  return `gui/${process.getuid()}`;
+}
+
+function isLaunchAgentInstalled() {
+  return process.platform === "darwin" && fs.existsSync(LAUNCH_AGENT_PLIST);
+}
+
+function isLaunchAgentAvailable() {
+  if (!isLaunchAgentInstalled()) return false;
+  const target = launchAgentTarget();
+  if (!target) return false;
+  try {
+    execFileSync("launchctl", ["print", target], {
+      stdio: "ignore",
+      timeout: 5000,
+    });
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function restartLaunchAgent() {
+  const target = launchAgentTarget();
+  const domain = launchAgentDomain();
+  if (!target || !domain || !isLaunchAgentInstalled()) return false;
+
+  try {
+    try {
+      log("restartLaunchAgent: bootout", LAUNCH_AGENT_PLIST);
+      execFileSync("launchctl", ["bootout", domain, LAUNCH_AGENT_PLIST], {
+        stdio: "pipe",
+        timeout: 15000,
+      });
+    } catch (e) {
+      const stderr = e.stderr ? String(e.stderr).trim() : "";
+      if (stderr) {
+        log("restartLaunchAgent: bootout note:", stderr);
+      }
+    }
+
+    await waitForBackendDown();
+
+    log("restartLaunchAgent: bootstrap", LAUNCH_AGENT_PLIST);
+    execFileSync("launchctl", ["bootstrap", domain, LAUNCH_AGENT_PLIST], {
+      stdio: "pipe",
+      timeout: 15000,
+    });
+
+    log("restartLaunchAgent: kickstart", target);
+    execFileSync("launchctl", ["kickstart", "-k", target], {
+      stdio: "pipe",
+      timeout: 15000,
+    });
+    backendProc = null;
+    spawnedByUs = false;
+    return true;
+  } catch (e) {
+    const stderr = e.stderr ? String(e.stderr).trim() : "";
+    log("restartLaunchAgent: failed:", e.message, stderr);
+    return false;
+  }
+}
+
+function serviceLogPath() {
+  if (isLaunchAgentAvailable() && fs.existsSync(LAUNCH_AGENT_ERR_LOG)) {
+    return LAUNCH_AGENT_ERR_LOG;
+  }
+  return BACKEND_LOG;
+}
+
 function startBackend() {
   if (backendProc && !backendProc.killed) {
     log("startBackend: already running, pid=", backendProc.pid);
@@ -168,6 +305,7 @@ function startBackend() {
   }
 
   ensureDir(LOG_DIR);
+  rotateLogIfNeeded(BACKEND_LOG);
   const out = fs.openSync(BACKEND_LOG, "a");
   const err = fs.openSync(BACKEND_LOG, "a");
 
@@ -222,6 +360,11 @@ function stopBackend() {
     spawnedByUs = false;
   }
 
+  if (isLaunchAgentAvailable()) {
+    log("stopBackend: LaunchAgent detected; leaving managed backend running");
+    return;
+  }
+
   // 2. Also kill any hubos process on our port (regardless of who started it).
   const BACKEND_PORT = parseInt(process.env.HUBOS_PORT || "8088", 10);
   try {
@@ -251,6 +394,35 @@ async function restartBackend() {
   log("restartBackend: begin");
   showOverlay("正在重启服务…");
 
+  if (isLaunchAgentInstalled()) {
+    if (!(await restartLaunchAgent())) {
+      dialog.showErrorBox(
+        "HubOS backend restart failed",
+        `Could not restart LaunchAgent ${LAUNCH_AGENT_LABEL}.\n\n` +
+          `See logs: ${serviceLogPath()}`,
+      );
+      hideOverlay();
+      return;
+    }
+
+    const ok = await waitForBackendHealthy();
+    if (!ok) {
+      dialog.showErrorBox(
+        "HubOS backend did not come back up",
+        `Checked ${BACKEND_URL} for ${HEALTH_TIMEOUT_MS / 1000}s without a response.\n\n` +
+          `See logs: ${serviceLogPath()}`,
+      );
+      hideOverlay();
+      return;
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      loadBackendUrlIgnoringCache();
+    }
+    hideOverlay();
+    log("restartBackend: done via LaunchAgent");
+    return;
+  }
+
   stopBackend();
   // Wait a beat for the port to free up.
   await new Promise((r) => setTimeout(r, 1500));
@@ -261,7 +433,7 @@ async function restartBackend() {
     dialog.showErrorBox(
       "HubOS backend did not come back up",
       `Checked ${BACKEND_URL} for ${HEALTH_TIMEOUT_MS / 1000}s without a response.\n\n` +
-        `See logs: ${BACKEND_LOG}`,
+        `See logs: ${serviceLogPath()}`,
     );
     hideOverlay();
     return;
@@ -382,7 +554,7 @@ function buildMenu() {
       },
       {
         label: "打开服务日志",
-        click: () => shell.openPath(BACKEND_LOG),
+        click: () => shell.openPath(serviceLogPath()),
       },
       {
         label: "打开桌面端日志",
@@ -487,7 +659,15 @@ async function bootstrap() {
   // reuse it — don't fight them for the port.
   const already = await pingBackend();
   if (!already) {
-    startBackend();
+    if (isLaunchAgentInstalled()) {
+      log("bootstrap: backend down; starting LaunchAgent-managed service");
+      const restarted = await restartLaunchAgent();
+      if (!restarted) {
+        log("bootstrap: LaunchAgent restart failed");
+      }
+    } else {
+      startBackend();
+    }
   } else {
     log("bootstrap: backend already up (not spawned by us)");
   }
@@ -500,7 +680,7 @@ async function bootstrap() {
     dialog.showErrorBox(
       "HubOS backend did not start",
       `Checked ${BACKEND_URL} for ${HEALTH_TIMEOUT_MS / 1000}s without a response.\n\n` +
-        `See logs: ${BACKEND_LOG}`,
+        `See logs: ${serviceLogPath()}`,
     );
   } else {
     // Re-load in case the initial loadURL fired before the server answered.
@@ -515,7 +695,9 @@ async function bootstrap() {
   }
 }
 
-app.whenReady().then(bootstrap);
+if (gotSingleInstanceLock) {
+  app.whenReady().then(bootstrap);
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {

@@ -31,42 +31,62 @@ class MCPClientManager:
 
     Design pattern mirrors ChannelManager for consistency.
 
-    Background initialisation
-    -------------------------
-    ``schedule_init_from_config`` fires the connection work as an
-    ``asyncio.Task`` and returns immediately so the calling agent
-    workspace is ready for requests at once.  ``get_clients()``
-    transparently awaits the pending task before returning, so callers
-    never see an empty list while initialisation is still in progress.
+    Lazy initialisation
+    -------------------
+    ``schedule_init_from_config`` records the MCP configuration without
+    starting stdio/http clients immediately.  ``get_clients()`` starts and
+    awaits the connection task on first use.  This keeps multi-user Feishu
+    startup light: pre-warmed workspaces do not each spawn their own npx/uvx
+    subprocesses until a request actually needs tools.
     """
 
     def __init__(self) -> None:
         """Initialize an empty MCP client manager."""
         self._clients: Dict[str, Any] = {}
         self._lock = asyncio.Lock()
-        # Background init task — set by schedule_init_from_config
+        self._config: "MCPConfig | None" = None
+        # Init task — started lazily by get_clients or eagerly by callers.
         self._init_task: asyncio.Task | None = None
+        self._fully_initialized = False
 
     # ------------------------------------------------------------------
     # Public initialisation API
     # ------------------------------------------------------------------
 
-    def schedule_init_from_config(self, config: "MCPConfig") -> None:
-        """Fire MCP initialisation in the background (non-blocking).
+    def schedule_init_from_config(
+        self,
+        config: "MCPConfig",
+        *,
+        eager: bool = False,
+    ) -> None:
+        """Record MCP configuration and optionally initialise eagerly.
 
-        Returns immediately.  The actual subprocess connections run
-        concurrently with the rest of the startup sequence.  A
-        subsequent call to ``get_clients()`` will transparently await
-        the pending task so no caller ever sees an empty list while
-        connections are still being established.
+        By default this is lazy: it returns immediately and does not spawn MCP
+        subprocesses until ``get_clients()`` is called.  ``eager=True`` keeps
+        the old background-start behavior for callers that explicitly need it.
 
         Args:
             config: MCP configuration containing client definitions.
+            eager: Whether to start connecting in the background immediately.
         """
-        self._init_task = asyncio.create_task(
-            self._init_from_config_impl(config),
-            name="mcp_init",
-        )
+        self._config = config
+        self._fully_initialized = False
+        if eager:
+            self._init_task = asyncio.create_task(
+                self._init_from_config_impl(config),
+                name="mcp_init",
+            )
+
+    def is_lazy_idle(self) -> bool:
+        """Return True when MCP config exists but clients have not started.
+
+        Config hot-reload can happen while a lazy workspace is merely
+        pre-warmed.  In that state we should update the stored config without
+        spawning stdio clients such as npx/uvx servers; otherwise saving
+        agent.json for multiple department agents can trigger a burst of
+        expensive subprocess starts before any user task actually needs them.
+        """
+        return not self._clients and self._init_task is None
 
     async def init_from_config(self, config: "MCPConfig") -> None:
         """Initialize clients from configuration (blocking variant).
@@ -75,6 +95,7 @@ class MCPClientManager:
         This method exists for callers that must await completion
         (e.g. hot-reload triggered by config file watcher).
         """
+        self._config = config
         await self._init_from_config_impl(config)
 
     async def _init_from_config_impl(self, config: "MCPConfig") -> None:
@@ -87,41 +108,113 @@ class MCPClientManager:
         """
         import time
 
-        enabled = {
-            key: cfg for key, cfg in config.clients.items() if cfg.enabled
-        }
+        await self._connect_config_clients(config)
+        self._fully_initialized = True
+
+    async def prewarm_clients(
+        self,
+        *,
+        transports: tuple[str, ...] = ("streamable_http", "sse"),
+        timeout: float = 8.0,
+        max_concurrency: int = 2,
+    ) -> None:
+        """Connect a safe subset of configured clients in the background.
+
+        This is intentionally partial: startup warmup can connect lightweight
+        HTTP/SSE clients while leaving stdio clients lazy.  A later
+        ``get_clients()`` still performs full initialisation for anything not
+        prewarmed.
+        """
+        if self._config is None:
+            return
+        if self._fully_initialized:
+            return
+        if self._init_task is not None and not self._init_task.done():
+            return
+        await self._connect_config_clients(
+            self._config,
+            transports=transports,
+            timeout=timeout,
+            max_concurrency=max_concurrency,
+        )
+
+    async def _connect_config_clients(
+        self,
+        config: "MCPConfig",
+        *,
+        transports: tuple[str, ...] | None = None,
+        timeout: float = 60.0,
+        max_concurrency: int | None = None,
+    ) -> None:
+        """Connect enabled clients from a config, optionally filtered."""
+        import time
+
+        enabled = dict(
+            sorted(
+                (
+                    (key, cfg)
+                    for key, cfg in config.clients.items()
+                    if cfg.enabled
+                    and (transports is None or cfg.transport in transports)
+                ),
+                key=lambda item: self._client_priority(item[0], item[1]),
+            ),
+        )
         if not enabled:
             return
 
         logger.info(
-            "Connecting %d MCP client(s) in background: %s",
+            "Connecting %d MCP client(s)%s: %s",
             len(enabled),
+            (
+                f" for transports={','.join(transports)}"
+                if transports is not None
+                else ""
+            ),
             ", ".join(enabled),
         )
         t0 = time.monotonic()
+        sem = asyncio.Semaphore(max_concurrency or len(enabled))
 
         async def _init_one(
             key: str,
             client_config: "MCPClientConfig",
         ) -> None:
-            t = time.monotonic()
-            try:
-                await self._add_client(key, client_config)
-                logger.info(
-                    "MCP client '%s' ready in %.1fs",
-                    key,
-                    time.monotonic() - t,
-                )
-            except BaseException as exc:
-                if isinstance(exc, (KeyboardInterrupt, SystemExit)):
-                    raise
-                logger.warning(
-                    "MCP client '%s' failed to connect (%.1fs): %s",
-                    key,
-                    time.monotonic() - t,
-                    exc,
-                    exc_info=True,
-                )
+            async with sem:
+                async with self._lock:
+                    if key in self._clients:
+                        logger.debug("MCP client '%s' already connected", key)
+                        return
+
+                t = time.monotonic()
+                try:
+                    await self._add_client(
+                        key,
+                        client_config,
+                        timeout=timeout,
+                    )
+                    logger.info(
+                        "MCP client '%s' ready in %.1fs",
+                        key,
+                        time.monotonic() - t,
+                    )
+                except BaseException as exc:
+                    if isinstance(
+                        exc,
+                        (
+                            asyncio.CancelledError,
+                            KeyboardInterrupt,
+                            SystemExit,
+                        ),
+                    ):
+                        raise
+                    logger.warning(
+                        "MCP client '%s' failed to connect (%.1fs): %s",
+                        key,
+                        time.monotonic() - t,
+                        exc,
+                        exc_info=True,
+                    )
 
         await asyncio.gather(*[_init_one(k, v) for k, v in enabled.items()])
         logger.info(
@@ -144,6 +237,18 @@ class MCPClientManager:
         Returns:
             List of connected MCP client instances
         """
+        if (
+            self._init_task is None
+            and self._config is not None
+            and not self._fully_initialized
+        ):
+            async with self._lock:
+                if self._init_task is None and not self._fully_initialized:
+                    self._init_task = asyncio.create_task(
+                        self._init_from_config_impl(self._config),
+                        name="mcp_init",
+                    )
+
         if self._init_task is not None and not self._init_task.done():
             try:
                 await self._init_task
@@ -151,11 +256,11 @@ class MCPClientManager:
                 pass  # errors already logged inside _init_from_config_impl
 
         async with self._lock:
-            return [
-                client
-                for client in self._clients.values()
-                if client is not None
-            ]
+            ordered = sorted(
+                self._clients.items(),
+                key=lambda item: self._client_priority(item[0], None),
+            )
+            return [client for _, client in ordered if client is not None]
 
     async def replace_client(
         self,
@@ -221,9 +326,22 @@ class MCPClientManager:
 
         Called during application shutdown.
         """
+        if self._init_task is not None and not self._init_task.done():
+            self._init_task.cancel()
+            try:
+                await self._init_task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                logger.debug(
+                    "MCP init task failed during close",
+                    exc_info=True,
+                )
+
         async with self._lock:
             clients_snapshot = list(self._clients.items())
             self._clients.clear()
+            self._fully_initialized = False
 
         logger.debug("Closing all MCP clients")
         for key, client in clients_snapshot:
@@ -256,6 +374,40 @@ class MCPClientManager:
 
         async with self._lock:
             self._clients[key] = client
+
+    @staticmethod
+    def _client_priority(
+        key: str,
+        client_config: "MCPClientConfig | None",
+    ) -> tuple[int, str]:
+        """Return stable MCP tool ordering.
+
+        Search-capable clients are intentionally ordered to match HubOS search
+        policy: GLM/Zhipu and MiniMax first, Tavily as the final paid fallback.
+        The same order is used for connection order and the tool list passed to
+        the model, which nudges tool selection without removing fallback tools.
+        """
+        name = (client_config.name if client_config else key).lower()
+        ident = f"{key.lower()} {name}"
+        if "zhipu_search" in ident or "web_search_prime" in ident:
+            return (10, key)
+        if "zhipu_reader" in ident or "webreader" in ident:
+            return (20, key)
+        if "zhipu_zread" in ident:
+            return (25, key)
+        if "search_doc" in ident or "repo_structure" in ident:
+            return (30, key)
+        if "zhipu" in ident or "glm" in ident:
+            return (40, key)
+        if "minimax" in ident:
+            return (50, key)
+        if "web_crawl" in ident or "xcrawl" in ident:
+            return (80, key)
+        if "tavily" in ident:
+            return (900, key)
+        if "browser" in ident:
+            return (950, key)
+        return (100, key)
 
     @staticmethod
     async def _force_cleanup_client(client: Any) -> None:

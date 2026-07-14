@@ -420,6 +420,7 @@ class ExpectedCapabilityRegistry:
         # ---------------------------------------------------------------
         _gem_doc = "https://ai.google.dev/gemini-api/docs/models"
         for mid in (
+            "gemini-3.5-flash",
             "gemini-3.1-pro-preview",
             "gemini-3-flash-preview",
             "gemini-3.1-flash-lite-preview",

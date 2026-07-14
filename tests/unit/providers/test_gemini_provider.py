@@ -300,6 +300,47 @@ def test_normalize_models_display_name_with_models_prefix() -> None:
     assert models[0].name == "gemini-2.5-pro"
 
 
+def test_gemini_tool_schema_sanitizer_removes_additional_properties() -> None:
+    from hubos.providers.gemini_provider import _sanitize_gemini_tool_schema
+
+    raw = {
+        "function_declarations": [
+            {
+                "name": "delegate_task",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "extra_context": {
+                            "anyOf": [
+                                {
+                                    "type": "object",
+                                    "additionalProperties": True,
+                                },
+                                {"type": "null"},
+                            ],
+                        },
+                        "assignments": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additional_properties": True,
+                            },
+                        },
+                    },
+                },
+            },
+        ],
+    }
+
+    sanitized = _sanitize_gemini_tool_schema(raw)
+    decl = sanitized["function_declarations"][0]
+    any_of = decl["parameters"]["properties"]["extra_context"]["anyOf"]
+    items = decl["parameters"]["properties"]["assignments"]["items"]
+
+    assert "additionalProperties" not in any_of[0]
+    assert "additional_properties" not in items
+
+
 # -- update_config ------------------------------------------------------------
 
 

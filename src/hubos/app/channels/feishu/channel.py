@@ -47,8 +47,10 @@ from ..base import (
 from ..utils import file_url_to_local_path
 from .constants import (
     FEISHU_FILE_MAX_BYTES,
+    FEISHU_LONG_REPLY_FILE_CHUNK_BYTES,
     FEISHU_NICKNAME_CACHE_MAX,
     FEISHU_PROCESSED_IDS_MAX,
+    FEISHU_RICH_TEXT_SAFE_BYTES,
     FEISHU_STALE_MSG_THRESHOLD_MS,
     FEISHU_WS_BACKOFF_FACTOR,
     FEISHU_WS_INITIAL_RETRY_DELAY,
@@ -317,11 +319,18 @@ class FeishuChannel(BaseChannel):
         chat_id = (meta.get("feishu_chat_id") or "").strip()
         chat_type = (meta.get("feishu_chat_type") or "p2p").strip()
         if chat_type == "group" and chat_id:
-            # Include app_id suffix to distinguish multiple bots in same group
+            # Include app_id suffix to distinguish multiple bots in same group.
+            # Also include sender suffix so different Feishu users in the same
+            # group keep independent chats/workspaces and cannot be batch-merged
+            # into the last sender's workspace.
             app_suffix = (
                 self.app_id[-4:] if len(self.app_id) >= 4 else self.app_id
             )
-            return f"{app_suffix}_{short_session_id_from_full_id(chat_id)}"
+            chat_suffix = short_session_id_from_full_id(chat_id)
+            sender_suffix = short_session_id_from_full_id(sender_id)
+            if sender_suffix:
+                return f"{app_suffix}_{chat_suffix}_{sender_suffix}"
+            return f"{app_suffix}_{chat_suffix}"
         if sender_id:
             return short_session_id_from_full_id(sender_id)
         if chat_id:
@@ -589,6 +598,16 @@ class FeishuChannel(BaseChannel):
             self._on_message(data),
             self._loop,
         )
+
+    def _ignore_event_sync(self, data: Any) -> None:
+        """No-op handler for subscribed Feishu events we do not process."""
+        header = getattr(data, "header", None)
+        event_type = getattr(header, "event_type", None) or getattr(
+            header,
+            "event_type_v2",
+            None,
+        )
+        logger.debug("feishu: ignored event type=%s", event_type or "unknown")
 
     async def _on_message(self, data: "P2ImMessageReceiveV1") -> None:
         """Handle one Feishu message: dedup, parse, download media, enqueue."""
@@ -1307,6 +1326,14 @@ class FeishuChannel(BaseChannel):
         When the body contains more than _MAX_TABLES_PER_CARD tables, it
         is split into multiple cards sent sequentially.
         """
+        body_bytes = len(body.encode("utf-8"))
+        if body_bytes > FEISHU_RICH_TEXT_SAFE_BYTES:
+            return await self._send_long_text_as_file(
+                receive_id_type,
+                receive_id,
+                body,
+                body_bytes=body_bytes,
+            )
         has_table = bool(re.search(r"^\s*\|", body, re.MULTILINE))
         if has_table:
             chunks = build_interactive_content_chunks(body)
@@ -1329,6 +1356,86 @@ class FeishuChannel(BaseChannel):
             "post",
             content,
         )
+
+    def _split_text_by_utf8_bytes(
+        self,
+        text: str,
+        max_bytes: int,
+    ) -> list[str]:
+        """Split text into UTF-8 byte-bounded chunks without breaking chars."""
+        chunks: list[str] = []
+        current: list[str] = []
+        current_size = 0
+        for char in text:
+            char_size = len(char.encode("utf-8"))
+            if current and current_size + char_size > max_bytes:
+                chunks.append("".join(current))
+                current = [char]
+                current_size = char_size
+            else:
+                current.append(char)
+                current_size += char_size
+        if current:
+            chunks.append("".join(current))
+        return chunks or [""]
+
+    async def _send_long_text_as_file(
+        self,
+        receive_id_type: str,
+        receive_id: str,
+        body: str,
+        *,
+        body_bytes: int | None = None,
+    ) -> Optional[str]:
+        """Send an oversized rich-text reply as one or more Markdown files."""
+        size = (
+            body_bytes if body_bytes is not None else len(body.encode("utf-8"))
+        )
+        chunks = self._split_text_by_utf8_bytes(
+            body,
+            FEISHU_LONG_REPLY_FILE_CHUNK_BYTES,
+        )
+        file_count = len(chunks)
+        size_kb = max(1, round(size / 1024))
+        notice = "回复内容较长，已整理成文件发送给你。" f"完整内容约 {size_kb} KB"
+        if file_count > 1:
+            notice += f"，共 {file_count} 个附件"
+        notice += "。"
+        notice_content = json.dumps(
+            self._build_post_content(notice, []),
+            ensure_ascii=False,
+        )
+        last_msg_id = await self._send_message(
+            receive_id_type,
+            receive_id,
+            "post",
+            notice_content,
+        )
+
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        self._media_dir.mkdir(parents=True, exist_ok=True)
+        for index, chunk in enumerate(chunks, start=1):
+            suffix = f"_part{index}" if file_count > 1 else ""
+            path = self._media_dir / f"hubos_reply_{timestamp}{suffix}.md"
+            await asyncio.to_thread(path.write_text, chunk, "utf-8")
+            file_key = await self._upload_file(str(path))
+            if not file_key:
+                logger.warning(
+                    "feishu _send_long_text_as_file: upload failed path=%s",
+                    path,
+                )
+                continue
+            content = json.dumps({"file_key": file_key}, ensure_ascii=False)
+            msg_id = await self._send_message(
+                receive_id_type,
+                receive_id,
+                "file",
+                content,
+            )
+            if msg_id:
+                last_msg_id = msg_id
+
+        return last_msg_id
 
     async def _part_to_image_bytes(
         self,
@@ -1993,14 +2100,23 @@ class FeishuChannel(BaseChannel):
             .log_level(lark.LogLevel.INFO)
             .build()
         )
-        event_handler = (
-            lark.EventDispatcherHandler.builder(
-                self.encrypt_key,
-                self.verification_token,
-            )
-            .register_p2_im_message_receive_v1(self._on_message_sync)
-            .build()
-        )
+        event_builder = lark.EventDispatcherHandler.builder(
+            self.encrypt_key,
+            self.verification_token,
+        ).register_p2_im_message_receive_v1(self._on_message_sync)
+        # Some tenants subscribe the bot to read receipts, reactions, or
+        # "bot entered chat" events.  Register no-op handlers so lark-oapi
+        # does not log these expected non-message events as errors.
+        for register_name in (
+            "register_p2_im_message_reaction_created_v1",
+            "register_p2_im_message_reaction_deleted_v1",
+            "register_p2_im_message_message_read_v1",
+            "register_p2_im_chat_access_event_bot_p2p_chat_entered_v1",
+        ):
+            register = getattr(event_builder, register_name, None)
+            if register is not None:
+                event_builder = register(self._ignore_event_sync)
+        event_handler = event_builder.build()
         self._ws_client = lark.ws.Client(
             self.app_id,
             self.app_secret,

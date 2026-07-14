@@ -5,6 +5,7 @@ This hook monitors token usage and automatically compacts older messages
 when the context window approaches its limit, preserving recent messages
 and the system prompt.
 """
+import json
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -17,6 +18,7 @@ from ..utils import (
     get_hubos_token_counter,
 )
 from ...config.config import load_agent_config
+from ...core.tool_output_archive import compact_completed_tool_inputs
 
 if TYPE_CHECKING:
     from ..memory import BaseMemoryManager
@@ -104,16 +106,50 @@ class MemoryCompactionHook:
                 text=(system_prompt or "") + (compressed_summary or ""),
             )
 
-            # memory_compact_threshold is always available from config
+            tool_schema_token_count = 0
+            toolkit = getattr(agent, "toolkit", None)
+            if toolkit is not None:
+                tool_schemas = toolkit.get_json_schemas()
+                if tool_schemas:
+                    tool_schema_token_count = await token_counter.count(
+                        messages=[],
+                        text=json.dumps(
+                            tool_schemas,
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                            default=str,
+                        ),
+                    )
+
+            output_reserve = (
+                running_config.context_compact.output_reserve_tokens
+            )
+
+            # Tool schemas and output share the model context but are not
+            # stored in memory, so reserve them before checking history.
             left_compact_threshold = (
-                running_config.memory_compact_threshold - str_token_count
+                running_config.memory_compact_threshold
+                - str_token_count
+                - tool_schema_token_count
+                - output_reserve
+            )
+            logger.info(
+                "[CompactHook] step=context_budget, threshold=%d, "
+                "system_summary=%d, tools=%d, output_reserve=%d, "
+                "memory_budget=%d",
+                running_config.memory_compact_threshold,
+                str_token_count,
+                tool_schema_token_count,
+                output_reserve,
+                left_compact_threshold,
             )
 
             if left_compact_threshold <= 0:
                 logger.warning(
                     "The memory_compact_threshold is set too low; "
-                    "the combined token length of system_prompt and "
-                    "compressed_summary exceeds the configured threshold. "
+                    "the combined token budget for system_prompt, "
+                    "compressed_summary, tools, and output exceeds the "
+                    "configured threshold. "
                     "Alternatively, you could use /clear to reset the context "
                     "and compressed_summary, ensuring the total remains "
                     "below the threshold.",
@@ -130,13 +166,25 @@ class MemoryCompactionHook:
             # Compact tool results with configured thresholds
             _t_trc = _time.monotonic()
             trc = running_config.tool_result_compact
+            tool_recent_n = int(getattr(trc, "recent_n", 2))
+            tool_old_max_bytes = int(getattr(trc, "old_max_bytes", 3_000))
             if trc.enabled:
                 await self.memory_manager.compact_tool_result(
                     messages=messages,
-                    recent_n=trc.recent_n,
-                    old_max_bytes=trc.old_max_bytes,
+                    recent_n=tool_recent_n,
+                    old_max_bytes=tool_old_max_bytes,
                     recent_max_bytes=trc.recent_max_bytes,
                     retention_days=trc.retention_days,
+                )
+            compacted_inputs = compact_completed_tool_inputs(
+                messages,
+                recent_n=max(6, tool_recent_n * 3),
+                threshold=max(2_000, tool_old_max_bytes),
+            )
+            if compacted_inputs:
+                logger.info(
+                    "[CompactHook] archived %d completed tool input(s)",
+                    compacted_inputs,
                 )
             logger.info(
                 f"[CompactHook] step=tool_result_compact, "

@@ -345,10 +345,18 @@ def _get_formatter_for_chat_model(
     Returns:
         Corresponding formatter class, defaults to OpenAIChatFormatter
     """
-    return _CHAT_MODEL_FORMATTER_MAP.get(
-        chat_model_class,
-        OpenAIChatFormatter,
-    )
+    formatter_class = _CHAT_MODEL_FORMATTER_MAP.get(chat_model_class)
+    if formatter_class is not None:
+        return formatter_class
+
+    for (
+        registered_model_class,
+        registered_formatter_class,
+    ) in _CHAT_MODEL_FORMATTER_MAP.items():
+        if issubclass(chat_model_class, registered_model_class):
+            return registered_formatter_class
+
+    return OpenAIChatFormatter
 
 
 def _assistant_has_thinking_content(msg: Any) -> bool:
@@ -502,6 +510,93 @@ def _inject_reasoning_content_best_effort(
     for out_msg in out_assistant:
         if out_msg.get("tool_calls") and "reasoning_content" not in out_msg:
             out_msg["reasoning_content"] = ""
+
+
+def _normalize_gemini_thought_signature(value: Any) -> str | None:
+    """Return a Gemini SDK-compatible thought_signature or ``None``.
+
+    The Google GenAI SDK expects ``Part.thought_signature`` to be bytes or a
+    base64-encoded string. HubOS tool-call ids like ``call_xxx`` are not valid
+    thought signatures and must not be forwarded as-is.
+    """
+    if value is None:
+        return None
+
+    if isinstance(value, bytes):
+        return base64.b64encode(value).decode("ascii")
+
+    if not isinstance(value, str):
+        return None
+
+    stripped = value.strip()
+    if not stripped:
+        return None
+
+    try:
+        base64.b64decode(stripped, validate=True)
+    except Exception:
+        return None
+    return stripped
+
+
+def _patch_gemini_thought_signatures(
+    msgs: list,
+    messages: list[dict],
+) -> None:
+    """Patch Gemini tool-call parts to use valid thought signatures only.
+
+    Gemini requires the original ``thought_signature`` to be returned on the
+    same function-call part in subsequent requests. In HubOS there are two
+    places that signature may be preserved:
+
+    1. ``extra_content`` on the ``tool_use`` block.
+    2. ``id`` on the ``tool_use`` block, because AgentScope's Gemini model
+       currently base64-encodes ``part.thought_signature`` into the tool id.
+
+    Application-level ids like ``call_123`` are not valid signatures and must
+    still be stripped to avoid SDK validation errors.
+    """
+    original_tool_uses: list[dict[str, Any]] = []
+    for msg in msgs:
+        if getattr(msg, "role", None) != "assistant":
+            continue
+        for block in msg.get_content_blocks():
+            if block.get("type") == "tool_use":
+                original_tool_uses.append(block)
+
+    tool_index = 0
+    for message in messages:
+        if message.get("role") != "model":
+            continue
+        parts = message.get("parts")
+        if not isinstance(parts, list):
+            continue
+
+        for part in parts:
+            if not isinstance(part, dict) or "function_call" not in part:
+                continue
+
+            source_block = (
+                original_tool_uses[tool_index]
+                if tool_index < len(original_tool_uses)
+                else None
+            )
+            tool_index += 1
+
+            normalized = None
+            if source_block is not None:
+                normalized = _normalize_gemini_thought_signature(
+                    source_block.get("extra_content"),
+                )
+                if normalized is None:
+                    normalized = _normalize_gemini_thought_signature(
+                        source_block.get("id"),
+                    )
+
+            if normalized is not None:
+                part["thought_signature"] = normalized
+            else:
+                part.pop("thought_signature", None)
 
 
 def _substitute_video_blocks(
@@ -847,6 +942,12 @@ def _create_file_block_support_formatter(
                         messages,
                     )
 
+                if GeminiChatFormatter is not None and issubclass(
+                    base_formatter_class,
+                    GeminiChatFormatter,
+                ):
+                    _patch_gemini_thought_signatures(msgs, messages)
+
             if extra_contents:
                 for message in messages:
                     for tc in message.get("tool_calls", []):
@@ -949,14 +1050,24 @@ def _create_file_block_support_formatter(
 def _strip_top_level_message_name(
     messages: list[dict],
 ) -> list[dict]:
-    """Strip top-level `name` from OpenAI chat messages.
+    """Strip unsupported fields from formatted chat messages.
 
-    Some strict OpenAI-compatible backends reject `messages[*].name`
-    (especially for assistant/tool roles) and may return 500/400 on
-    follow-up turns. Keep function/tool names unchanged.
+    For OpenAI-format messages: remove ``name`` (strict backends reject it).
+
+    For Gemini-format messages (identified by ``parts`` key): remove fields
+    not recognized by the ``google-genai`` SDK Content type (which uses
+    ``extra='forbid'``).  Fields injected by post-formatting helpers like
+    ``reasoning_content`` must be stripped or the SDK raises ValidationError.
     """
+    # Gemini Content only allows: role, parts
+    _GEMINI_ALLOWED_KEYS = {"role", "parts"}
     for message in messages:
         message.pop("name", None)
+        # Detect Gemini format and strip non-standard fields
+        if "parts" in message:
+            extra = set(message.keys()) - _GEMINI_ALLOWED_KEYS
+            for key in extra:
+                message.pop(key, None)
     return messages
 
 
@@ -990,6 +1101,7 @@ def create_model_and_formatter(
 
     # Try to get agent-specific model first
     model_slot = None
+    agent_config = None
     retry_config = None
     rate_limit_config = None
 
@@ -1050,8 +1162,21 @@ def create_model_and_formatter(
             )
         provider_id = global_model.provider_id
 
-    # Create the formatter based on the real model class
-    formatter = _create_formatter_instance(model.__class__)
+    # Apply the configured input ceiling at formatting time as a final safety
+    # net. The compaction hook should normally keep requests below this limit.
+    formatter_token_counter = None
+    formatter_max_tokens = None
+    if agent_config is not None:
+        from .utils import get_hubos_token_counter
+
+        formatter_token_counter = get_hubos_token_counter(agent_config)
+        formatter_max_tokens = agent_config.running.max_input_length
+
+    formatter = _create_formatter_instance(
+        model.__class__,
+        token_counter=formatter_token_counter,
+        max_tokens=formatter_max_tokens,
+    )
 
     # Wrap with retry logic for transient LLM API errors
     wrapped_model = TokenRecordingModelWrapper(provider_id, model)
@@ -1061,11 +1186,38 @@ def create_model_and_formatter(
         rate_limit_config=rate_limit_config,
     )
 
+    # --- Fallback: GLM → DeepSeek ---
+    # For zhipuai (GLM) primary models, add fallback to DeepSeek-V4-Flash.
+    # This is the last line of defence after RetryChatModel has exhausted
+    # all retries (e.g. quota exhausted, API key invalid).
+    if provider_id == "zhipuai":
+        try:
+            fallback_model, _ = create_model_and_formatter_by_name(
+                provider_id="deepseek",
+                model_name="DeepSeek-V4-Flash",
+            )
+            from ..providers.fallback_model import FallbackChatModel
+
+            wrapped_model = FallbackChatModel(
+                primary=wrapped_model,
+                fallback=fallback_model,
+                primary_label="GLM-5.1 (zhipuai)",
+                fallback_label="DeepSeek-V4-Flash",
+            )
+            logger.info("GLM → DeepSeek fallback activated")
+        except Exception:
+            logger.info(
+                "DeepSeek fallback not available, GLM-only mode",
+            )
+
     return wrapped_model, formatter
 
 
 def _create_formatter_instance(
     chat_model_class: Type[ChatModelBase],
+    *,
+    token_counter: Any | None = None,
+    max_tokens: int | None = None,
 ) -> FormatterBase:
     """Create a formatter instance for the given chat model class.
 
@@ -1088,6 +1240,10 @@ def _create_formatter_instance(
         (OpenAIChatFormatter, GeminiChatFormatter),
     ):
         kwargs["promote_tool_result_images"] = True
+    if token_counter is not None:
+        kwargs["token_counter"] = token_counter
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
     return formatter_class(**kwargs)
 
 

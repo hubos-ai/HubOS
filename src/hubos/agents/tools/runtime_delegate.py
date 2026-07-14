@@ -27,19 +27,29 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
+import re
+import shutil
 import threading
 import time
 from contextvars import ContextVar
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 import httpx
 from agentscope.message import TextBlock
 from agentscope.tool import ToolResponse
+from agentscope_runtime.engine.schemas.agent_schemas import (
+    ContentType,
+    FileContent,
+    TextContent,
+)
 
+from hubos.agents.dispatcher_policy import classify_document_task_target
 from hubos.app.task_monitor import TaskEventType, TaskStatus
 from hubos.app.task_monitor_helpers import (
     safe_add_event,
@@ -63,6 +73,38 @@ _PROGRESS_EVENT_TYPES = {
 }
 _MAX_PROGRESS_LINES_IN_RESPONSE = 30
 _TERMINAL_TASK_STATUSES = {"done", "failed", "cancelled"}
+_BRIDGE_NOTIFICATION_FILE_THRESHOLD = 3000
+_BRIDGE_TASK_DIR_ENV = "HUBOS_BRIDGE_TASK_DIR"
+_BRIDGE_ARTIFACT_STAGE_DIR_ENV = "HUBOS_TASK_ARTIFACT_DIR"
+_BRIDGE_WORKSPACE_ID_ALLOWED_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyz"
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "0123456789"
+    "._-",
+)
+_FEISHU_RESEARCH_FAST_CONTRACT_MARKER = "## 飞书快速调研契约"
+_FEISHU_RESEARCH_FAST_CONTRACT = """\
+## 飞书快速调研契约（优先级最高）
+
+这是来自飞书用户的后台调研任务，目标是尽快给出可用结论，而不是写完整论文。
+
+执行预算：
+- 目标耗时 2-3 分钟，最多 5 分钟内完成。
+- 最多使用 10 次 `web_search_prime` 和 6 次 `webReader`。
+- 不要重复相同关键词或相同 URL；不要并行发起重复搜索。
+- `tavily_search` 仅在 `web_search_prime` 不可用或明显失败时兜底。
+- 除非用户明确要求“保存/生成报告文件”，不要调用 `write_file`。
+
+输出要求：
+- 直接返回中文结构化结论，不要先寒暄，不要说“我还需要继续调研”。
+- 必须包含：1）结论摘要；2）市场判断；3）5 个潜在客户；4）开发建议；5）主要风险；6）来源清单。
+- 搜不到的信息标注“未查到”，不要为了补齐字段继续无限搜索。
+- 证据足够支撑 5 个客户和一个开发建议后，立即停止扩搜并汇总。
+"""
+_DOCUMENT_ROUTING_CODE_HINT_RE = re.compile(
+    r"\b(api|python|脚本|代码|bug|报错|调试|部署|接口|sql|数据库|自动化|程序)\b",
+    re.IGNORECASE,
+)
 
 
 # ==================== 模式选择 ====================
@@ -107,6 +149,22 @@ _inproc_lock = threading.Lock()
 _inproc_orchestrator: Any = None
 _inproc_task_store: Any = None
 _inproc_event_store: Any = None
+
+
+def _maybe_apply_feishu_research_fast_contract(
+    *,
+    prompt: str,
+    agent_id: str | None,
+) -> str:
+    """Add a bounded research contract for Feishu delegated research tasks."""
+    if agent_id != "research":
+        return prompt
+    runtime_ctx = _current_runtime_ctx()
+    if runtime_ctx.get("channel") != "feishu":
+        return prompt
+    if _FEISHU_RESEARCH_FAST_CONTRACT_MARKER in prompt:
+        return prompt
+    return f"{_FEISHU_RESEARCH_FAST_CONTRACT}\n\n---\n\n原始任务：\n{prompt}"
 
 
 def _get_inprocess_components() -> tuple[Any, Any, Any]:
@@ -205,6 +263,54 @@ def _parse_tool_response(resp: Any) -> dict[str, Any]:
     content = resp.content[0]
     raw = content["text"] if isinstance(content, dict) else content.text
     return json.loads(raw)
+
+
+def _nested_delegate_allowed(extra_context: dict[str, Any] | None) -> bool:
+    """Return whether a delegated sub-agent may orchestrate further."""
+    if not isinstance(extra_context, dict):
+        return False
+    value = extra_context.get("allow_nested_delegate")
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return False
+
+
+def _current_agent_id() -> str:
+    return str(_current_runtime_ctx().get("agent_id") or "").strip()
+
+
+def _reject_nested_delegate(
+    extra_context: dict[str, Any] | None,
+) -> ToolResponse | None:
+    """Block ordinary sub-agents from recursive orchestration."""
+    ctx = _current_runtime_ctx()
+    if not ctx.get("parent_session_id"):
+        return None
+    if _nested_delegate_allowed(extra_context):
+        return None
+    agent_id = _current_agent_id() or "sub-agent"
+    return _err(
+        "delegate_task: nested delegation is disabled for delegated sub-agents. "
+        f"Current agent={agent_id}. Please execute directly or return "
+        "“建议改派给 <agent_id>，原因：...” to the parent agent.",
+    )
+
+
+def _resolve_bridge_target(goal: str, requested_agent: str | None) -> str:
+    """Choose a safer agent target for agent_bridge single delegation."""
+    requested = (requested_agent or "").strip()
+    doc_target = classify_document_task_target(goal)
+    if doc_target and not _DOCUMENT_ROUTING_CODE_HINT_RE.search(goal or ""):
+        if requested in {"", "rd", "research"}:
+            logger.info(
+                "Agent bridge rerouted document-style task from %s to %s",
+                requested or _BRIDGE_FALLBACK_AGENT,
+                doc_target,
+            )
+            return doc_target
+    return requested or _BRIDGE_FALLBACK_AGENT
 
 
 # ==================== Runtime 请求上下文 ====================
@@ -1076,6 +1182,10 @@ async def _delegate_task_agent_bridge(
         - ``steps`` (list)          → coordinate_workflow DAG
         - none of the above         → single-agent, fallback to ``rd``
     """
+    nested_delegate_error = _reject_nested_delegate(extra_context)
+    if nested_delegate_error is not None:
+        return nested_delegate_error
+
     from hubos.agents.tools.agent_workforce import (
         coordinate_workflow as _coordinate_workflow,
         spawn_subagents as _spawn_subagents,
@@ -1104,6 +1214,18 @@ async def _delegate_task_agent_bridge(
         )
     elif assignments:
         # Multi-agent parallel
+        assignments = [
+            {
+                **assignment,
+                "prompt": _maybe_apply_feishu_research_fast_contract(
+                    prompt=str(assignment.get("prompt") or ""),
+                    agent_id=assignment.get("agent_id"),
+                ),
+            }
+            if isinstance(assignment, dict)
+            else assignment
+            for assignment in assignments
+        ]
         exec_type = "parallel"
         record = _bridge_task_create(
             task_id,
@@ -1117,7 +1239,11 @@ async def _delegate_task_agent_bridge(
         )
     else:
         # Single agent (explicit or fallback)
-        target = agent_id or _BRIDGE_FALLBACK_AGENT
+        target = _resolve_bridge_target(goal, agent_id)
+        goal = _maybe_apply_feishu_research_fast_contract(
+            prompt=goal,
+            agent_id=target,
+        )
         exec_type = "single"
         record = _bridge_task_create(
             task_id,
@@ -1186,11 +1312,17 @@ def _bridge_task_create(
         "result": None,
         "error": None,
         "created_at": time.time(),
+        "updated_at": time.time(),
         "finished_at": None,
         "workflow_id": None,
+        "artifact_path": None,
+        "artifact_manifest_path": None,
+        "staged_artifact_manifest_path": None,
+        "owner_workspace_id": None,
     }
     with _bridge_lock:
         _bridge_tasks[task_id] = record
+    _bridge_task_persist(record)
     return record
 
 
@@ -1215,8 +1347,77 @@ def _bridge_task_update(
             rec["error"] = error
         if workflow_id is not None:
             rec["workflow_id"] = workflow_id
+        rec["updated_at"] = time.time()
         if status in _TERMINAL_TASK_STATUSES | {"timeout"}:
-            rec["finished_at"] = time.time()
+            rec["finished_at"] = rec["updated_at"]
+        persisted = dict(rec)
+    _bridge_task_persist(persisted)
+
+
+def _bridge_task_dir() -> Path:
+    """Return the on-disk store for agent-bridge task records."""
+    return Path(
+        os.environ.get(
+            _BRIDGE_TASK_DIR_ENV,
+            "~/.hubos/agent_bridge_tasks",
+        ),
+    ).expanduser()
+
+
+def _bridge_task_path(task_id: str) -> Path:
+    """Return a safe JSON path for a bridge task id."""
+    return _bridge_task_dir() / f"{_safe_bridge_id(task_id)}.json"
+
+
+def _safe_bridge_id(task_id: str) -> str:
+    """Sanitize task ids before using them as path segments."""
+    safe_id = "".join(ch for ch in task_id if ch.isalnum() or ch in {"-", "_"})
+    return safe_id or f"bridge-{uuid4().hex[:12]}"
+
+
+def _bridge_task_persist(record: dict[str, Any]) -> None:
+    """Best-effort persistence so completed bridge tasks survive restarts."""
+    task_id = str(record.get("task_id") or "")
+    if not task_id:
+        return
+    try:
+        path = _bridge_task_path(task_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_suffix(".json.tmp")
+        tmp_path.write_text(
+            json.dumps(record, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        tmp_path.replace(path)
+    except Exception:
+        logger.debug(
+            "Failed to persist Agent Bridge task %s",
+            task_id,
+            exc_info=True,
+        )
+
+
+def _bridge_task_load(task_id: str) -> dict[str, Any] | None:
+    """Load a bridge task record from disk if the in-memory map is empty."""
+    try:
+        path = _bridge_task_path(task_id)
+        if not path.exists():
+            return None
+        record = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(record, dict):
+            return None
+        if record.get("task_id") != task_id:
+            return None
+        with _bridge_lock:
+            _bridge_tasks.setdefault(task_id, record)
+        return record
+    except Exception:
+        logger.debug(
+            "Failed to load Agent Bridge task %s",
+            task_id,
+            exc_info=True,
+        )
+        return None
 
 
 async def _bridge_run_single(
@@ -1326,6 +1527,338 @@ async def _bridge_bg_wrapper(
     except Exception as e:  # noqa: BLE001
         logger.exception("Agent Bridge background task %s failed", task_id)
         _bridge_task_update(task_id, status="failed", error=str(e))
+    finally:
+        await _notify_bridge_task_completion(task_id)
+
+
+async def _notify_bridge_task_completion(task_id: str) -> None:
+    """Best-effort proactive notification for background bridge tasks."""
+    try:
+        from hubos.app.channels.delivery_context import (
+            get_current_delivery_context,
+        )
+
+        delivery_ctx = get_current_delivery_context()
+        if delivery_ctx is None:
+            return
+
+        with _bridge_lock:
+            rec = dict(_bridge_tasks.get(task_id) or {})
+        if not rec:
+            return
+
+        status = rec.get("status", "unknown")
+        mode = rec.get("exec_type", "?")
+        result = (rec.get("result") or "").strip()
+        error = (rec.get("error") or "").strip()
+
+        if status == "done":
+            try:
+                artifact_bundle = _stage_and_archive_bridge_result(
+                    task_id=task_id,
+                    mode=mode,
+                    result=result,
+                    delivery_ctx=delivery_ctx,
+                    record=rec,
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "Failed to archive bridge task result: %s",
+                    task_id,
+                    exc_info=True,
+                )
+                fallback = _truncate_bridge_notification(result, limit=2400)
+                body = (
+                    "后台任务已完成，但结果文件归档失败。先把可读摘要发给你。\n"
+                    f"Task ID: {task_id}\n"
+                    f"Mode: {mode}\n"
+                    "技术细节已写入服务日志。"
+                )
+                if fallback:
+                    body += f"\n\n{fallback}"
+                else:
+                    body += "\n\n（任务没有返回文本结果）"
+                await delivery_ctx.send_parts(
+                    delivery_ctx.to_handle,
+                    [TextContent(type=ContentType.TEXT, text=body)],
+                    delivery_ctx.meta,
+                )
+                return
+            artifact_path = Path(artifact_bundle["primary_path"])
+            with _bridge_lock:
+                if task_id in _bridge_tasks:
+                    _bridge_tasks[task_id].update(
+                        {
+                            "artifact_path": str(artifact_path),
+                            "artifact_manifest_path": artifact_bundle[
+                                "manifest_path"
+                            ],
+                            "staged_artifact_manifest_path": artifact_bundle[
+                                "staged_manifest_path"
+                            ],
+                            "owner_workspace_id": artifact_bundle.get(
+                                "owner_workspace_id",
+                            ),
+                        },
+                    )
+                    _bridge_task_persist(dict(_bridge_tasks[task_id]))
+            if _bridge_result_should_be_file(result):
+                body = (
+                    "后台任务已完成，结果较长，已整理成文件发送给你。\n"
+                    f"Task ID: {task_id}\n"
+                    f"Mode: {mode}"
+                )
+                await delivery_ctx.send_parts(
+                    delivery_ctx.to_handle,
+                    [
+                        TextContent(type=ContentType.TEXT, text=body),
+                        FileContent(
+                            type=ContentType.FILE,
+                            file_url=f"file://{artifact_path}",
+                            filename=artifact_path.name,
+                        ),
+                    ],
+                    delivery_ctx.meta,
+                )
+                return
+
+            body = (
+                f"后台任务已完成。\n"
+                f"Task ID: {task_id}\n"
+                f"Mode: {mode}\n\n"
+                f"{result}"
+            )
+        else:
+            body = (
+                f"后台任务结束，但状态为 {status}。\n"
+                f"Task ID: {task_id}\n"
+                f"Mode: {mode}"
+            )
+            if error:
+                body += f"\n\nError: {_truncate_bridge_notification(error)}"
+
+        await delivery_ctx.send_parts(
+            delivery_ctx.to_handle,
+            [TextContent(type=ContentType.TEXT, text=body)],
+            delivery_ctx.meta,
+        )
+    except Exception:
+        logger.warning(
+            "Failed to send bridge task completion notification: %s",
+            task_id,
+            exc_info=True,
+        )
+
+
+def _bridge_result_should_be_file(text: str) -> bool:
+    """Use a file for results long enough to feel clipped in chat apps."""
+    return len(text.encode("utf-8")) > _BRIDGE_NOTIFICATION_FILE_THRESHOLD
+
+
+def _bridge_artifact_stage_root() -> Path:
+    """Return the root for task-scoped temporary artifacts."""
+    return Path(
+        os.environ.get(
+            _BRIDGE_ARTIFACT_STAGE_DIR_ENV,
+            "~/.hubos/task_artifacts",
+        ),
+    ).expanduser()
+
+
+def _safe_bridge_workspace_id(workspace_id: Any) -> str:
+    """Validate a workspace id before using it as a filesystem segment."""
+    text = str(workspace_id).strip()
+    if not text:
+        raise ValueError("Unsafe workspace_id: empty")
+    if text in {".", ".."} or "/" in text or "\\" in text:
+        raise ValueError(f"Unsafe workspace_id: {text!r}")
+    if any(ch not in _BRIDGE_WORKSPACE_ID_ALLOWED_CHARS for ch in text):
+        raise ValueError(f"Unsafe workspace_id: {text!r}")
+    return text
+
+
+def _bridge_owner_workspace_id(delivery_ctx: Any) -> str | None:
+    """Resolve the workspace that owns a delivery context."""
+    workspace_id = getattr(delivery_ctx, "workspace_id", None)
+    if workspace_id:
+        return _safe_bridge_workspace_id(workspace_id)
+    meta = getattr(delivery_ctx, "meta", None) or {}
+    if isinstance(meta, dict) and meta.get("workspace_id"):
+        return _safe_bridge_workspace_id(meta["workspace_id"])
+    return None
+
+
+def _bridge_artifact_summary(text: str, limit: int = 180) -> str:
+    """Create a compact human-readable artifact summary."""
+    compact = " ".join(text.strip().split())
+    if len(compact) <= limit:
+        return compact
+    return compact[:limit].rstrip() + "..."
+
+
+def _sha256_file(path: Path) -> str:
+    """Return SHA-256 for a file."""
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _stage_and_archive_bridge_result(
+    *,
+    task_id: str,
+    mode: str,
+    result: str,
+    delivery_ctx: Any,
+    record: dict[str, Any],
+) -> dict[str, Any]:
+    """Stage a bridge result, validate ownership, then archive by workspace."""
+    manifest = _write_bridge_staged_artifact(
+        task_id=task_id,
+        mode=mode,
+        result=result,
+        delivery_ctx=delivery_ctx,
+        record=record,
+    )
+    archived_manifest = _archive_bridge_artifact_manifest(
+        manifest,
+        delivery_ctx,
+    )
+    primary = archived_manifest["artifacts"][0]["path"]
+    return {
+        "primary_path": primary,
+        "manifest_path": archived_manifest["manifest_path"],
+        "staged_manifest_path": manifest["manifest_path"],
+        "owner_workspace_id": archived_manifest.get("owner_workspace_id"),
+    }
+
+
+def _write_bridge_staged_artifact(
+    *,
+    task_id: str,
+    mode: str,
+    result: str,
+    delivery_ctx: Any,
+    record: dict[str, Any],
+) -> dict[str, Any]:
+    """Write a completed bridge result into a task-scoped staging folder."""
+    owner_workspace_id = _bridge_owner_workspace_id(delivery_ctx)
+    safe_task_id = _safe_bridge_id(task_id)
+    stage_dir = _bridge_artifact_stage_root() / safe_task_id
+    stage_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    path = stage_dir / f"result_{timestamp}.md"
+    body = (
+        "# HubOS 后台任务结果\n\n"
+        f"- Task ID: `{task_id}`\n"
+        f"- Mode: `{mode}`\n"
+        f"- Generated at: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        "---\n\n"
+        f"{result}\n"
+    )
+    path.write_text(body, encoding="utf-8")
+    artifact = {
+        "title": "HubOS 后台任务结果",
+        "type": "markdown",
+        "mime_type": "text/markdown",
+        "filename": path.name,
+        "path": str(path),
+        "bytes": path.stat().st_size,
+        "sha256": _sha256_file(path),
+        "summary": _bridge_artifact_summary(result),
+    }
+    manifest = {
+        "task_id": task_id,
+        "owner_workspace_id": owner_workspace_id,
+        "session_id": getattr(delivery_ctx, "session_id", None),
+        "channel": getattr(delivery_ctx, "channel", None),
+        "producer_agent_id": record.get("agent_id"),
+        "exec_type": mode,
+        "status": "done",
+        "created_at": record.get("created_at"),
+        "finished_at": record.get("finished_at"),
+        "staged_at": time.time(),
+        "stage_dir": str(stage_dir),
+        "artifacts": [artifact],
+    }
+    manifest_path = stage_dir / "artifact_manifest.json"
+    manifest["manifest_path"] = str(manifest_path)
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return manifest
+
+
+def _archive_bridge_artifact_manifest(
+    manifest: dict[str, Any],
+    delivery_ctx: Any,
+) -> dict[str, Any]:
+    """Copy staged artifacts into the owning workspace after validation."""
+    owner_workspace_id = manifest.get("owner_workspace_id")
+    if owner_workspace_id:
+        owner_workspace_id = _safe_bridge_workspace_id(owner_workspace_id)
+    current_workspace_id = _bridge_owner_workspace_id(delivery_ctx)
+    if owner_workspace_id and current_workspace_id:
+        if owner_workspace_id != current_workspace_id:
+            raise ValueError(
+                "Artifact owner mismatch: "
+                f"manifest={owner_workspace_id}, current={current_workspace_id}",
+            )
+    if not owner_workspace_id:
+        owner_workspace_id = current_workspace_id
+
+    safe_task_id = _safe_bridge_id(str(manifest.get("task_id") or ""))
+    if owner_workspace_id:
+        archive_dir = (
+            Path.home()
+            / ".hubos"
+            / "workspaces"
+            / str(owner_workspace_id)
+            / "artifacts"
+            / safe_task_id
+        )
+    else:
+        archive_dir = (
+            Path.home() / ".hubos" / "artifacts" / "_unowned" / safe_task_id
+        )
+    archive_dir.mkdir(parents=True, exist_ok=True)
+
+    archived_artifacts: list[dict[str, Any]] = []
+    for artifact in manifest.get("artifacts") or []:
+        src = Path(str(artifact.get("path") or ""))
+        if not src.is_file():
+            raise FileNotFoundError(f"Staged artifact missing: {src}")
+        dst = archive_dir / src.name
+        shutil.copy2(src, dst)
+        archived = dict(artifact)
+        archived["staged_path"] = artifact.get("path")
+        archived["path"] = str(dst)
+        archived["bytes"] = dst.stat().st_size
+        archived["sha256"] = _sha256_file(dst)
+        archived_artifacts.append(archived)
+
+    archived_manifest = dict(manifest)
+    archived_manifest["owner_workspace_id"] = owner_workspace_id
+    archived_manifest["archive_dir"] = str(archive_dir)
+    archived_manifest["archived_at"] = time.time()
+    archived_manifest["artifacts"] = archived_artifacts
+    manifest_path = archive_dir / "artifact_manifest.json"
+    archived_manifest["manifest_path"] = str(manifest_path)
+    archived_manifest["staged_manifest_path"] = manifest.get("manifest_path")
+    manifest_path.write_text(
+        json.dumps(archived_manifest, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return archived_manifest
+
+
+def _truncate_bridge_notification(text: str, limit: int = 3500) -> str:
+    """Keep proactive channel notifications reasonably small."""
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "\n\n...（结果较长，已截断）"
 
 
 async def _track_task_agent_bridge(
@@ -1336,12 +1869,29 @@ async def _track_task_agent_bridge(
     """Check status of an Agent Bridge task."""
     with _bridge_lock:
         rec = _bridge_tasks.get(task_id)
+    recovered_from_disk = False
+
+    if rec is None:
+        rec = _bridge_task_load(task_id)
+        recovered_from_disk = rec is not None
 
     if rec is None:
         return _err(f"❌ Task not found (agent_bridge): {task_id}")
 
     status = rec["status"]
     is_terminal = status in _TERMINAL_TASK_STATUSES | {"timeout"}
+
+    if recovered_from_disk and not is_terminal:
+        lines = [
+            f"Task ID: {task_id}",
+            f"Status: {status}",
+            f"Mode: {rec.get('exec_type', '?')}",
+            "",
+            "Note: task record was recovered after a service restart, but "
+            "there is no live background worker in this process. The task "
+            "may have been interrupted before completion.",
+        ]
+        return _ok("\n".join(lines))
 
     if is_terminal or not follow:
         lines = [
@@ -1355,6 +1905,8 @@ async def _track_task_agent_bridge(
             lines.append(f"\nResult:\n{rec['result']}")
         if rec.get("error"):
             lines.append(f"\nError: {rec['error']}")
+        if rec.get("artifact_path"):
+            lines.append(f"\nArtifact: {rec['artifact_path']}")
         return _ok("\n".join(lines))
 
     # follow=True but not yet terminal — poll
@@ -1380,6 +1932,8 @@ async def _track_task_agent_bridge(
                 lines.append(f"\nResult:\n{rec['result']}")
             if rec.get("error"):
                 lines.append(f"\nError: {rec['error']}")
+            if rec.get("artifact_path"):
+                lines.append(f"\nArtifact: {rec['artifact_path']}")
             return _ok("\n".join(lines))
 
     return _ok(

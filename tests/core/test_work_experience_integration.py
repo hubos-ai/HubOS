@@ -578,6 +578,60 @@ class TestWorkExperienceV4Interceptor:
         assert "curl" in updated.tools
         assert "不要泛搜 distributor" in updated.pitfalls
 
+    def test_session_matching_state_is_isolated(self, tmp_path: Path) -> None:
+        from hubos.core.work_experience.integration_v4 import MatchResult
+
+        store = CardStore(root=tmp_path / "we_v4")
+        card_a = WorkflowCard(task_type="代码修复", description="修复代码")
+        card_b = WorkflowCard(task_type="客户开发", description="寻找客户")
+        store.save(card_a)
+        store.save(card_b)
+        interceptor = V4WorkExperienceInterceptor(store=store)
+
+        with patch.object(
+            interceptor._retriever,
+            "get_or_suggest",
+            side_effect=[
+                MatchResult(
+                    card=card_a,
+                    status="matched",
+                    task_type=card_a.task_type,
+                ),
+                MatchResult(
+                    card=card_b,
+                    status="matched",
+                    task_type=card_b.task_type,
+                ),
+            ],
+        ):
+            interceptor.pre_execute("修复错误", session_id="session-a")
+            interceptor.pre_execute("开发客户", session_id="session-b")
+
+        assert interceptor._state("session-a").card_id == card_a.card_id
+        assert interceptor._state("session-b").card_id == card_b.card_id
+
+    def test_shared_card_reflection_redacts_private_values(self) -> None:
+        from hubos.core.work_experience.integration_v4 import (
+            _sanitize_shared_reflection,
+        )
+
+        clean = _sanitize_shared_reflection(
+            {
+                "task_type": "系统调试",
+                "description": "联系 owner@example.com，token=secret-value",
+                "workflow": ["读取 /Users/alice/private/config.json"],
+                "pitfalls": ["飞书用户 ou_abcdefghijklmnop 不可访问"],
+                "knowledge_candidates": [{"summary": "local fact"}],
+            },
+        )
+
+        text = str(clean)
+        assert "owner@example.com" not in text
+        assert "secret-value" not in text
+        assert "/Users/alice" not in text
+        assert "ou_abcdefghijklmnop" not in text
+        assert "knowledge_candidates" not in clean
+
 
 # =============================================================================
 # V4 Traceability Tests

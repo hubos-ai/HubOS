@@ -10,6 +10,7 @@ Phase-1 lightweight version:
 from __future__ import annotations
 
 import logging
+import json
 import os
 import re
 import shutil
@@ -17,7 +18,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -32,14 +33,22 @@ _MAX_SUMMARY_DETAIL_CHARS = 500
 def get_refs_root() -> Path:
     """Get the refs root directory under the current workspace.
 
-    Uses HUBOS_WORKING_DIR if set, otherwise ~/.hubos.
+    Uses the request-scoped workspace first, then HUBOS_WORKING_DIR, then
+    ``~/.hubos``.
     """
+    from ..config.context import get_current_workspace_dir
+
+    scoped_workspace = get_current_workspace_dir()
     workspace = os.environ.get("HUBOS_WORKING_DIR")
-    if workspace:
-        root = Path(workspace)
-    else:
+    root = scoped_workspace or (Path(workspace) if workspace else None)
+    if root is None:
         root = Path.home() / ".hubos"
     return root / "refs"
+
+
+def _safe_ref_component(value: str, fallback: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._")
+    return cleaned[:160] or fallback
 
 
 def archive_tool_output(
@@ -49,6 +58,7 @@ def archive_tool_output(
     session_id: str = "",
     tool_call_id: str = "",
     threshold: int = DEFAULT_ARCHIVE_THRESHOLD_CHARS,
+    refs_root: Path | None = None,
 ) -> Optional[str]:
     """Archive large tool output to a refs file and return a structured summary.
 
@@ -81,11 +91,15 @@ def archive_tool_output(
         tool_call_id = uuid.uuid4().hex[:12]
 
     # Write full output to refs file
-    refs_root = get_refs_root()
-    session_dir = refs_root / session_id
+    resolved_refs_root = refs_root or get_refs_root()
+    session_dir = resolved_refs_root / _safe_ref_component(
+        session_id,
+        "unknown",
+    )
     session_dir.mkdir(parents=True, exist_ok=True)
 
-    ref_file = session_dir / f"{tool_call_id}.md"
+    safe_call_id = _safe_ref_component(tool_call_id, uuid.uuid4().hex[:12])
+    ref_file = session_dir / f"{safe_call_id}.md"
     try:
         ref_file.write_text(text, encoding="utf-8")
     except Exception:
@@ -103,6 +117,128 @@ def archive_tool_output(
         ref_path=str(ref_file),
     )
     return summary
+
+
+def archive_tool_input(
+    arguments: Any,
+    *,
+    tool_name: str = "",
+    session_id: str = "",
+    tool_call_id: str = "",
+    refs_root: Path | None = None,
+) -> Optional[dict[str, Any]]:
+    """Archive a completed tool call's large arguments and return a pointer."""
+    try:
+        serialized = json.dumps(arguments, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        return None
+
+    if not session_id:
+        from ..config.context import get_current_session_id
+
+        session_id = get_current_session_id() or "unknown"
+    call_id = tool_call_id or uuid.uuid4().hex[:12]
+    resolved_refs_root = refs_root or get_refs_root()
+    session_dir = resolved_refs_root / _safe_ref_component(
+        session_id,
+        "unknown",
+    )
+    session_dir.mkdir(parents=True, exist_ok=True)
+    ref_file = session_dir / (
+        _safe_ref_component(call_id, uuid.uuid4().hex[:12]) + "-input.json"
+    )
+    try:
+        ref_file.write_text(serialized, encoding="utf-8")
+    except Exception:
+        logger.warning(
+            "Failed to write tool input archive: %s",
+            ref_file,
+            exc_info=True,
+        )
+        return None
+
+    return {
+        "_archived_tool_input": True,
+        "tool": tool_name or "unknown",
+        "chars": len(serialized),
+        "keys": list(arguments)[:20] if isinstance(arguments, dict) else [],
+        "preview": serialized[:300],
+        "ref": str(ref_file),
+    }
+
+
+def compact_completed_tool_inputs(
+    messages: list[Any],
+    *,
+    recent_n: int = 6,
+    threshold: int = 2_000,
+    session_id: str = "",
+    refs_root: Path | None = None,
+) -> int:
+    """Replace old, completed large tool arguments with archive pointers."""
+    completed_ids: set[str] = set()
+    for msg in messages:
+        content = (
+            msg.get("content")
+            if isinstance(msg, dict)
+            else getattr(msg, "content", None)
+        )
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if (
+                not isinstance(block, dict)
+                or block.get("type") != "tool_result"
+            ):
+                continue
+            call_id = block.get("id") or block.get("tool_use_id")
+            if call_id:
+                completed_ids.add(str(call_id))
+
+    compacted = 0
+    old_messages = messages[: max(0, len(messages) - max(0, recent_n))]
+    for msg in old_messages:
+        content = (
+            msg.get("content")
+            if isinstance(msg, dict)
+            else getattr(msg, "content", None)
+        )
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_use":
+                continue
+            call_id = str(block.get("id") or block.get("tool_use_id") or "")
+            if not call_id or call_id not in completed_ids:
+                continue
+            arguments = block.get("input", {})
+            if isinstance(arguments, dict) and arguments.get(
+                "_archived_tool_input",
+            ):
+                continue
+            try:
+                serialized = json.dumps(
+                    arguments,
+                    ensure_ascii=False,
+                    default=str,
+                )
+            except (TypeError, ValueError):
+                continue
+            if len(serialized) <= threshold:
+                continue
+            pointer = archive_tool_input(
+                arguments,
+                tool_name=str(block.get("name") or ""),
+                session_id=session_id,
+                tool_call_id=call_id,
+                refs_root=refs_root,
+            )
+            if pointer is None:
+                continue
+            block["input"] = pointer
+            block["raw_input"] = json.dumps(pointer, ensure_ascii=False)
+            compacted += 1
+    return compacted
 
 
 def _build_summary(

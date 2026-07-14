@@ -18,9 +18,82 @@ from agentscope.session import SessionBase
 
 logger = logging.getLogger(__name__)
 
+_TIME_COMPACT_CHUNK_CHARS = 30_000
+
 
 # Characters forbidden in Windows filenames
 _UNSAFE_FILENAME_RE = re.compile(r'[\\/:*?"<>|]')
+
+
+def _message_has_block_type(msg, block_type: str) -> bool:
+    """Return whether an AgentScope message contains a block of *block_type*."""
+    content = getattr(msg, "content", None)
+    if not isinstance(content, list):
+        return False
+    return any(
+        isinstance(block, dict) and block.get("type") == block_type
+        for block in content
+    )
+
+
+def _is_protected_system_message(msg) -> bool:
+    """Keep true system prompts, but allow old tool results to be pruned.
+
+    AgentScope stores tool results as ``role=system`` messages. Treating every
+    system-role message as permanent made large channel sessions accumulate
+    stale tool outputs forever, which can poison provider formatting and lead
+    to empty assistant replies.
+    """
+    if getattr(msg, "role", None) != "system":
+        return False
+    return not _message_has_block_type(msg, "tool_result")
+
+
+def _is_empty_assistant_message(msg) -> bool:
+    """Return True for assistant messages that carry no usable content."""
+    if getattr(msg, "role", None) != "assistant":
+        return False
+    content = getattr(msg, "content", None)
+    if not isinstance(content, list) or not content:
+        return False
+
+    for block in content:
+        if not isinstance(block, dict):
+            return False
+        block_type = block.get("type")
+        if block_type == "text" and str(block.get("text") or "").strip():
+            return False
+        if (
+            block_type == "thinking"
+            and str(block.get("thinking") or "").strip()
+        ):
+            return False
+        if block_type not in {"text", "thinking"}:
+            return False
+    return True
+
+
+def prune_empty_assistant_messages(memory) -> int:
+    """Remove useless assistant messages that only contain empty text/thinking."""
+    if not hasattr(memory, "content"):
+        return 0
+
+    next_content = []
+    pruned = 0
+    for item in list(memory.content):
+        if not isinstance(item, (list, tuple)) or len(item) != 2:
+            next_content.append(item)
+            continue
+        msg, _marks = item
+        if _is_empty_assistant_message(msg):
+            pruned += 1
+            continue
+        next_content.append(item)
+
+    if pruned:
+        memory.content = next_content
+        logger.info("Pruned %d empty assistant message(s)", pruned)
+    return pruned
 
 
 def sanitize_filename(name: str) -> str:
@@ -42,7 +115,9 @@ def prune_stale_session_messages(
     """Remove messages older than *max_age_hours* from an InMemoryMemory object.
 
     Rules:
-    - System messages are **always** kept.
+    - True system prompt messages are **always** kept.
+    - Tool-result messages are pruned by age even if AgentScope stores them
+      with ``role=system``.
     - The most-recent *min_keep* non-system messages are **always** kept.
     - For older messages, those whose timestamp precedes the cutoff are dropped.
 
@@ -59,7 +134,9 @@ def prune_stale_session_messages(
 
     content = list(memory.content)
     non_system_indices = [
-        i for i, (msg, _) in enumerate(content) if msg.role != "system"
+        i
+        for i, (msg, _) in enumerate(content)
+        if not _is_protected_system_message(msg)
     ]
 
     if len(non_system_indices) <= min_keep:
@@ -72,14 +149,16 @@ def prune_stale_session_messages(
     new_content = []
     pruned = 0
     for i, (msg, marks) in enumerate(content):
-        if msg.role == "system" or i in always_keep:
+        if _is_protected_system_message(msg) or i in always_keep:
             new_content.append((msg, marks))
             continue
 
         ts_str = getattr(msg, "timestamp", None)
         if ts_str:
             try:
-                ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S").timestamp()
+                ts = datetime.fromisoformat(
+                    str(ts_str).replace("Z", "+00:00"),
+                ).timestamp()
                 if ts < cutoff_ts:
                     pruned += 1
                     continue
@@ -97,6 +176,220 @@ def prune_stale_session_messages(
         )
 
     return pruned
+
+
+def _find_stale_session_messages(
+    memory,
+    *,
+    max_age_hours: float,
+    min_keep: int,
+) -> list:
+    """Return stale messages while preserving recent tool call pairs."""
+    if not hasattr(memory, "content"):
+        return []
+
+    content = list(memory.content)
+    candidate_indices = [
+        i
+        for i, item in enumerate(content)
+        if isinstance(item, (list, tuple))
+        and len(item) >= 1
+        and not _is_protected_system_message(item[0])
+    ]
+    if len(candidate_indices) <= min_keep:
+        return []
+
+    always_keep = set(candidate_indices[-min_keep:])
+    tool_use_indices: dict[str, int] = {}
+    tool_result_indices: dict[str, int] = {}
+    for index, item in enumerate(content):
+        if not isinstance(item, (list, tuple)) or not item:
+            continue
+        blocks = getattr(item[0], "content", None)
+        if not isinstance(blocks, list):
+            continue
+        for block in blocks:
+            if not isinstance(block, dict):
+                continue
+            call_id = block.get("id") or block.get("tool_use_id")
+            if not call_id:
+                continue
+            if block.get("type") == "tool_use":
+                tool_use_indices[str(call_id)] = index
+            elif block.get("type") == "tool_result":
+                tool_result_indices[str(call_id)] = index
+    pairs = []
+    for call_id in set(tool_use_indices) | set(tool_result_indices):
+        pair = {
+            tool_use_indices.get(call_id),
+            tool_result_indices.get(call_id),
+        }
+        pair.discard(None)
+        pairs.append(pair)
+    changed = True
+    while changed:
+        changed = False
+        for pair in pairs:
+            if pair & always_keep and not pair <= always_keep:
+                always_keep.update(pair)
+                changed = True
+
+    cutoff_ts = datetime.now().timestamp() - max_age_hours * 3600
+    stale_messages = []
+    for index, item in enumerate(content):
+        if (
+            index in always_keep
+            or not isinstance(item, (list, tuple))
+            or not item
+        ):
+            continue
+        msg = item[0]
+        if _is_protected_system_message(msg):
+            continue
+        timestamp = getattr(msg, "timestamp", None)
+        if not timestamp:
+            continue
+        try:
+            msg_ts = datetime.fromisoformat(
+                str(timestamp).replace("Z", "+00:00"),
+            ).timestamp()
+        except ValueError:
+            continue
+        if msg_ts < cutoff_ts:
+            stale_messages.append(msg)
+
+    return stale_messages
+
+
+async def compact_stale_session_messages_locally(
+    memory,
+    *,
+    max_age_hours: float = 2.0,
+    min_keep: int = 10,
+) -> int:
+    """Archive stale messages using a bounded local digest, without an LLM."""
+    mark_compressed = getattr(memory, "mark_messages_compressed", None)
+    update_summary = getattr(memory, "update_compressed_summary", None)
+    if not callable(mark_compressed) or not callable(update_summary):
+        logger.warning(
+            "Local time compaction skipped: memory backend %s lacks archive support",
+            memory.__class__.__name__,
+        )
+        return 0
+    stale_messages = _find_stale_session_messages(
+        memory,
+        max_age_hours=max_age_hours,
+        min_keep=min_keep,
+    )
+    if not stale_messages:
+        return 0
+
+    from ...core.memory.session_migration import build_extractive_summary
+
+    get_summary = getattr(memory, "get_compressed_summary", None)
+    previous_summary = get_summary() if callable(get_summary) else ""
+    compact_content = build_extractive_summary(
+        stale_messages,
+        previous_summary=previous_summary or "",
+    )
+    archived = await mark_compressed(stale_messages)
+    await update_summary(compact_content)
+    logger.info(
+        "Locally archived and compacted %d stale session message(s) older "
+        "than %.1fh without an LLM call",
+        archived,
+        max_age_hours,
+    )
+    return int(archived or 0)
+
+
+async def compact_stale_session_messages(
+    memory,
+    memory_manager,
+    max_age_hours: float = 2.0,
+    min_keep: int = 10,
+) -> int:
+    """Summarize and archive stale messages using the configured model."""
+    mark_compressed = getattr(memory, "mark_messages_compressed", None)
+    update_summary = getattr(memory, "update_compressed_summary", None)
+    if not callable(mark_compressed) or not callable(update_summary):
+        logger.warning(
+            "Time compaction skipped: memory backend %s lacks archive support",
+            memory.__class__.__name__,
+        )
+        return 0
+    stale_messages = _find_stale_session_messages(
+        memory,
+        max_age_hours=max_age_hours,
+        min_keep=min_keep,
+    )
+    if not stale_messages:
+        return 0
+
+    chunks: list[list] = []
+    current_chunk: list = []
+    current_chars = 0
+    for msg in stale_messages:
+        try:
+            to_dict = getattr(msg, "to_dict", None)
+            payload = (
+                to_dict() if callable(to_dict) else getattr(msg, "content", "")
+            )
+            msg_chars = len(
+                json.dumps(payload, ensure_ascii=False, default=str),
+            )
+        except Exception:
+            msg_chars = len(str(getattr(msg, "content", "")))
+        if (
+            current_chunk
+            and current_chars + msg_chars > _TIME_COMPACT_CHUNK_CHARS
+        ):
+            chunks.append(current_chunk)
+            current_chunk = []
+            current_chars = 0
+        current_chunk.append(msg)
+        current_chars += msg_chars
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    get_summary = getattr(memory, "get_compressed_summary", None)
+    previous_summary = get_summary() if callable(get_summary) else ""
+    archived = 0
+    for chunk in chunks:
+        try:
+            compact_content = await memory_manager.compact_memory(
+                messages=chunk,
+                previous_summary=previous_summary or "",
+            )
+        except Exception:
+            logger.warning(
+                "Time-based memory compaction failed",
+                exc_info=True,
+            )
+            break
+        if not compact_content:
+            logger.warning(
+                "Time-based memory compaction returned an empty summary",
+            )
+            break
+        try:
+            chunk_archived = await mark_compressed(chunk)
+            await update_summary(compact_content)
+        except Exception:
+            logger.warning(
+                "Failed to archive time-compacted messages",
+                exc_info=True,
+            )
+            break
+        previous_summary = compact_content
+        archived += int(chunk_archived or 0)
+
+    logger.info(
+        "Archived and compacted %d stale session message(s) older than %.1fh",
+        archived,
+        max_age_hours,
+    )
+    return archived
 
 
 class SafeJSONSession(SessionBase):

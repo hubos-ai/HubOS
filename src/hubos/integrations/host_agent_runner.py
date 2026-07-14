@@ -198,6 +198,29 @@ def build_host_agent_runner(
         user_id = str(ctx.get("user_id") or DEFAULT_USER_ID)
         channel = str(ctx.get("channel") or DEFAULT_CHANNEL)
 
+        # --- Auto-briefing: inject relevant parent context into prompt ---
+        parent_sid = ctx.get("parent_session_id")
+        if parent_sid:
+            try:
+                from ..core.parent_context import auto_briefing
+
+                parent_workspace_dir = str(
+                    ctx.get("parent_workspace_dir")
+                    or ctx.get("workspace_dir")
+                    or WORKING_DIR,
+                )
+                prompt = auto_briefing(
+                    prompt=prompt,
+                    parent_session_id=str(parent_sid),
+                    workspace_dir=parent_workspace_dir,
+                    handoff=ctx.get("handoff"),
+                )
+            except Exception:
+                logger.warning(
+                    "auto_briefing failed, continuing without parent context",
+                    exc_info=True,
+                )
+
         # `query_handler` reads the actual query from `msgs` (agentscope's
         # `Msg`), while `AgentRequest.input` is a pydantic-validated field
         # that expects the runtime-schema `Message` — not agentscope's `Msg`.
@@ -241,6 +264,22 @@ def build_host_agent_runner(
         if ctx.get("parent_session_id"):
             setattr(request, "skip_session_state", True)
             setattr(request, "skip_chat_registration", True)
+            # Pass parent_session_id so the runner can register the
+            # recall_parent_context tool for this sub-agent.
+            setattr(
+                request,
+                "parent_session_id",
+                str(ctx["parent_session_id"]),
+            )
+            setattr(
+                request,
+                "parent_workspace_dir",
+                str(
+                    ctx.get("parent_workspace_dir")
+                    or ctx.get("workspace_dir")
+                    or WORKING_DIR,
+                ),
+            )
 
         # ---- sub-agent write scope (C) + audit trail (B) ------------------
         scope = _derive_subagent_scope(agent_id, ctx)

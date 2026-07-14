@@ -369,6 +369,13 @@ ANTHROPIC_MODELS: List[ModelInfo] = []
 
 GEMINI_MODELS: List[ModelInfo] = [
     ModelInfo(
+        id="gemini-3.5-flash",
+        name="Gemini 3.5 Flash",
+        supports_image=True,
+        supports_video=True,
+        probe_source="documentation",
+    ),
+    ModelInfo(
         id="gemini-3.1-pro-preview",
         name="Gemini 3.1 Pro Preview",
         supports_image=True,
@@ -426,6 +433,7 @@ PROVIDER_MODELSCOPE = OpenAIProvider(
     api_key_prefix="ms",
     models=MODELSCOPE_MODELS,
     freeze_url=True,
+    support_model_discovery=True,
 )
 
 PROVIDER_DASHSCOPE = OpenAIProvider(
@@ -435,6 +443,7 @@ PROVIDER_DASHSCOPE = OpenAIProvider(
     api_key_prefix="sk",
     models=DASHSCOPE_MODELS,
     freeze_url=True,
+    support_model_discovery=True,
 )
 
 PROVIDER_ALIYUN_CODINGPLAN = OpenAIProvider(
@@ -446,6 +455,7 @@ PROVIDER_ALIYUN_CODINGPLAN = OpenAIProvider(
     # This provider doesn't support connection check without model config
     support_connection_check=False,
     freeze_url=True,
+    support_model_discovery=True,
 )
 
 PROVIDER_HUBOS = OpenAIProvider(
@@ -453,6 +463,7 @@ PROVIDER_HUBOS = OpenAIProvider(
     name="HubOS Local",
     is_local=True,
     require_api_key=False,
+    support_model_discovery=True,
 )
 
 PROVIDER_OPENAI = OpenAIProvider(
@@ -462,6 +473,7 @@ PROVIDER_OPENAI = OpenAIProvider(
     api_key_prefix="sk-",
     models=OPENAI_MODELS,
     freeze_url=True,
+    support_model_discovery=True,
 )
 
 PROVIDER_AZURE_OPENAI = OpenAIProvider(
@@ -469,6 +481,7 @@ PROVIDER_AZURE_OPENAI = OpenAIProvider(
     name="Azure OpenAI",
     api_key_prefix="",
     models=AZURE_OPENAI_MODELS,
+    support_model_discovery=True,
 )
 
 PROVIDER_MINIMAX = AnthropicProvider(
@@ -478,6 +491,7 @@ PROVIDER_MINIMAX = AnthropicProvider(
     models=MINIMAX_MODELS,
     chat_model="AnthropicChatModel",
     freeze_url=True,
+    support_model_discovery=True,
 )
 
 PROVIDER_MINIMAX_CN = AnthropicProvider(
@@ -489,6 +503,7 @@ PROVIDER_MINIMAX_CN = AnthropicProvider(
     freeze_url=True,
     # This provider doesn't support connection check without model config
     support_connection_check=False,
+    support_model_discovery=True,
 )
 
 PROVIDER_KIMI_CN = OpenAIProvider(
@@ -498,6 +513,7 @@ PROVIDER_KIMI_CN = OpenAIProvider(
     api_key_prefix="",
     models=KIMI_MODELS,
     freeze_url=True,
+    support_model_discovery=True,
 )
 
 PROVIDER_KIMI_INTL = OpenAIProvider(
@@ -507,6 +523,7 @@ PROVIDER_KIMI_INTL = OpenAIProvider(
     api_key_prefix="",
     models=KIMI_MODELS,
     freeze_url=True,
+    support_model_discovery=True,
 )
 
 PROVIDER_DEEPSEEK = OpenAIProvider(
@@ -516,6 +533,7 @@ PROVIDER_DEEPSEEK = OpenAIProvider(
     api_key_prefix="sk-",
     models=DEEPSEEK_MODELS,
     freeze_url=True,
+    support_model_discovery=True,
 )
 
 PROVIDER_ANTHROPIC = AnthropicProvider(
@@ -526,6 +544,7 @@ PROVIDER_ANTHROPIC = AnthropicProvider(
     models=ANTHROPIC_MODELS,
     chat_model="AnthropicChatModel",
     freeze_url=True,
+    support_model_discovery=True,
 )
 
 PROVIDER_GEMINI = GeminiProvider(

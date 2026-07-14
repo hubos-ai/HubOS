@@ -16,13 +16,12 @@ logger = logging.getLogger(__name__)
 
 
 async def create_mcp_service(ws: "Workspace", mcp):
-    """Schedule background MCP connections and attach manager to runner.
+    """Attach MCP manager to runner and configure lazy MCP connections.
 
-    MCP client connections (npx/uvx subprocesses) are fired as a
-    background asyncio task so Agent workspace initialisation returns
-    immediately.  The runner's ``get_clients()`` transparently awaits
-    the task on the first tool call, so no request ever sees an empty
-    client list while connections are still being established.
+    MCP client connections (npx/uvx subprocesses) are intentionally lazy.
+    Workspace pre-warming should not spawn a full copy of every MCP server for
+    every Feishu user.  The runner's ``get_clients()`` starts and awaits the
+    configured MCP clients on first actual use.
 
     Args:
         ws: Workspace instance
@@ -32,7 +31,7 @@ async def create_mcp_service(ws: "Workspace", mcp):
     if ws._config.mcp:
         mcp.schedule_init_from_config(ws._config.mcp)
         logger.debug(
-            "MCP background init scheduled for agent: %s",
+            "MCP lazy init configured for agent: %s",
             ws.agent_id,
         )
     ws._service_manager.services["runner"].set_mcp_manager(mcp)
@@ -78,6 +77,12 @@ async def create_channel_service(ws: "Workspace", _):
         ChannelManager instance or None if not configured
     """
     # pylint: disable=protected-access
+    runner = ws._service_manager.services["runner"]
+    # Runner commands (/stop, /daemon, etc.) need workspace context even when a
+    # workspace intentionally has no channels, as with Feishu per-user
+    # workspaces that share the default FeishuChannel.
+    runner.set_workspace(ws)
+
     if not ws._config.channels:
         return None
 
@@ -86,7 +91,6 @@ async def create_channel_service(ws: "Workspace", _):
     from ..channels.utils import make_process_from_runner
 
     temp_config = Config(channels=ws._config.channels)
-    runner = ws._service_manager.services["runner"]
 
     def on_last_dispatch(channel, user_id, session_id):
         update_last_dispatch(
@@ -106,9 +110,6 @@ async def create_channel_service(ws: "Workspace", _):
 
     # Inject workspace into ChannelManager and all channels
     cm.set_workspace(ws)
-
-    # Inject workspace into runner for control command handlers
-    runner.set_workspace(ws)
 
     return cm
     # pylint: enable=protected-access

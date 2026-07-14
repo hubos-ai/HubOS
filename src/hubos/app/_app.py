@@ -257,6 +257,21 @@ async def lifespan(
             default_agent.channel_manager,
         )
 
+    # --- Feishu multi-user gateway ---
+    # Replace the default workspace's Feishu channel process handler
+    # with a router that creates/routes to per-user workspaces.
+    app.state.feishu_gateway = None
+    if default_agent.channel_manager:
+        feishu_ch = await default_agent.channel_manager.get_channel("feishu")
+        if feishu_ch and getattr(feishu_ch, "enabled", True):
+            from .feishu_gateway import FeishuGateway
+
+            gateway = FeishuGateway(multi_agent_manager)
+            gateway.install_on(feishu_ch)
+            await gateway.start()
+            app.state.feishu_gateway = gateway
+            logger.info("Feishu multi-user gateway installed")
+
     startup_elapsed = time.time() - startup_start_time
     logger.info(
         "Application startup completed in %.1fs",
@@ -264,15 +279,23 @@ async def lifespan(
     )
 
     try:
-        # Kick off background pre-warming of lazy (on-demand) agents
-        # AFTER yield so the task lives in the running phase, not the
-        # startup phase, and is never cancelled by lifespan teardown.
-        asyncio.create_task(
-            multi_agent_manager.warmup_lazy_agents(),
-            name="agent_warmup",
+        # Kick off non-critical warmups AFTER startup completes.  This keeps
+        # HTTP/Feishu ingress responsive while common agent, skill, knowledge,
+        # experience-card, and lightweight MCP resources warm in the background.
+        from .warmup import WarmupCoordinator
+
+        app.state.warmup_task = asyncio.create_task(
+            WarmupCoordinator(multi_agent_manager).run(),
+            name="hubos_warmup",
         )
         yield
     finally:
+        warmup_task = getattr(app.state, "warmup_task", None)
+        if warmup_task is not None and not warmup_task.done():
+            warmup_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await warmup_task
+
         local_model_mgr = getattr(app.state, "local_model_manager", None)
         if local_model_mgr is not None:
             logger.info("Stopping local model server...")
@@ -298,6 +321,15 @@ async def lifespan(
                 "Failed to clear hubos.core HostAgentRunner",
                 exc_info=True,
             )
+
+        # Stop Feishu gateway before MultiAgentManager
+        feishu_gw = getattr(app.state, "feishu_gateway", None)
+        if feishu_gw is not None:
+            logger.info("Stopping FeishuGateway...")
+            try:
+                await feishu_gw.stop()
+            except Exception as e:
+                logger.error(f"Error stopping FeishuGateway: {e}")
 
         # Stop multi-agent manager (stops all agents and their components)
         multi_agent_mgr = getattr(app.state, "multi_agent_manager", None)
