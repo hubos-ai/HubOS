@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Regression tests for shell-command tool guard precision."""
 from __future__ import annotations
 

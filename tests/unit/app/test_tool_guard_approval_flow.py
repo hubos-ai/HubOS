@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Regression tests for pending tool-approval message handling."""
 from __future__ import annotations
 
@@ -50,17 +51,24 @@ async def test_normal_message_cancels_all_pending_and_continues(
     second = await _create_pending(approval_service)
     runner = AgentRunner.__new__(AgentRunner)
 
-    response, consumed, tool_call, silently_cancelled = (
-        await runner._resolve_pending_approval("session-1", "请继续新任务")
-    )
+    (
+        response,
+        consumed,
+        tool_call,
+        silently_cancelled,
+    ) = await runner._resolve_pending_approval("session-1", "请继续新任务")
 
     assert response is None
     assert consumed is False
     assert tool_call is None
     assert silently_cancelled is True
     assert await approval_service.get_all_pending_by_session("session-1") == []
-    assert (await approval_service.get_request(first.request_id)).status == "denied"
-    assert (await approval_service.get_request(second.request_id)).status == "denied"
+    assert (
+        await approval_service.get_request(first.request_id)
+    ).status == "denied"
+    assert (
+        await approval_service.get_request(second.request_id)
+    ).status == "denied"
 
 
 @pytest.mark.asyncio
@@ -70,9 +78,12 @@ async def test_explicit_deny_returns_denial_message(
     await _create_pending(approval_service)
     runner = AgentRunner.__new__(AgentRunner)
 
-    response, consumed, tool_call, silently_cancelled = (
-        await runner._resolve_pending_approval("session-1", "/deny")
-    )
+    (
+        response,
+        consumed,
+        tool_call,
+        silently_cancelled,
+    ) = await runner._resolve_pending_approval("session-1", "/deny")
 
     assert response is not None
     response_text = "\n".join(
@@ -94,9 +105,12 @@ async def test_explicit_approve_replays_exact_tool_call(
     await _create_pending(approval_service)
     runner = AgentRunner.__new__(AgentRunner)
 
-    response, consumed, tool_call, silently_cancelled = (
-        await runner._resolve_pending_approval("session-1", "/approve")
-    )
+    (
+        response,
+        consumed,
+        tool_call,
+        silently_cancelled,
+    ) = await runner._resolve_pending_approval("session-1", "/approve")
 
     assert response is None
     assert consumed is True
@@ -116,15 +130,20 @@ async def test_expired_approval_does_not_swallow_normal_message(
     pending.created_at -= AgentRunner._APPROVAL_TIMEOUT_SECONDS + 1
     runner = AgentRunner.__new__(AgentRunner)
 
-    response, consumed, tool_call, silently_cancelled = (
-        await runner._resolve_pending_approval("session-1", "查看现在状态")
-    )
+    (
+        response,
+        consumed,
+        tool_call,
+        silently_cancelled,
+    ) = await runner._resolve_pending_approval("session-1", "查看现在状态")
 
     assert response is None
     assert consumed is False
     assert tool_call is None
     assert silently_cancelled is True
-    assert (await approval_service.get_request(pending.request_id)).status == "timeout"
+    assert (
+        await approval_service.get_request(pending.request_id)
+    ).status == "timeout"
 
 
 def test_denial_requires_an_explicit_command() -> None:
