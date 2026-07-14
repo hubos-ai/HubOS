@@ -210,7 +210,10 @@ class FeishuGateway:
         if not self._started:
             return
 
-        if self._channel_ref is not None and self._original_process is not None:
+        if (
+            self._channel_ref is not None
+            and self._original_process is not None
+        ):
             self._channel_ref._process = self._original_process  # type: ignore[attr-defined]  # noqa: E501  # pylint: disable=protected-access
 
         self._original_process = None

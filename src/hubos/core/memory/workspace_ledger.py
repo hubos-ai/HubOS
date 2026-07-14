@@ -22,7 +22,10 @@ _STORE_CACHE_LOCK = threading.Lock()
 _STORE_CACHE_MAX = 256
 
 
-def workspace_memory_root(workspace_dir: str | Path, user_id: str = "") -> Path:
+def workspace_memory_root(
+    workspace_dir: str | Path,
+    user_id: str = "",
+) -> Path:
     """Return a hard-isolated memory root without exposing raw user IDs."""
     tenant = user_id.strip() or "_anonymous"
     tenant_hash = hashlib.sha256(tenant.encode("utf-8")).hexdigest()[:20]
@@ -31,7 +34,10 @@ def workspace_memory_root(workspace_dir: str | Path, user_id: str = "") -> Path:
 
 def ledger_session_key(session_id: str) -> str:
     """Map arbitrary channel session IDs to a portable directory name."""
-    return "session-" + hashlib.sha256(session_id.encode("utf-8")).hexdigest()[:24]
+    return (
+        "session-"
+        + hashlib.sha256(session_id.encode("utf-8")).hexdigest()[:24]
+    )
 
 
 def get_workspace_memory_store(
@@ -55,7 +61,9 @@ def get_workspace_memory_store(
 def _is_internal_marks(marks: Any) -> bool:
     if marks == _INTERNAL_STATUS_MARK:
         return True
-    return isinstance(marks, (list, tuple, set)) and (_INTERNAL_STATUS_MARK in marks)
+    return isinstance(marks, (list, tuple, set)) and (
+        _INTERNAL_STATUS_MARK in marks
+    )
 
 
 def _json_safe(value: Any) -> Any:
@@ -197,7 +205,10 @@ def persist_memory_to_ledger(
                         },
                     )
                     tool_records.append(
-                        (_tool_file_key(message_id, str(call_id)), tool_record),
+                        (
+                            _tool_file_key(message_id, str(call_id)),
+                            tool_record,
+                        ),
                     )
             record["content"] = compacted
         records.append(record)

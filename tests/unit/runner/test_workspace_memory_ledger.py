@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 from agentscope.message import Msg
@@ -57,8 +58,8 @@ def test_workspace_ledger_is_user_isolated_and_idempotent(tmp_path):
                     store.sessions_dir
                     / ledger_session_key("feishu/user/session")
                     / "tools"
-                ).glob("*.json")
-            )
+                ).glob("*.json"),
+            ),
         )
         == 1
     )
@@ -68,4 +69,7 @@ def test_workspace_ledger_is_user_isolated_and_idempotent(tmp_path):
         "user-b",
     )
     other_store = get_workspace_memory_store(tmp_path, "user-b")
-    assert other_store.load_session(ledger_session_key("feishu/user/session")) is None
+    assert (
+        other_store.load_session(ledger_session_key("feishu/user/session"))
+        is None
+    )

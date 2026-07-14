@@ -178,11 +178,7 @@ class WarmupCoordinator:
         for any other agent.
         """
         raw = os.environ.get("HUBOS_WARMUP_MCP_AGENTS", "default,research")
-        wanted = {
-            part.strip()
-            for part in raw.split(",")
-            if part.strip()
-        }
+        wanted = {part.strip() for part in raw.split(",") if part.strip()}
         if not wanted or "*" in wanted:
             selected = list(workspaces)
         else:

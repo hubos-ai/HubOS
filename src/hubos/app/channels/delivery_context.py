@@ -10,7 +10,10 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional
 
 
-SendPartsFunc = Callable[[str, list[Any], Optional[dict[str, Any]]], Awaitable[Any]]
+SendPartsFunc = Callable[
+    [str, list[Any], Optional[dict[str, Any]]],
+    Awaitable[Any],
+]
 
 
 @dataclass

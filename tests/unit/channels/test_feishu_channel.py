@@ -69,10 +69,16 @@ async def test_long_text_reply_is_sent_as_file(tmp_path) -> None:
     channel._send_message = AsyncMock(  # noqa: SLF001
         side_effect=["notice-message-id", "file-message-id"],
     )
-    channel._upload_file = AsyncMock(return_value="file-key-123")  # noqa: SLF001
+    channel._upload_file = AsyncMock(
+        return_value="file-key-123",
+    )  # noqa: SLF001
 
     body = "长回复内容\n" + ("这是完整正文。" * FEISHU_RICH_TEXT_SAFE_BYTES)
-    msg_id = await channel._send_text("open_id", "ou_test", body)  # noqa: SLF001
+    msg_id = await channel._send_text(
+        "open_id",
+        "ou_test",
+        body,
+    )  # noqa: SLF001
 
     assert msg_id == "file-message-id"
     assert channel._upload_file.await_count == 1  # noqa: SLF001
@@ -87,4 +93,6 @@ async def test_long_text_reply_is_sent_as_file(tmp_path) -> None:
 
     uploaded_path = channel._upload_file.await_args.args[0]  # noqa: SLF001
     assert uploaded_path.endswith(".md")
-    assert "长回复内容" in tmp_path.joinpath(uploaded_path.split("/")[-1]).read_text()
+    assert (
+        "长回复内容" in tmp_path.joinpath(uploaded_path.split("/")[-1]).read_text()
+    )

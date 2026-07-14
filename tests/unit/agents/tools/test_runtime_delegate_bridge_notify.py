@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import pytest
 from agentscope_runtime.engine.schemas.agent_schemas import ContentType
 
@@ -44,7 +45,9 @@ async def test_bridge_completion_sends_delivery_notification():
             result="final report",
         )
 
-        await runtime_delegate._notify_bridge_task_completion(task_id)  # pylint: disable=protected-access
+        await runtime_delegate._notify_bridge_task_completion(
+            task_id,
+        )  # pylint: disable=protected-access
     finally:
         reset_current_delivery_context(token)
         with runtime_delegate._bridge_lock:  # pylint: disable=protected-access
@@ -60,7 +63,10 @@ async def test_bridge_completion_sends_delivery_notification():
 
 
 @pytest.mark.asyncio
-async def test_bridge_completion_sends_long_result_as_file(tmp_path, monkeypatch):
+async def test_bridge_completion_sends_long_result_as_file(
+    tmp_path,
+    monkeypatch,
+):
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("HUBOS_BRIDGE_TASK_DIR", str(tmp_path / "bridge_tasks"))
     sent = []
@@ -91,11 +97,16 @@ async def test_bridge_completion_sends_long_result_as_file(tmp_path, monkeypatch
             result=long_result,
         )
 
-        await runtime_delegate._notify_bridge_task_completion(task_id)  # pylint: disable=protected-access
+        await runtime_delegate._notify_bridge_task_completion(
+            task_id,
+        )  # pylint: disable=protected-access
     finally:
         reset_current_delivery_context(token)
         with runtime_delegate._bridge_lock:  # pylint: disable=protected-access
-            runtime_delegate._bridge_tasks.pop(task_id, None)  # pylint: disable=protected-access
+            runtime_delegate._bridge_tasks.pop(
+                task_id,
+                None,
+            )  # pylint: disable=protected-access
 
     assert sent
     parts = sent[0][1]
@@ -166,7 +177,10 @@ def test_bridge_artifact_archive_rejects_owner_mismatch(tmp_path, monkeypatch):
     ).exists()
 
 
-def test_bridge_artifact_archive_rejects_unsafe_workspace_id(tmp_path, monkeypatch):
+def test_bridge_artifact_archive_rejects_unsafe_workspace_id(
+    tmp_path,
+    monkeypatch,
+):
     monkeypatch.setenv("HOME", str(tmp_path))
     staged_dir = tmp_path / "staged"
     staged_dir.mkdir()
@@ -175,7 +189,9 @@ def test_bridge_artifact_archive_rejects_unsafe_workspace_id(tmp_path, monkeypat
     manifest = {
         "task_id": "bridge-path-check",
         "owner_workspace_id": "../evil",
-        "artifacts": [{"path": str(staged_file), "filename": staged_file.name}],
+        "artifacts": [
+            {"path": str(staged_file), "filename": staged_file.name},
+        ],
     }
     ctx = DeliveryContext(
         channel="feishu",
@@ -227,11 +243,16 @@ async def test_bridge_completion_falls_back_when_artifact_archive_fails(
             result="完整报告\n" + ("市场结论非常详细。\n" * 400),
         )
 
-        await runtime_delegate._notify_bridge_task_completion(task_id)  # pylint: disable=protected-access
+        await runtime_delegate._notify_bridge_task_completion(
+            task_id,
+        )  # pylint: disable=protected-access
     finally:
         reset_current_delivery_context(token)
         with runtime_delegate._bridge_lock:  # pylint: disable=protected-access
-            runtime_delegate._bridge_tasks.pop(task_id, None)  # pylint: disable=protected-access
+            runtime_delegate._bridge_tasks.pop(
+                task_id,
+                None,
+            )  # pylint: disable=protected-access
 
     assert sent
     parts = sent[0][1]
@@ -242,7 +263,10 @@ async def test_bridge_completion_falls_back_when_artifact_archive_fails(
 
 
 @pytest.mark.asyncio
-async def test_track_task_recovers_done_bridge_record_from_disk(tmp_path, monkeypatch):
+async def test_track_task_recovers_done_bridge_record_from_disk(
+    tmp_path,
+    monkeypatch,
+):
     monkeypatch.setenv("HUBOS_BRIDGE_TASK_DIR", str(tmp_path / "bridge_tasks"))
     task_id = "bridge-test-persisted"
     runtime_delegate._bridge_task_create(  # pylint: disable=protected-access
@@ -256,7 +280,10 @@ async def test_track_task_recovers_done_bridge_record_from_disk(tmp_path, monkey
         result="persisted final report",
     )
     with runtime_delegate._bridge_lock:  # pylint: disable=protected-access
-        runtime_delegate._bridge_tasks.pop(task_id, None)  # pylint: disable=protected-access
+        runtime_delegate._bridge_tasks.pop(
+            task_id,
+            None,
+        )  # pylint: disable=protected-access
 
     response = await runtime_delegate.track_task(task_id=task_id)
     text = response.content[0]["text"]
@@ -315,7 +342,9 @@ def test_feishu_research_delegate_gets_fast_contract():
             agent_id="sales",
         )
     finally:
-        runtime_delegate._runtime_request_ctx.reset(token)  # pylint: disable=protected-access
+        runtime_delegate._runtime_request_ctx.reset(
+            token,
+        )  # pylint: disable=protected-access
 
     assert "飞书快速调研契约" in prompt
     assert "10 次 `web_search_prime`" in prompt

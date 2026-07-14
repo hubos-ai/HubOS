@@ -14,6 +14,7 @@ from hubos.app.runner.task_tracker import TaskTracker
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 async def _hung_producer(payload):
     """A producer that never yields — simulates a stuck LLM call."""
     await asyncio.sleep(9999)
@@ -49,14 +50,20 @@ async def _drain_queue(queue: asyncio.Queue) -> list:
     return items
 
 
-async def _wait_until_idle(tracker: TaskTracker, run_key: str, timeout: float = 2.0) -> None:
+async def _wait_until_idle(
+    tracker: TaskTracker,
+    run_key: str,
+    timeout: float = 2.0,
+) -> None:
     """Poll until a run_key becomes idle."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if await tracker.get_status(run_key) == "idle":
             return
         await asyncio.sleep(0.05)
-    raise TimeoutError(f"run_key={run_key} did not become idle within {timeout}s")
+    raise TimeoutError(
+        f"run_key={run_key} did not become idle within {timeout}s",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +78,9 @@ async def test_watchdog_cancels_hung_task():
     tracker._MAX_RUN_SECONDS = 0.2
 
     queue, is_new = await tracker.attach_or_start(
-        "test-run", "payload", _hung_producer
+        "test-run",
+        "payload",
+        _hung_producer,
     )
     assert is_new is True
 
@@ -92,7 +101,9 @@ async def test_fast_task_cancels_watchdog():
     tracker._MAX_RUN_SECONDS = 0.1
 
     queue, is_new = await tracker.attach_or_start(
-        "test-run", "payload", _fast_producer
+        "test-run",
+        "payload",
+        _fast_producer,
     )
     assert is_new is True
 
@@ -131,8 +142,9 @@ async def test_get_active_task_info():
     tracker = TaskTracker()
 
     await tracker.attach_or_start(
-        "active-1", "payload",
-        lambda p: _slow_producer(p, delay=0.5)
+        "active-1",
+        "payload",
+        lambda p: _slow_producer(p, delay=0.5),
     )
 
     info = await tracker.get_active_task_info()
@@ -153,12 +165,16 @@ async def test_reconnect_gets_sentinel_on_watchdog():
     tracker._MAX_RUN_SECONDS = 0.3
 
     queue1, is_new = await tracker.attach_or_start(
-        "chat-1", "msg1", _hung_producer
+        "chat-1",
+        "msg1",
+        _hung_producer,
     )
     assert is_new is True
 
     queue2, is_new = await tracker.attach_or_start(
-        "chat-1", "msg2", _hung_producer
+        "chat-1",
+        "msg2",
+        _hung_producer,
     )
     assert is_new is False
 
@@ -179,7 +195,9 @@ async def test_watchdog_does_not_cancel_active_stream():
     tracker._MAX_RUN_SECONDS = 0.2
 
     queue, is_new = await tracker.attach_or_start(
-        "active-stream", "payload", _heartbeat_producer
+        "active-stream",
+        "payload",
+        _heartbeat_producer,
     )
     assert is_new is True
 

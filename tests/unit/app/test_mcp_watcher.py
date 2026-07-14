@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import pytest
 
 from hubos.app.mcp.manager import MCPClientManager
@@ -64,7 +65,9 @@ async def test_mcp_partial_prewarm_does_not_hide_remaining_clients():
     manager.schedule_init_from_config(config)
 
     async def fake_add_client(key, _client_config, timeout=60.0):
-        manager._clients[key] = f"client:{key}:{timeout}"  # pylint: disable=protected-access
+        manager._clients[
+            key
+        ] = f"client:{key}:{timeout}"  # pylint: disable=protected-access
 
     manager._add_client = fake_add_client  # type: ignore[method-assign]  # pylint: disable=protected-access
 
@@ -73,7 +76,9 @@ async def test_mcp_partial_prewarm_does_not_hide_remaining_clients():
         timeout=3.0,
     )
 
-    assert set(manager._clients) == {"zhipu_search"}  # pylint: disable=protected-access
+    assert set(manager._clients) == {
+        "zhipu_search",
+    }  # pylint: disable=protected-access
     assert not manager._fully_initialized  # pylint: disable=protected-access
 
     clients = await manager.get_clients()

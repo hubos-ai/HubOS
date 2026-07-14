@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -188,7 +189,9 @@ async def test_local_time_compaction_does_not_call_a_model():
 
     async def _mark(messages):
         ids = {message.id for message in messages}
-        memory.content = [item for item in memory.content if item[0].id not in ids]
+        memory.content = [
+            item for item in memory.content if item[0].id not in ids
+        ]
         return len(messages)
 
     async def _update(summary):

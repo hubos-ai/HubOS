@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from hubos.agents.dispatcher_policy import should_inject_dispatcher_policy
 
 

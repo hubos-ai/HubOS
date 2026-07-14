@@ -30,7 +30,11 @@ async def test_send_file_to_user_sends_directly_when_delivery_context_present(
     image_path = tmp_path / "image.png"
     image_path.write_bytes(b"\x89PNG\r\n\x1a\nfake")
 
-    async def _send_parts(to_handle: str, parts: list, meta: dict | None) -> None:
+    async def _send_parts(
+        to_handle: str,
+        parts: list,
+        meta: dict | None,
+    ) -> None:
         sent.append((to_handle, parts, dict(meta or {})))
 
     token = set_current_delivery_context(

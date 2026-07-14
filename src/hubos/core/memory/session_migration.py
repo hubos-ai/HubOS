@@ -96,7 +96,10 @@ def _is_internal(item: Any) -> bool:
     marks = _marks_from_item(item)
     if marks == _INTERNAL_STATUS_MARK:
         return True
-    return isinstance(marks, (list, tuple, set)) and _INTERNAL_STATUS_MARK in marks
+    return (
+        isinstance(marks, (list, tuple, set))
+        and _INTERNAL_STATUS_MARK in marks
+    )
 
 
 def _is_protected_system_message(message: Any) -> bool:
@@ -159,7 +162,9 @@ def build_extractive_summary(
     timestamps = [
         parsed
         for parsed in (
-            _parse_timestamp(_message_value(_message_from_item(item), "timestamp"))
+            _parse_timestamp(
+                _message_value(_message_from_item(item), "timestamp"),
+            )
             for item in material
         )
         if parsed is not None
@@ -191,14 +196,18 @@ def build_extractive_summary(
         role = str(
             _message_value(message, "role")
             or _message_value(message, "name")
-            or "message"
+            or "message",
         )
         role_label = {"user": "用户", "assistant": "助手", "system": "系统"}.get(
             role,
             role,
         )
         timestamp = str(_message_value(message, "timestamp", "") or "")[:16]
-        prefix = f"- [{timestamp}] {role_label}: " if timestamp else f"- {role_label}: "
+        prefix = (
+            f"- [{timestamp}] {role_label}: "
+            if timestamp
+            else f"- {role_label}: "
+        )
         entries.append(prefix + text[:_EXCERPT_MAX_CHARS])
 
     excerpt_header = "\n## 最近关键对话摘录\n"
@@ -330,20 +339,36 @@ def compact_tool_payloads_in_state(
             for block in _message_blocks(message):
                 if not isinstance(block, dict):
                     continue
-                call_id = str(block.get("id") or block.get("tool_use_id") or "")
-                if block.get("type") == "tool_use" and call_id in completed_ids:
+                call_id = str(
+                    block.get("id") or block.get("tool_use_id") or "",
+                )
+                if (
+                    block.get("type") == "tool_use"
+                    and call_id in completed_ids
+                ):
                     arguments = block.get("input", {})
                     if not (
                         isinstance(arguments, dict)
                         and arguments.get("_archived_tool_input")
                     ):
-                        serialized = json.dumps(arguments, ensure_ascii=False, default=str)
+                        serialized = json.dumps(
+                            arguments,
+                            ensure_ascii=False,
+                            default=str,
+                        )
                         count += int(len(serialized) > input_threshold)
                 elif block.get("type") == "tool_result":
                     output = block.get("output")
-                    serialized = json.dumps(output, ensure_ascii=False, default=str)
+                    serialized = json.dumps(
+                        output,
+                        ensure_ascii=False,
+                        default=str,
+                    )
                     already_archived = "Tool output archived:" in serialized
-                    count += int(len(serialized) > output_threshold and not already_archived)
+                    count += int(
+                        len(serialized) > output_threshold
+                        and not already_archived,
+                    )
         return count
 
     refs_root = workspace_dir / "refs"
@@ -356,11 +381,17 @@ def compact_tool_payloads_in_state(
     )
     for message in messages:
         for block in _message_blocks(message):
-            if not isinstance(block, dict) or block.get("type") != "tool_result":
+            if (
+                not isinstance(block, dict)
+                or block.get("type") != "tool_result"
+            ):
                 continue
             output = block.get("output")
             serialized = json.dumps(output, ensure_ascii=False, default=str)
-            if len(serialized) <= output_threshold or "Tool output archived:" in serialized:
+            if (
+                len(serialized) <= output_threshold
+                or "Tool output archived:" in serialized
+            ):
                 continue
             call_id = str(block.get("id") or block.get("tool_use_id") or "")
             summary = archive_tool_output(
@@ -381,7 +412,10 @@ def compact_tool_payloads_in_state(
 def _load_chat_identities(workspace_dir: Path) -> dict[str, SessionIdentity]:
     chats_path = workspace_dir / "chats.json"
     try:
-        chats = json.loads(chats_path.read_text(encoding="utf-8")).get("chats", [])
+        chats = json.loads(chats_path.read_text(encoding="utf-8")).get(
+            "chats",
+            [],
+        )
     except (OSError, ValueError, AttributeError):
         chats = []
     identities: dict[str, SessionIdentity] = {}
@@ -399,14 +433,21 @@ def _load_chat_identities(workspace_dir: Path) -> dict[str, SessionIdentity]:
             user_id=user_id,
             session_id=session_id,
             channel=str(chat.get("channel") or "unknown"),
-            agent_id=("default" if workspace_dir.name.startswith("feishu_") else workspace_dir.name),
+            agent_id=(
+                "default"
+                if workspace_dir.name.startswith("feishu_")
+                else workspace_dir.name
+            ),
             title=str(chat.get("name") or ""),
             exact=True,
         )
     return identities
 
 
-def resolve_session_identity(path: Path, workspace_dir: Path) -> SessionIdentity:
+def resolve_session_identity(
+    path: Path,
+    workspace_dir: Path,
+) -> SessionIdentity:
     """Resolve session and user IDs, preferring authoritative chat metadata."""
     exact = _load_chat_identities(workspace_dir).get(path.name)
     if exact is not None:
@@ -445,7 +486,11 @@ def resolve_session_identity(path: Path, workspace_dir: Path) -> SessionIdentity
         user_id=user_id,
         session_id=session_id,
         channel=channel,
-        agent_id=("default" if workspace_name.startswith("feishu_") else workspace_name),
+        agent_id=(
+            "default"
+            if workspace_name.startswith("feishu_")
+            else workspace_name
+        ),
     )
 
 
@@ -475,7 +520,9 @@ def migrate_session_file(
     path = identity.path
     try:
         original_bytes = path.read_bytes()
-        state = json.loads(original_bytes.decode("utf-8", errors="surrogatepass"))
+        state = json.loads(
+            original_bytes.decode("utf-8", errors="surrogatepass"),
+        )
         memory_state = state["agent"]["memory"]
         content = memory_state.get("content", [])
         if not isinstance(content, list):
@@ -513,7 +560,9 @@ def migrate_session_file(
             compacted=compacted,
             tool_payloads_compacted=tool_payloads,
             kept=kept,
-            summary_chars=len(str(preview_state.get("_compressed_summary") or "")),
+            summary_chars=len(
+                str(preview_state.get("_compressed_summary") or ""),
+            ),
         )
 
     appended = persist_memory_to_ledger(
@@ -603,7 +652,9 @@ def migrate_all_sessions(
         results.append(result)
         if not dry_run:
             with manifest_path.open("a", encoding="utf-8") as manifest:
-                manifest.write(json.dumps(asdict(result), ensure_ascii=False) + "\n")
+                manifest.write(
+                    json.dumps(asdict(result), ensure_ascii=False) + "\n",
+                )
     return results
 
 

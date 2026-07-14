@@ -76,9 +76,9 @@ async def test_feishu_workspace_shares_only_whitelisted_knowledge(
     assert (knowledge_dir / "tools.md").exists()
     assert (knowledge_dir / "system.md").exists()
     assert not (knowledge_dir / "business.md").exists()
-    assert "共享规则知识请优先参考" in (
-        feishu_dir / "MEMORY.md"
-    ).read_text(encoding="utf-8")
+    assert "共享规则知识请优先参考" in (feishu_dir / "MEMORY.md").read_text(
+        encoding="utf-8",
+    )
 
 
 @pytest.mark.asyncio

@@ -61,6 +61,9 @@ async def test_compaction_budget_includes_tools_and_output_reserve(
 
     await MemoryCompactionHook(memory_manager)(agent, {})
 
-    assert memory_manager.check_context.await_args.kwargs[
-        "memory_compact_threshold"
-    ] == 62
+    assert (
+        memory_manager.check_context.await_args.kwargs[
+            "memory_compact_threshold"
+        ]
+        == 62
+    )

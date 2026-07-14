@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import json
@@ -175,6 +176,11 @@ def test_migrate_session_archives_raw_history_and_writes_backup(tmp_path):
         min_keep=1,
     )
     assert second.compacted == 0
-    assert len(
-        json.loads(path.read_text(encoding="utf-8"))["agent"]["memory"]["content"],
-    ) == 1
+    assert (
+        len(
+            json.loads(path.read_text(encoding="utf-8"))["agent"]["memory"][
+                "content"
+            ],
+        )
+        == 1
+    )

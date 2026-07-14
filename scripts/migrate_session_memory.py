@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Archive and compact all HubOS JSON sessions outside the request path."""
 
 from __future__ import annotations
